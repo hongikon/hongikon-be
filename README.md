@@ -101,5 +101,4 @@ Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코�
 ## Spring Boot 4.1.0 마이그레이션 관련 메모
 
 - `JwtProperties` Bean 충돌 시 `@Component` 제거 + `@ConfigurationPropertiesScan` 추가로 해결
-- 김영한 강의(3.x) 코드는 최신 문법으로 변환 필요한 부분이 있음
 - Lombok `@Builder` + `@NoArgsConstructor`만 있고 `@AllArgsConstructor`가 없으면 컴파일 에러(`constructor cannot be applied to given types`) 발생 가능 — 엔티티 작성 시 `@AllArgsConstructor(access = AccessLevel.PRIVATE)`를 명시적으로 추가할 것
