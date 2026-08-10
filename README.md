@@ -59,6 +59,8 @@ spring.security.oauth2.client.registration.kakao.redirect-uri=your_redirect_uri
 ./gradlew bootRun
 ```
 
+`spring.jpa.hibernate.ddl-auto=validate`로 설정되어 있어, 엔티티가 DB 테이블 구조와 정확히 일치해야 애플리케이션이 기동됩니다. 새 엔티티 추가 시 DB에 대응하는 테이블/컬럼이 먼저 있어야 합니다.
+
 ## 카카오 OAuth 설정 주의사항
 
 - 카카오 개발자 콘솔에서 **REST API 키** 발급 및 **Redirect URI** 등록 필요
@@ -67,23 +69,37 @@ spring.security.oauth2.client.registration.kakao.redirect-uri=your_redirect_uri
 
 ## 인증 플로우
 
-Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코드 교환 → 딥링크(`hongdaero://`)로 앱 복귀하는 구조로 구현되어 있습니다.
+Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코드 교환 → 딥링크(`hongdaero://`, 추후 `hongikon://`로 변경 예정)로 앱 복귀하는 구조로 구현되어 있습니다.
 
 - 지도·공지 열람은 비로그인 가능 (게스트 접근 허용)
 - 구독·북마크·알림 기능은 로그인 필요
 
+## 도메인 구조
+
+| 패키지 | 엔티티 | 설명 |
+|---|---|---|
+| `user` | User, UserDevice | 유저, 기기(FCM 토큰) |
+| `building` | Building, Place | 건물, 건물 내 시설(화장실·엘리베이터 등) |
+| `report` | Report, ReportFlag | 실시간 제보, 제보 신고 |
+| `notification` | NotificationCategory, KeywordSubscription | 카테고리 구독, 자유 키워드 구독 |
+
+`Building.mapCategory`(지도 필터용: 강의/식당/편의/주차)와 `Place.category`(시설 종류: 화장실/엘리베이터 등)는 값 도메인이 다른 별개 축으로, 컬럼명 분리로 네이밍 충돌을 해결했습니다.
+
 ## 문서
 
 - **API 명세서**: Notion 문서 (팀 내 공유)
-- **ERD**: [ERDCloud](https://erdcloud.com/d/QrgQKkDtpdhXn9mdH)
+- **ERD**: [ERDCloud](https://erdcloud.com/d/QrgQKkDtpdhXn9mdH) — Notion ERD 페이지의 "리뷰 반영본"이 최신 확정 스키마이며, 로컬 DB도 이 기준으로 세팅되어 있습니다.
 - **메뉴트리(FigJam)**: 팀 내 공유
 
 ## 알려진 이슈 / 진행 중인 논의
 
-- 크롤러 아키텍처 방향 미확정: 프론트 레포의 Node 기반 크롤러(정적 파일 저장) vs 백엔드 DB 저장 + API 서빙 방식 간 협의 필요
-- `Building.category`와 `Place.category` 컬럼 네이밍 충돌 확인 필요
+- **크롤러 아키텍처 방향 미확정**: 프론트 레포의 Node 기반 크롤러(정적 파일 저장) vs 백엔드 DB 저장 + API 서빙 방식 간 협의 필요
+- **`partners` / `partner_affiliations` 테이블**: ERD 리뷰본에서 새로 발견됨. 프론트 구현 여부 확인 필요
+- **알림 카테고리 값 확정 필요**: 앱 7종(공지·장학·행사·수강·시설·취업·상담) 기준으로 가정하고 진행 중, 최종 확인 필요
+- **`keyword_subscriptions` 의미 확인 필요**: 자유 키워드 알림으로 해석하여 엔티티 작성함, 원래 의도와 다를 경우 재검토 필요
 
 ## Spring Boot 4.1.0 마이그레이션 관련 메모
 
 - `JwtProperties` Bean 충돌 시 `@Component` 제거 + `@ConfigurationPropertiesScan` 추가로 해결
 - 김영한 강의(3.x) 코드는 최신 문법으로 변환 필요한 부분이 있음
+- Lombok `@Builder` + `@NoArgsConstructor`만 있고 `@AllArgsConstructor`가 없으면 컴파일 에러(`constructor cannot be applied to given types`) 발생 가능 — 엔티티 작성 시 `@AllArgsConstructor(access = AccessLevel.PRIVATE)`를 명시적으로 추가할 것
