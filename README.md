@@ -29,7 +29,7 @@
 - **Auth**: Spring Security, OAuth2 Client (Kakao), JWT (jjwt 0.12.6)
 - **기타**: Lombok
 
-> Spring Boot 3.4.1은 EOL로 Initializr에서 선택 불가하여 4.1.0으로 진행합니다. 김영한 강의(3.x 기준) 코드는 최신 문법으로 변환이 필요할 수 있습니다.
+> Spring Boot 3.4.1은 EOL로 Initializr에서 선택 불가하여 4.1.0으로 진행합니다.
 
 ## 로컬 실행 방법
 
