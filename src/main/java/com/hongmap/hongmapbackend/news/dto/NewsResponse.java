@@ -23,7 +23,7 @@ public record NewsResponse(
                 .content(n.getContent())
                 .category(n.getCategory())
                 .sourceUrl(n.getSourceUrl())
-                .departmentId(n.getDepartmentId())
+                .departmentId(n.getDepartment() != null ? n.getDepartment().getId() : null)
                 .buildingId(n.getBuilding() != null ? n.getBuilding().getId() : null)
                 .publishedAt(n.getPublishedAt())
                 .build();

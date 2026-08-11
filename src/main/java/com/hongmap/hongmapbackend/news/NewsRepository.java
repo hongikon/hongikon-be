@@ -11,7 +11,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     @Query("""
             SELECT n FROM News n
             WHERE (:category IS NULL OR n.category = :category)
-              AND (:departmentId IS NULL OR n.departmentId = :departmentId)
+              AND (:departmentId IS NULL OR n.department.id = :departmentId)
               AND (:buildingId IS NULL OR n.building.id = :buildingId)
             ORDER BY n.publishedAt DESC
             """)

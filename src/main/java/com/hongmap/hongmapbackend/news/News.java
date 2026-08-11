@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.news;
 
 import com.hongmap.hongmapbackend.building.Building;
+import com.hongmap.hongmapbackend.department.Department;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,8 +22,7 @@ import java.time.LocalDateTime;
 
 /**
  * 크롤링 소식. source_url UNIQUE — 크롤러 재실행 시 중복 저장 방지.
- * department_id는 [TODO] Department 도메인 생성 전까지 순수 컬럼(Long)으로만 유지.
- * Department 엔티티 만들 때 @ManyToOne으로 승격 예정 (FK 자체는 DB에 이미 있음).
+ * department_id는 Department 도메인 완성으로 @ManyToOne 관계로 승격됨 (2026-08-11).
  */
 @Entity
 @Table(name = "news")
@@ -49,9 +49,9 @@ public class News {
     @Column(name = "source_url", nullable = false, unique = true, length = 500)
     private String sourceUrl;
 
-    /** [TODO] Department 도메인 생성 시 @ManyToOne으로 승격 */
-    @Column(name = "department_id")
-    private Long departmentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "building_id")

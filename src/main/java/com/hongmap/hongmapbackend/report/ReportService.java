@@ -32,6 +32,14 @@ public class ReportService {
     private static final long REPORT_HIDE_THRESHOLD = 3;
     private static final Duration REPORT_MAX_DURATION = Duration.ofHours(12);
 
+    /** 석훈님 문서 3번 질문 확정값. 값 바뀌면 이 목록만 수정. */
+    private static final List<String> CATEGORIES =
+            List.of("EVENT", "PERFORMANCE", "FOOD_TRUCK", "BOOTH", "ETC");
+
+    /** 석훈님 문서 4.4절 예시값. */
+    private static final List<String> FLAG_REASONS =
+            List.of("FALSE_INFO", "SPAM", "INAPPROPRIATE", "ETC");
+
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final UserRepository userRepository;
@@ -39,6 +47,9 @@ public class ReportService {
 
     @Transactional
     public ReportResponse create(Long userId, ReportCreateRequest request) {
+        if (!CATEGORIES.contains(request.category())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리입니다: " + request.category());
+        }
         if (!request.endsAt().isAfter(request.startsAt())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "endsAt은 startsAt보다 이후여야 합니다.");
         }
@@ -96,6 +107,10 @@ public class ReportService {
 
     @Transactional
     public ReportFlagResponse flag(Long userId, Long reportId, ReportFlagRequest request) {
+        if (!FLAG_REASONS.contains(request.reason())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 신고 사유입니다: " + request.reason());
+        }
+
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 제보입니다."));
 
@@ -115,8 +130,6 @@ public class ReportService {
 
         long flagCount = reportFlagRepository.countByReportId(reportId);
         if (flagCount >= REPORT_HIDE_THRESHOLD && "ACTIVE".equals(report.getStatus())) {
-            // Report는 @Setter가 없으므로(불변 지향) 상태 변경은 별도 update 메서드나
-            // JPQL bulk update로 처리 필요. 우선 리포지토리 레벨에서 처리하도록 TODO.
             reportRepository.updateStatus(reportId, "HIDDEN");
         }
 
