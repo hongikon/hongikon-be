@@ -30,6 +30,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange").permitAll()
                         .requestMatchers(HttpMethod.GET, "/reports").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/buildings", "/buildings/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
