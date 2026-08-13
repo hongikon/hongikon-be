@@ -35,6 +35,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/departments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/routes/search").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
