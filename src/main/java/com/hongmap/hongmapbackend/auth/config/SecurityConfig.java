@@ -28,7 +28,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange", "/auth/test-token").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/reports").permitAll()
                         .requestMatchers(HttpMethod.GET, "/buildings", "/buildings/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll()

@@ -30,13 +30,19 @@ public class RouteNode {
     @Column(name = "building_id")
     private Long buildingId;
 
+    // 같은 건물+층 내에서 접속점(계단/엘리베이터/출입구 등)을 구분하기 위한 식별자.
+    // 건물 도면 상의 지점 번호를 그대로 사용하므로 자유 형식 varchar로 둔다.
+    @Column(name = "point_no", length = 20)
+    private String pointNo;
+
     @Builder
     public RouteNode(BigDecimal latitude, BigDecimal longitude, int floor,
-                      String nodeType, Long buildingId) {
+                      String nodeType, Long buildingId, String pointNo) {
         this.latitude = latitude;
         this.longitude = longitude;
         this.floor = floor;
         this.nodeType = nodeType;
         this.buildingId = buildingId;
+        this.pointNo = pointNo;
     }
 }

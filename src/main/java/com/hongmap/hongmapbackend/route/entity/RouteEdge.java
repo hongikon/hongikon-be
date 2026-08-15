@@ -36,6 +36,9 @@ public class RouteEdge {
     @Builder
     public RouteEdge(Long fromNodeId, Long toNodeId, BigDecimal distanceM,
                       boolean hasRoof, boolean isBarrierFree, String edgeType) {
+        if (!RouteEdgeType.isValid(edgeType)) {
+            throw new IllegalArgumentException("정의되지 않은 edgeType입니다. edgeType=" + edgeType);
+        }
         this.fromNodeId = fromNodeId;
         this.toNodeId = toNodeId;
         this.distanceM = distanceM;

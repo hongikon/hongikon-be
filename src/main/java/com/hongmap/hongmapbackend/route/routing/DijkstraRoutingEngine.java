@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.route.routing;
 
+import com.hongmap.hongmapbackend.route.entity.RouteEdgeType;
 import com.hongmap.hongmapbackend.route.graph.RouteEdgeView;
 import com.hongmap.hongmapbackend.route.graph.RouteGraph;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,11 @@ import java.util.Set;
 public class DijkstraRoutingEngine {
 
     public Optional<PathResult> findShortestPath(RouteGraph graph, Long startNodeId, Long endNodeId) {
+        return findShortestPath(graph, startNodeId, endNodeId, true);
+    }
+
+    // useElevator=false인 경우 ELEVATOR 타입 엣지를 탐색 대상에서 제외한다.
+    public Optional<PathResult> findShortestPath(RouteGraph graph, Long startNodeId, Long endNodeId, boolean useElevator) {
         if (startNodeId.equals(endNodeId)) {
             return Optional.of(new PathResult(List.of(startNodeId), List.of(), BigDecimal.ZERO));
         }
@@ -48,6 +54,10 @@ public class DijkstraRoutingEngine {
             }
 
             for (RouteEdgeView edge : graph.neighbors(currentId)) {
+                if (!useElevator && RouteEdgeType.ELEVATOR.name().equals(edge.edgeType())) {
+                    continue;
+                }
+
                 Long neighborId = edge.neighborNodeId();
                 if (visited.contains(neighborId)) {
                     continue;

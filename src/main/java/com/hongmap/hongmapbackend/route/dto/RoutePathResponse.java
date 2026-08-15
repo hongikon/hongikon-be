@@ -5,12 +5,16 @@ import java.util.List;
 
 public record RoutePathResponse(
         BigDecimal totalDistanceM,
+        long estimatedTimeSeconds,
         List<RouteNodeResponse> nodes,
-        List<RouteEdgeSegmentResponse> edges
+        List<RouteEdgeSegmentResponse> edges,
+        List<RouteSimplifiedStepResponse> simplifiedSteps
 ) {
     public static RoutePathResponse of(BigDecimal totalDistanceM,
+                                        long estimatedTimeSeconds,
                                         List<RouteNodeResponse> nodes,
-                                        List<RouteEdgeSegmentResponse> edges) {
-        return new RoutePathResponse(totalDistanceM, nodes, edges);
+                                        List<RouteEdgeSegmentResponse> edges,
+                                        List<RouteSimplifiedStepResponse> simplifiedSteps) {
+        return new RoutePathResponse(totalDistanceM, estimatedTimeSeconds, nodes, edges, simplifiedSteps);
     }
 }

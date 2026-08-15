@@ -10,7 +10,8 @@ public record RouteNodeResponse(
         BigDecimal longitude,
         int floor,
         String nodeType,
-        Long buildingId
+        Long buildingId,
+        String pointNo
 ) {
     public static RouteNodeResponse from(RouteNode node) {
         return new RouteNodeResponse(
@@ -19,7 +20,8 @@ public record RouteNodeResponse(
                 node.getLongitude(),
                 node.getFloor(),
                 node.getNodeType(),
-                node.getBuildingId()
+                node.getBuildingId(),
+                node.getPointNo()
         );
     }
 }

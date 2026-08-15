@@ -4,11 +4,14 @@ import com.hongmap.hongmapbackend.route.dto.RouteEdgeSegmentResponse;
 import com.hongmap.hongmapbackend.route.dto.RouteNodeResponse;
 import com.hongmap.hongmapbackend.route.dto.RoutePathResponse;
 import com.hongmap.hongmapbackend.route.dto.RouteSearchRequest;
+import com.hongmap.hongmapbackend.route.dto.RouteSimplifiedStepResponse;
 import com.hongmap.hongmapbackend.route.entity.RouteNode;
 import com.hongmap.hongmapbackend.route.graph.RouteEdgeView;
 import com.hongmap.hongmapbackend.route.graph.RouteGraph;
 import com.hongmap.hongmapbackend.route.graph.RouteGraphLoader;
 import com.hongmap.hongmapbackend.route.routing.DijkstraRoutingEngine;
+import com.hongmap.hongmapbackend.route.routing.RoutePathSimplifier;
+import com.hongmap.hongmapbackend.route.routing.RouteTimeEstimator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,8 @@ public class RouteService {
 
     private final RouteGraphLoader routeGraphLoader;
     private final DijkstraRoutingEngine dijkstraRoutingEngine;
+    private final RouteTimeEstimator routeTimeEstimator;
+    private final RoutePathSimplifier routePathSimplifier;
 
     public RoutePathResponse findShortestPath(RouteSearchRequest request) {
         RouteGraph graph = routeGraphLoader.getGraph();
@@ -31,11 +36,11 @@ public class RouteService {
         RouteNode endNode = getNodeOrThrow(graph, request.endNodeId());
 
         DijkstraRoutingEngine.PathResult result = dijkstraRoutingEngine
-                .findShortestPath(graph, startNode.getId(), endNode.getId())
+                .findShortestPath(graph, startNode.getId(), endNode.getId(), request.useElevatorOrDefault())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "두 지점을 연결하는 경로를 찾을 수 없습니다."));
 
-        return toResponse(graph, result);
+        return toResponse(graph, result, request.simplifiedOrDefault());
     }
 
     private RouteNode getNodeOrThrow(RouteGraph graph, Long nodeId) {
@@ -47,7 +52,7 @@ public class RouteService {
 
     }
 
-    private RoutePathResponse toResponse(RouteGraph graph, DijkstraRoutingEngine.PathResult result) {
+    private RoutePathResponse toResponse(RouteGraph graph, DijkstraRoutingEngine.PathResult result, boolean simplified) {
         List<Long> nodeIds = result.nodeIds();
 
         List<RouteNodeResponse> nodeResponses = nodeIds.stream()
@@ -61,6 +66,10 @@ public class RouteService {
             edgeResponses.add(RouteEdgeSegmentResponse.of(edges.get(i), nodeIds.get(i), nodeIds.get(i + 1)));
         }
 
-        return RoutePathResponse.of(result.totalDistanceM(), nodeResponses, edgeResponses);
+        long estimatedTimeSeconds = routeTimeEstimator.estimateSeconds(result.totalDistanceM(), edges);
+        List<RouteSimplifiedStepResponse> simplifiedSteps =
+                simplified ? routePathSimplifier.simplify(nodeIds, edges) : null;
+
+        return RoutePathResponse.of(result.totalDistanceM(), estimatedTimeSeconds, nodeResponses, edgeResponses, simplifiedSteps);
     }
 }
