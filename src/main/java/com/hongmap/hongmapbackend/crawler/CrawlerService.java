@@ -30,18 +30,20 @@ public class CrawlerService {
     private final NewsCrawlStorageService storageService;
     private final CrawlerProperties properties;
 
-    /** 게시판 하나가 실패해도 나머지 게시판 수집은 계속한다. */
-    public void crawlAll() {
+    /** 게시판 하나가 실패해도 나머지 게시판 수집은 계속한다. 반환값은 전체 게시판에서 신규 저장된 건수 합계. */
+    public int crawlAll() {
+        int totalSaved = 0;
         for (BoardConfig board : CrawlerBoards.ALL) {
             try {
-                crawlBoard(board);
+                totalSaved += crawlBoard(board);
             } catch (Exception e) {
                 log.warn("게시판 크롤링 실패: {} ({})", board.source(), board.listUrl(), e);
             }
         }
+        return totalSaved;
     }
 
-    private void crawlBoard(BoardConfig board) {
+    private int crawlBoard(BoardConfig board) {
         BoardParser parser = parserRegistry.resolve(board.parser());
         int saved = 0;
 
@@ -78,6 +80,7 @@ public class CrawlerService {
         }
 
         log.info("게시판 크롤링 완료: {} — 신규 {}건", board.source(), saved);
+        return saved;
     }
 
     private boolean isExcluded(BoardConfig board, ArticleSummary summary) {

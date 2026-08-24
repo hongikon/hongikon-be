@@ -1,7 +1,10 @@
 package com.hongmap.hongmapbackend.common.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +20,17 @@ public class SwaggerConfig {
     public static final String TAG_NEWS_NOTIFICATION = "📰 공지사항/알림";
     public static final String TAG_AUTH_MYPAGE = "👤 인증/내정보";
     public static final String TAG_PARTNER_ETC = "🏪 제휴업체/기타";
+    public static final String TAG_ADMIN = "🔧 관리";
+
+    private static final String BEARER_AUTH_SCHEME = "bearerAuth";
 
     @Bean
     public OpenAPI openAPI() {
+        SecurityScheme bearerScheme = new SecurityScheme()
+                .type(SecurityScheme.Type.HTTP)
+                .scheme("bearer")
+                .bearerFormat("JWT");
+
         return new OpenAPI()
                 .info(new Info()
                         .title("홍익온 API 문서")
@@ -29,7 +40,10 @@ public class SwaggerConfig {
                         new Tag().name(TAG_MAP_NAVIGATION).description("건물, 시설, 경로 탐색, 실시간 제보 관련 API"),
                         new Tag().name(TAG_NEWS_NOTIFICATION).description("학교 소식, 북마크, 키워드 구독, 알림 카테고리 관련 API"),
                         new Tag().name(TAG_AUTH_MYPAGE).description("로그인/인증, 기기 등록, 내 학과 정보 등 내 정보 관리 관련 API"),
-                        new Tag().name(TAG_PARTNER_ETC).description("제휴업체 정보, 전체 학과 목록 등 기타 API")
-                ));
+                        new Tag().name(TAG_PARTNER_ETC).description("제휴업체 정보, 전체 학과 목록 등 기타 API"),
+                        new Tag().name(TAG_ADMIN).description("크롤링 수동 실행 등 운영/관리용 API")
+                ))
+                .components(new Components().addSecuritySchemes(BEARER_AUTH_SCHEME, bearerScheme))
+                .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH_SCHEME));
     }
 }

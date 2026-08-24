@@ -10,7 +10,7 @@ import java.util.List;
  * hongmap(프론트) scripts/crawler/parsers.mjs의 {@code { buildListUrl, parseList, parseView }} 세 함수 묶음과 대응된다.
  *
  * 사이트별 실제 셀렉터 구현은 각 구현체에 있다 — HongikBoardParser가 기본(.do 게시판, 대부분의 게시판이 이 CMS)이고,
- * ArchBoardParser/ImwebBoardParser는 인터페이스만 채워져 있고 실제 파싱은 TODO 상태다.
+ * ArchBoardParser(arch.hongik.ac.kr PHP CMS)/ImwebBoardParser(Imweb)도 실제 마크업을 확인해 구현을 채워뒀다.
  */
 public interface BoardParser {
 

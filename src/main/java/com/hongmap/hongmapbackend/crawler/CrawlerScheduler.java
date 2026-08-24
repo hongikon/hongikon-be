@@ -21,7 +21,7 @@ public class CrawlerScheduler {
     @Scheduled(cron = "${crawler.schedule.cron:0 0 * * * *}")
     public void runScheduledCrawl() {
         log.info("정기 크롤링 시작");
-        crawlerService.crawlAll();
-        log.info("정기 크롤링 종료");
+        int savedCount = crawlerService.crawlAll();
+        log.info("정기 크롤링 종료 — 신규 {}건", savedCount);
     }
 }

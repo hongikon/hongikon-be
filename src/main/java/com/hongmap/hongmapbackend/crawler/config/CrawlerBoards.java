@@ -6,10 +6,6 @@ import java.util.stream.Stream;
 
 /**
  * 크롤링 대상 게시판 목록. hongmap(프론트) scripts/crawler/config.mjs 를 그대로 포팅했다.
- *
- * parser=ARCH/IMWEB인 게시판은 실제 파싱 로직(ArchBoardParser/ImwebBoardParser)이 아직 TODO라
- * 지금 이 목록으로 바로 크롤링을 돌리면 해당 게시판은 로그만 남기고 스킵된다 — 그래도 목록 자체는
- * 프론트 크롤러와 어긋나지 않게 미리 맞춰뒀다.
  */
 public final class CrawlerBoards {
 
