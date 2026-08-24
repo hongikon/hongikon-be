@@ -1,13 +1,10 @@
 package com.hongmap.hongmapbackend.route.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public record RouteSearchRequest(
-        @NotBlank String startBuildingName,
-        @NotNull Integer startFloor,
-        @NotBlank String endBuildingName,
-        @NotNull Integer endFloor,
+        @NotBlank String startBuildingCode,
+        @NotBlank String endBuildingCode,
         Boolean useElevator,
         Boolean simplified
 ) {

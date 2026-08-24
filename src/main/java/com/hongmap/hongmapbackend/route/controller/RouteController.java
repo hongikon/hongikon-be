@@ -22,7 +22,7 @@ public class RouteController {
     private final RouteService routeService;
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
-    @Operation(summary = "경로 탐색", description = "출발 건물/층과 도착 건물/층을 기준으로 캠퍼스 내 최단 경로를 탐색합니다.")
+    @Operation(summary = "경로 탐색", description = "출발/도착 접속점의 코드(건물+층 슬러그, 예: hongik_k_floor_1)를 기준으로 캠퍼스 내 최단 경로를 탐색합니다.")
     @PostMapping("/search")
     public ResponseEntity<RoutePathResponse> search(@Valid @RequestBody RouteSearchRequest request) {
         return ResponseEntity.ok(routeService.findShortestPath(request));

@@ -38,6 +38,10 @@ public class Building {
     @Column(name = "name", nullable = false, length = 100, unique = true)
     private String name;
 
+    /** 건물 슬러그. 예: hongik_k. 데이터 입력 시점에 프론트/입력 규칙에 따라 채워짐 */
+    @Column(name = "code", length = 100, unique = true)
+    private String code;
+
     @Column(name = "latitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude;
 

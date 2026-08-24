@@ -1,7 +1,5 @@
 package com.hongmap.hongmapbackend.route.service;
 
-import com.hongmap.hongmapbackend.building.Building;
-import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.route.dto.RouteEdgeSegmentResponse;
 import com.hongmap.hongmapbackend.route.dto.RouteNodeResponse;
 import com.hongmap.hongmapbackend.route.dto.RoutePathResponse;
@@ -31,14 +29,13 @@ public class RouteService {
     private final DijkstraRoutingEngine dijkstraRoutingEngine;
     private final RouteTimeEstimator routeTimeEstimator;
     private final RoutePathSimplifier routePathSimplifier;
-    private final BuildingRepository buildingRepository;
     private final RouteNodeRepository routeNodeRepository;
 
     public RoutePathResponse findShortestPath(RouteSearchRequest request) {
         RouteGraph graph = routeGraphLoader.getGraph();
 
-        Long startNodeId = resolveNodeId(request.startBuildingName(), request.startFloor());
-        Long endNodeId = resolveNodeId(request.endBuildingName(), request.endFloor());
+        Long startNodeId = resolveNodeId(request.startBuildingCode());
+        Long endNodeId = resolveNodeId(request.endBuildingCode());
 
         RouteNode startNode = getNodeOrThrow(graph, startNodeId);
         RouteNode endNode = getNodeOrThrow(graph, endNodeId);
@@ -51,17 +48,11 @@ public class RouteService {
         return toResponse(graph, result, request.simplifiedOrDefault());
     }
 
-    // 건물명+층을 해당 건물+층의 대표 접속점(RouteNode) id로 변환한다.
-    // 같은 건물+층에 접속점이 여러 개면 point_no 오름차순 기준 첫 번째 노드를 사용한다.
-    private Long resolveNodeId(String buildingName, int floor) {
-        Building building = buildingRepository.findByName(buildingName)
+    // 건물+층 슬러그(code)를 해당 접속점(RouteNode) id로 변환한다.
+    private Long resolveNodeId(String code) {
+        RouteNode node = routeNodeRepository.findByCode(code)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "건물 '" + buildingName + "'를 찾을 수 없습니다"));
-
-        RouteNode node = routeNodeRepository
-                .findFirstByBuildingIdAndFloorOrderByPointNoAsc(building.getId(), floor)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "건물 '" + buildingName + "'의 " + floor + "층에 접속점이 없습니다"));
+                        HttpStatus.NOT_FOUND, "코드 '" + code + "'에 해당하는 접속점을 찾을 수 없습니다"));
 
         return node.getId();
     }

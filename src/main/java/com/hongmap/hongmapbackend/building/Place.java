@@ -47,6 +47,10 @@ public class Place {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    /** 시설 슬러그. 예: hongik_k_studyroom. 데이터 입력 시점에 프론트/입력 규칙에 따라 채워짐 */
+    @Column(name = "code", length = 100, unique = true)
+    private String code;
+
     @Column(name = "floor", nullable = false)
     private Integer floor;
 

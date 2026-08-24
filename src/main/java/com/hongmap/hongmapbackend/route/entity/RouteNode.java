@@ -35,14 +35,19 @@ public class RouteNode {
     @Column(name = "point_no", length = 20)
     private String pointNo;
 
+    /** 건물+층 슬러그. 예: hongik_k_floor_1. 경로 탐색 API에서 접속점을 직접 지목할 때 사용 */
+    @Column(name = "code", length = 100, unique = true)
+    private String code;
+
     @Builder
     public RouteNode(BigDecimal latitude, BigDecimal longitude, int floor,
-                      String nodeType, Long buildingId, String pointNo) {
+                      String nodeType, Long buildingId, String pointNo, String code) {
         this.latitude = latitude;
         this.longitude = longitude;
         this.floor = floor;
         this.nodeType = nodeType;
         this.buildingId = buildingId;
         this.pointNo = pointNo;
+        this.code = code;
     }
 }
