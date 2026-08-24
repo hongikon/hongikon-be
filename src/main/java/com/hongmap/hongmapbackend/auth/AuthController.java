@@ -4,9 +4,12 @@ import com.hongmap.hongmapbackend.auth.dto.TokenExchangeRequest;
 import com.hongmap.hongmapbackend.auth.dto.TokenResponse;
 import com.hongmap.hongmapbackend.auth.exchange.AuthorizationCodeStore;
 import com.hongmap.hongmapbackend.auth.jwt.JwtTokenProvider;
+import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
 import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,8 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "토큰 교환", description = "OAuth 로그인 성공 후 발급된 일회성 code를 access/refresh 토큰으로 교환합니다.")
     @PostMapping("/token/exchange")
     public TokenResponse exchange(@Valid @RequestBody TokenExchangeRequest request) {
         Long userId = authorizationCodeStore.consume(request.code())
@@ -44,6 +49,8 @@ public class AuthController {
 
     // TODO(배포 전 필수 제거): 프론트 개발/Swagger 테스트 편의를 위해 OAuth 로그인 없이
     // 고정 테스트 계정의 JWT를 즉시 발급하는 엔드포인트. 인증 우회 수단이므로 운영 배포 전 반드시 삭제할 것.
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "테스트 토큰 발급", description = "OAuth 로그인 없이 고정 테스트 계정의 JWT를 즉시 발급합니다. (개발/테스트 전용)")
     @PostMapping("/test-token")
     public TokenResponse issueTestToken() {
         User testUser = userRepository.findBySocialTypeAndSocialId(SocialType.KAKAO, TEST_ACCOUNT_SOCIAL_ID)
