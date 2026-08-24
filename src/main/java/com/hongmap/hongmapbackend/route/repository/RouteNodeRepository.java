@@ -11,4 +11,6 @@ public interface RouteNodeRepository extends JpaRepository<RouteNode, Long> {
     List<RouteNode> findByBuildingId(Long buildingId);
 
     Optional<RouteNode> findByBuildingIdAndFloorAndPointNo(Long buildingId, int floor, String pointNo);
+
+    Optional<RouteNode> findFirstByBuildingIdAndFloorOrderByPointNoAsc(Long buildingId, int floor);
 }
