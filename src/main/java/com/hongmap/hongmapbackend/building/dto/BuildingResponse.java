@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public record BuildingResponse(
         Long id,
         String name,
+        String code,
         BigDecimal latitude,
         BigDecimal longitude,
         String color,
@@ -28,6 +29,7 @@ public record BuildingResponse(
         return BuildingResponse.builder()
                 .id(b.getId())
                 .name(b.getName())
+                .code(b.getCode())
                 .latitude(b.getLatitude())
                 .longitude(b.getLongitude())
                 .color(b.getColor())
