@@ -9,4 +9,6 @@ public interface KeywordSubscriptionRepository extends JpaRepository<KeywordSubs
     List<KeywordSubscription> findByUser_Id(Long userId);
 
     boolean existsByUser_IdAndKeyword(Long userId, String keyword);
+
+    void deleteByUser_Id(Long userId);
 }

@@ -19,4 +19,6 @@ public interface UserDepartmentRepository extends JpaRepository<UserDepartment, 
     @Modifying
     @Query("UPDATE UserDepartment ud SET ud.isPrimary = false WHERE ud.user.id = :userId")
     void clearPrimaryForUser(@Param("userId") Long userId);
+
+    void deleteByUser_Id(Long userId);
 }

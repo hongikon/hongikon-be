@@ -69,7 +69,7 @@ spring.security.oauth2.client.registration.kakao.redirect-uri=your_redirect_uri
 
 ## 인증 플로우
 
-Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코드 교환 → 딥링크(`hongdaero://`, 추후 `hongikon://`로 변경 예정)로 앱 복귀하는 구조로 구현되어 있습니다.
+Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코드 교환 → 딥링크(`hongikon://`)로 앱 복귀하는 구조로 구현되어 있습니다.
 
 - 지도·공지 열람은 비로그인 가능 (게스트 접근 허용)
 - 구독·북마크·알림 기능은 로그인 필요

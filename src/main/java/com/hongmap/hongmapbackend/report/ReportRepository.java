@@ -29,4 +29,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Modifying
     @Query("UPDATE Report r SET r.status = :status WHERE r.id = :id")
     void updateStatus(@Param("id") Long id, @Param("status") String status);
+
+    void deleteByUser_Id(Long userId);
 }

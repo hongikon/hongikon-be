@@ -1,18 +1,23 @@
 package com.hongmap.hongmapbackend.auth;
 
+import com.hongmap.hongmapbackend.auth.dto.RefreshTokenRequest;
 import com.hongmap.hongmapbackend.auth.dto.TokenExchangeRequest;
 import com.hongmap.hongmapbackend.auth.dto.TokenResponse;
 import com.hongmap.hongmapbackend.auth.exchange.AuthorizationCodeStore;
-import com.hongmap.hongmapbackend.auth.jwt.JwtTokenProvider;
+import com.hongmap.hongmapbackend.auth.token.RefreshTokenService;
 import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
 import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
+import com.hongmap.hongmapbackend.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,7 +34,8 @@ public class AuthController {
 
     private final AuthorizationCodeStore authorizationCodeStore;
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final UserService userService;
+    private final RefreshTokenService refreshTokenService;
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
     @Operation(summary = "토큰 교환", description = "OAuth 로그인 성공 후 발급된 일회성 code를 access/refresh 토큰으로 교환합니다.")
@@ -38,13 +44,30 @@ public class AuthController {
         Long userId = authorizationCodeStore.consume(request.code())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 code입니다."));
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+        return refreshTokenService.issueTokenPair(userId);
+    }
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getId());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "토큰 재발급", description = "refresh 토큰을 검증한 뒤 새 access/refresh 토큰을 발급합니다(refresh 토큰은 재발급마다 로테이션됩니다).")
+    @PostMapping("/reissue")
+    public TokenResponse reissue(@Valid @RequestBody RefreshTokenRequest request) {
+        return refreshTokenService.reissue(request.refreshToken());
+    }
 
-        return new TokenResponse(accessToken, refreshToken);
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "로그아웃", description = "전달받은 refresh 토큰을 서버에서 무효화합니다. 이미 만료/무효한 토큰이어도 성공으로 응답합니다.")
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
+        return ResponseEntity.noContent().build();
+    }
+
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "회원탈퇴", description = "Authorization 헤더의 access 토큰으로 식별된 본인 계정과 연관 데이터를 모두 삭제합니다.")
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw(@AuthenticationPrincipal Long userId) {
+        userService.withdraw(userId);
+        return ResponseEntity.noContent().build();
     }
 
     // TODO(배포 전 필수 제거): 프론트 개발/Swagger 테스트 편의를 위해 OAuth 로그인 없이
@@ -61,9 +84,6 @@ public class AuthController {
                         .nickname("테스트계정")
                         .build()));
 
-        String accessToken = jwtTokenProvider.generateAccessToken(testUser.getId());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(testUser.getId());
-
-        return new TokenResponse(accessToken, refreshToken);
+        return refreshTokenService.issueTokenPair(testUser.getId());
     }
 }
