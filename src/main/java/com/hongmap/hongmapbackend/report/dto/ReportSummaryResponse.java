@@ -17,6 +17,7 @@ public record ReportSummaryResponse(
         BigDecimal lat,
         BigDecimal lng,
         String category,
+        String customCategoryLabel,
         String title,
         String authorNickname,
         boolean isMine,
@@ -31,7 +32,8 @@ public record ReportSummaryResponse(
                 .floor(report.getFloor())
                 .lat(report.getLat())
                 .lng(report.getLng())
-                .category(report.getCategory())
+                .category(report.getCategory().name())
+                .customCategoryLabel(report.getCustomCategoryLabel())
                 .title(report.getTitle())
                 .authorNickname(report.getUser().getNickname())
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))

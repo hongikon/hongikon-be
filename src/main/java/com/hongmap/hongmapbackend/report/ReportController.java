@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 석훈님 "실시간 제보 기능 — API 스펙" 확정본(2026-08-10) 기준.
- * GET /reports?live=true 는 SecurityConfig의 permitAll()에 등록 필요.
+ * 로그인 유저가 지도의 특정 지점(건물+층)에 시간 한정 이벤트 정보를 올리는 실시간 제보 기능.
+ * GET /reports는 게스트도 조회 가능, 그 외(등록/삭제/신고)는 로그인 필수.
  */
 @RestController
 @RequiredArgsConstructor

@@ -4,6 +4,8 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -23,10 +25,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 실시간 제보. 지도의 한 지점(건물·층 포함 가능)에 "지금 진행 중인 일"을 알리는 시간 한정 정보.
+ * 실시간 제보. 로그인 유저가 지도의 특정 지점(건물+층)에 올리는 시간 한정 이벤트 정보.
  * ends_at이 지나면 지도에서 자동으로 빠짐 (조회 시 status/ends_at 조건으로 필터링).
  *
- * DB: reports (석훈님 제보 기능 API 스펙 제안, 2026-08-10)
+ * DB: reports
  */
 @Entity
 @Table(name = "reports")
@@ -45,13 +47,13 @@ public class Report {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** 건물 밖 제보는 NULL. ON DELETE SET NULL */
+    /** 이벤트 정보가 위치한 건물. 층 단위 정보이므로 필수 */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "building_id")
+    @JoinColumn(name = "building_id", nullable = false)
     private Building building;
 
-    /** 층 정보 없으면 NULL */
-    @Column(name = "floor")
+    /** 건물 내 층. 층 단위가 이 기능의 핵심 정보라 필수 */
+    @Column(name = "floor", nullable = false)
     private Integer floor;
 
     @Column(name = "lat", nullable = false, precision = 10, scale = 7)
@@ -60,9 +62,13 @@ public class Report {
     @Column(name = "lng", nullable = false, precision = 10, scale = 7)
     private BigDecimal lng;
 
-    /** EVENT / PERFORMANCE / FOOD_TRUCK / BOOTH / ETC (석훈님 문서 질문 3 기준 가안) */
+    @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 30)
-    private String category;
+    private ReportCategory category;
+
+    /** category가 ETC일 때만 사용하는 자유 텍스트 세분화 라벨 */
+    @Column(name = "custom_category_label", length = 50)
+    private String customCategoryLabel;
 
     @Column(name = "title", nullable = false, length = 100)
     private String title;
@@ -78,10 +84,10 @@ public class Report {
     @Column(name = "ends_at", nullable = false)
     private LocalDateTime endsAt;
 
-    /** ACTIVE / HIDDEN / DELETED */
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
-    private String status = "ACTIVE";
+    private ReportStatus status = ReportStatus.PENDING;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -8,8 +8,10 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 public record ReportCreateRequest(
+        @NotNull
         Long buildingId,
 
+        @NotNull
         Integer floor,
 
         @NotNull
@@ -20,6 +22,9 @@ public record ReportCreateRequest(
 
         @NotBlank
         String category,
+
+        @Size(max = 50)
+        String customCategoryLabel,
 
         @NotBlank
         @Size(max = 100)

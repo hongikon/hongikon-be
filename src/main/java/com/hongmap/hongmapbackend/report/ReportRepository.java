@@ -12,12 +12,13 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     @Query("""
             SELECT r FROM Report r
-            WHERE r.status = 'ACTIVE'
+            WHERE r.status = :status
               AND :now BETWEEN r.startsAt AND r.endsAt
               AND (:buildingId IS NULL OR r.building.id = :buildingId)
             ORDER BY r.createdAt DESC
             """)
-    List<Report> findLiveReports(@Param("now") LocalDateTime now, @Param("buildingId") Long buildingId);
+    List<Report> findLiveReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
+                                  @Param("buildingId") Long buildingId);
 
     @Query("""
             SELECT r FROM Report r
@@ -28,7 +29,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     @Modifying
     @Query("UPDATE Report r SET r.status = :status WHERE r.id = :id")
-    void updateStatus(@Param("id") Long id, @Param("status") String status);
+    void updateStatus(@Param("id") Long id, @Param("status") ReportStatus status);
 
     void deleteByUser_Id(Long userId);
 }

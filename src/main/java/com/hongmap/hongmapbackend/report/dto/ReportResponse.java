@@ -17,6 +17,7 @@ public record ReportResponse(
         BigDecimal lat,
         BigDecimal lng,
         String category,
+        String customCategoryLabel,
         String title,
         String content,
         String authorNickname,
@@ -33,14 +34,15 @@ public record ReportResponse(
                 .floor(report.getFloor())
                 .lat(report.getLat())
                 .lng(report.getLng())
-                .category(report.getCategory())
+                .category(report.getCategory().name())
+                .customCategoryLabel(report.getCustomCategoryLabel())
                 .title(report.getTitle())
                 .content(report.getContent())
                 .authorNickname(report.getUser().getNickname())
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
-                .status(report.getStatus())
+                .status(report.getStatus().name())
                 .createdAt(report.getCreatedAt())
                 .build();
     }
