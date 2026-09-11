@@ -137,20 +137,33 @@
   - status 5종: `PENDING`/`ACTIVE`/`REJECTED`/`HIDDEN`/`DELETED` (등록 즉시 공개 안 됨, 운영진 사전 검토)
   - 게스트 조회 허용, `endsAt` 상한 설정값화(`report.endsAt.maxDays`), 신고 3회 누적 시 자동 `HIDDEN` 전환(`report.flag.threshold`) 확정
   - ⚠️ 정정: 이 작업은 "신규 착수"가 아니라 08-10에 이미 있던 최초 구현(커밋 `fb80c58`)에 대한 **확정 스펙 반영 개편**임 — Report 도메인 자체는 08-10부터 존재했음
-  - Claude Code 세션에서 개편 작업 진행 (아래 전부 아직 미커밋 상태):
-    - `ReportCategory`, `ReportStatus` enum 신설 — `Report` 엔티티의 category/status 필드를 String에서 `@Enumerated(EnumType.STRING)` 기반 enum으로 전환
-    - `building_id`/`floor` 컬럼을 nullable에서 `NOT NULL`로 전환 — "건물+층이 정보의 핵심"이라는 확정 스펙에 맞춰 기존의 "건물 밖 제보(좌표만 존재)" 케이스 제거
-    - `customCategoryLabel` 컬럼 추가 — category가 `ETC`일 때만 자유 텍스트 세분화 허용, `ReportService`에서 `ETC`가 아닌데 값이 채워지면 400 에러 처리
-    - `ReportService`에 하드코딩돼 있던 신고 임계치(3건)와 endsAt 상한(12시간) 상수를 제거하고 `@Value`로 주입받는 `report.flag.threshold`(기본 3), `report.endsAt.maxDays`(기본 7)로 설정값화 (`application.properties`에 추가)
-    - `ddl-auto=validate` 환경이라 엔티티 변경만으로는 반영되지 않아, 실제 DB에 수동 적용할 `db/alter_reports_table.sql` 마이그레이션 스크립트 신규 작성 (building_id/floor NOT NULL, custom_category_label 컬럼 추가, building_id FK 제약 추가)
+  - Claude Code 세션에서 개편 작업 착수 (스펙 확정과 설계 논의는 이날 진행, 실제 코드 변경·커밋은 09-11로 넘어감 — 커밋 `af35645`, 아래 09-11 섹션 참고)
 - EC2 배포 아키텍처 결정: EC2(Ubuntu 22.04, t3.micro) + Nginx(80/443 SSL) + Docker로 Spring Boot 실행 + RDS(MySQL) 분리 구조. 별도 세션에서 실제 세팅 진행 중
 - **🎉 로그인 실기기 최종 검증 성공** — SDK 57 업그레이드 확인 → ngrok 재연결 → Expo 계정 로그인(CLI+앱 둘 다 필요했음) → 카카오 로그인 → 딥링크 복귀 → 로그인 상태 전환까지 실기기(iOS)에서 전 구간 확인. **Auth 도메인 완전히 종료.**
+
+## 2026-09-11 — 제보(Report) 기능 확정 스펙 반영 커밋 완료
+
+- 커밋 `af35645`: 09-08에 논의된 확정 스펙을 실제 코드에 반영. `Report`/`ReportController`/`ReportRepository`/`ReportService`/DTO 3종/`application.properties`/`db/alter_reports_table.sql` 변경 + 본 `docs/worklog.md` 최초 작성
+  - `ReportCategory`, `ReportStatus` enum 신설 — `Report` 엔티티의 category/status 필드를 String에서 `@Enumerated(EnumType.STRING)` 기반 enum으로 전환. `status` 기본값이 `"ACTIVE"`에서 `ReportStatus.PENDING`으로 변경 (등록 즉시 공개 안 됨, 운영진 승인 대기)
+  - `building_id`/`floor` 컬럼을 nullable에서 `NOT NULL`로 전환 — "건물+층이 정보의 핵심"이라는 확정 스펙에 맞춰 기존의 "건물 밖 제보(좌표만 존재)" 케이스 제거. `customCategoryLabel` 컬럼 신설 — category가 `ETC`일 때만 자유 텍스트 세분화 허용, `ReportService`에서 `ETC`가 아닌데 값이 채워지면 400 에러 처리
+  - `ReportController`는 클래스 주석만 최신 기능 정의("로그인 유저가 건물+층에 시간 한정 이벤트 정보를 올리는 기능", "GET /reports는 게스트 허용·그 외는 로그인 필수")로 갱신 — 엔드포인트 시그니처 자체는 변경 없음
+  - `ReportRepository.findLiveReports()`가 하드코딩된 `status = 'ACTIVE'` 조건 대신 `status` 파라미터를 받도록 변경, `updateStatus()`도 String → `ReportStatus` 파라미터로 전환
+  - `ReportService`
+    - 하드코딩 상수(`REPORT_HIDE_THRESHOLD=3`, `REPORT_MAX_DURATION=12시간`, `CATEGORIES` 리스트)를 제거하고 `@Value`로 주입받는 `report.flag.threshold`(기본 3), `report.endsAt.maxDays`(기본 7)로 설정값화 (`application.properties`에 추가) — endsAt 검증 로직도 "startsAt 기준 +12시간 이내"에서 "현재 시각 기준 +N일 이내"로 변경
+    - `create()`에서 카테고리 문자열을 `ReportCategory.valueOf()`로 파싱(실패 시 400 처리)하고, `category != ETC`인데 `customCategoryLabel`이 채워지면 400 처리하는 검증 추가
+    - `create()`에서 `buildingId`가 없어도 되던 분기를 제거 — 항상 `buildingRepository.findById()`로 조회하고 없으면 400 (building 필수화에 대응)
+  - `ReportCreateRequest`: `buildingId`/`floor`에 `@NotNull` 추가, `customCategoryLabel`(`@Size(max=50)`) 필드 신설
+  - `ReportResponse`/`ReportSummaryResponse`: `customCategoryLabel` 필드 추가, `category`/`status` 직렬화를 enum `.name()` 기반으로 변경
+  - `db/alter_reports_table.sql` 신규 작성 — `ddl-auto=validate` 환경이라 엔티티 변경만으로는 실제 DB에 반영되지 않아, 배포 전 수동 실행 필요 (building_id/floor NOT NULL 전환, custom_category_label 컬럼 추가, status 기본값 PENDING, building_id FK 제약 추가)
+  - 이 커밋에서 `docs/worklog.md`(본 문서) 최초 작성
+  - ⚠️ 아직 미완료: Swagger/Postman을 통한 실기동 검증(등록 시 PENDING 상태 확인, 카테고리·customCategoryLabel·endsAt 상한 초과 400 케이스, 신고 누적 시 HIDDEN 전환 등)은 이 커밋 시점 기준 미실시
 
 ---
 
 ## 다음 할 일 (요약)
 
-- [ ] 제보 기능 구현 완료 및 검증
+- [x] 제보 기능 확정 스펙 구현 완료 (커밋 `af35645`, 09-11)
+- [ ] 제보 기능 실기동 검증 (Swagger/Postman) — `db/alter_reports_table.sql` DB 반영 포함
 - [ ] 라우팅 노드/엣지 실데이터 입력 (픽토그램 기반)
 - [ ] 크롤러 FK 매칭 버그 수정, 중복 게시글 처리
 - [ ] 알림 발송 로직 (Expo Push) 구현
