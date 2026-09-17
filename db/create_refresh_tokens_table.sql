@@ -7,11 +7,11 @@
 CREATE TABLE refresh_tokens (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
-    token_hash CHAR(64) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uq_refresh_token_user UNIQUE (user_id),
     CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
