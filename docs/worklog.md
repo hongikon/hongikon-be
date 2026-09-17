@@ -182,3 +182,28 @@
   - 도메인은 Route 53에서 구매 예정 (Certbot SSL 발급에 필요, EC2/RDS 세팅 완료 후 진행)
 - AWS 계정이 2025.7.15 이후 생성되어 크레딧 기반 Free Plan(최대 $200, 6개월) 적용 대상 확인, 현재 잔여 크레딧 약 70% — 졸프 예산으로 배포 비용 지원 가능해 소진 리스크 낮음
 - 이 시점까지 AWS 콘솔에서 실제로 생성한 리소스는 없음 (설계만 확정, VPC 생성부터 시작 예정)
+
+## 2026-09-17 (계속) — VPC/EC2/RDS 인프라 구축 완료 + 배포 전 SQL 순서 확정
+
+### 인프라 구축 완료 (별도 세션)
+- VPC(`hongikon-vpc`, 10.0.0.0/16) + Public 서브넷 2개(2a/2b) + Private 서브넷 2개(2a/2b) 생성 완료
+- 보안그룹 2개 생성: `hongikon-ec2-sg`(22 내 IP, 80/443 전체), `hongikon-rds-sg`(3306, EC2 SG만 허용)
+- EC2 인스턴스 생성 완료: `hongikon-be-server`(Ubuntu 24.04 LTS로 변경 — 22.04는 Quick Start 목록에서 순정 AMI를 찾지 못해 24.04로 대체 결정), t3.micro, Public Subnet
+- Elastic IP 할당 및 연결 완료 (54.180.195.51로 고정)
+- SSH 접속 확인, 2GB 스왑 설정 완료(`/swapfile`, `/etc/fstab` 등록), Docker 설치 완료
+- RDS(MySQL 8.4, db.t4g.micro) 생성 완료: `hongikon-db`, 마스터 계정 `hongmap_app`, 초기 DB명 `hongmap`, Private Subnet Group, 퍼블릭 액세스 비활성화
+- EC2 → RDS 연결 테스트 성공 (mysql-client로 접속, `SHOW DATABASES`에 `hongmap` 확인)
+
+### 배포 전 SQL 적용 순서 확정 (레포 실제 파일 확인 완료)
+- RDS는 현재 빈 스키마 상태 — `ddl-auto=validate`라 테이블이 먼저 있어야 앱이 부팅됨. 아래 순서로 RDS에 적용 필요:
+  1. `hongikon-fe` 레포의 `docs/schema.sql` (기본 16개 테이블 생성, 아직 RDS엔 미적용)
+  2. `hongikon-be`의 `db/seed_buildings_places.sql` (건물 27건 + 편의시설 72건)
+  3. `hongikon-be`의 `db/alter_reports_table.sql` (제보 기능 확정 스펙 반영)
+- `db/seed_departments.sql`은 GitHub에 미푸시 상태(로컬 untracked) 확인됨 — 학과 구독 기능은 `Department`/`UserDepartment` 테이블 자체가 schema.sql에 포함되어 있어 배포에는 지장 없음. 데이터가 비어있어도 `GET /departments`가 빈 배열을 반환할 뿐 에러는 아님 → 학과 구독 기능을 실제로 완성하는 시점에 이 파일 커밋+push+RDS 적용을 별도로 진행하기로 결정
+
+### 확인된 사항
+- `application.properties`가 이미 `${DB_URL:...}`, `${KAKAO_CLIENT_ID:...}`, `${JWT_SECRET:...}` 등 전부 환경변수 기반으로 구성되어 있음 확인 — 별도 `application-prod.properties` 작성 불필요, Docker 컨테이너 실행 시 환경변수만 주입하면 됨
+- SecurityConfig에 CORS 설정이 없음을 확인 — 현재 프론트가 백엔드 API를 직접 호출하지 않는 구조(로컬 상수 기반 지도)라 당장은 문제없으나, 추후 하이브리드 전환 시 재점검 필요
+
+### 다음 단계
+- git clone (EC2) → schema.sql/seed SQL 적용 → Dockerfile 작성 → 이미지 빌드/컨테이너 실행 → Nginx → 도메인/SSL 순서로 진행 예정
