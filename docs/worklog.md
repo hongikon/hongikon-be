@@ -207,3 +207,38 @@
 
 ### 다음 단계
 - git clone (EC2) → schema.sql/seed SQL 적용 → Dockerfile 작성 → 이미지 빌드/컨테이너 실행 → Nginx → 도메인/SSL 순서로 진행 예정
+
+## 2026-09-17 (계속) — Docker 배포 + Nginx 리버스 프록시 완료, 외부 접속 확인
+
+### RDS 스키마 최종 정리 (엔티티 대조 검증 완료)
+- buildings/places/route_nodes에 누락된 슬러그 컬럼(code, point_no) 보정 SQL 적용
+- refresh_tokens/reports/report_flags 3개 테이블 CREATE 스크립트가 레포에 없었던 것 확인
+  → 로컬 DB의 실제 테이블 구조(SHOW CREATE TABLE)를 엔티티와 전수 대조 검증 후
+    db/create_refresh_tokens_table.sql, db/create_reports_table.sql,
+    db/create_report_flags_table.sql로 신규 작성, 커밋
+  → refresh_tokens.token_hash가 CHAR(64)로 잘못되어 있던 것 VARCHAR(64)로 수정
+    (엔티티에 columnDefinition 미지정 시 Hibernate가 VARCHAR 기대)
+- alter_reports_table.sql은 신규 DB에는 불필요, 구버전 마이그레이션 전용임을
+  파일 상단 주석으로 명시
+- RDS에 최종 19개 테이블 전부 생성 완료, buildings 27건/places 72건 데이터 확인
+
+### Docker 배포
+- EC2에 Java 17(openjdk-17-jdk) 설치
+- `./gradlew bootJar`로 EC2에서 직접 JAR 빌드 (멀티스테이지 Docker 빌드 대신 —
+  t3.micro 메모리 제약 고려한 선택)
+- Dockerfile 신규 작성 (eclipse-temurin:17-jre-alpine 베이스, JAR만 복사하는 단일 스테이지)
+- .env 파일로 운영 환경변수 관리 (DB_URL/DB_USERNAME/DB_PASSWORD, KAKAO_CLIENT_ID/SECRET,
+  JWT_SECRET 신규 생성 — 로컬과 별도 키 사용, SPRING_PROFILES_ACTIVE=prod), .gitignore에 추가
+- `docker run`으로 컨테이너 실행 (8080 포트, --restart unless-stopped)
+- 부팅 성공 확인 (Started HongmapBackendApplication, ddl-auto=validate 통과)
+- EC2 내부에서 `GET /status` 정상 응답 확인
+
+### Nginx 리버스 프록시
+- `apt install nginx`로 설치, /etc/nginx/sites-available/default를 80 → localhost:8080
+  프록시 설정으로 교체
+- **외부 브라우저에서 http://54.180.195.51/status 정상 접속 확인 — 배포 성공**
+
+### 다음 단계
+- 도메인 구매(Route 53) + Certbot SSL 적용
+- 카카오 개발자 콘솔에 배포용(IP 또는 도메인) Redirect URI 추가 등록
+- 프론트 EXPO_PUBLIC_API_BASE_URL을 배포 주소로 전환
