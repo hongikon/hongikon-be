@@ -242,3 +242,24 @@
 - 도메인 구매(Route 53) + Certbot SSL 적용
 - 카카오 개발자 콘솔에 배포용(IP 또는 도메인) Redirect URI 추가 등록
 - 프론트 EXPO_PUBLIC_API_BASE_URL을 배포 주소로 전환
+
+## 2026-09-17 (계속) — Swagger 외부 접속 확인, 카카오 IP 기준 Redirect URI 등록
+
+- http://54.180.195.51/swagger-ui.html 외부 브라우저 접속 정상 확인
+- 카카오 개발자 콘솔에 배포 IP 기준 Redirect URI 추가 등록
+  (http://54.180.195.51/login/oauth2/code/kakao) — 기존 ngrok 주소 유지한 채
+  추가만 함, 현재 총 3개 URI 등록된 상태. 이건 도메인/SSL 적용 전 임시 조치이며,
+  나중에 도메인 확정되면 별도로 도메인 기준 URI를 추가 등록해야 함 (IP 기준은
+  지우지 않아도 무방)
+- 프론트(최석훈)에게 임시 API 주소 전달 예정: EXPO_PUBLIC_API_BASE_URL=http://54.180.195.51
+  (임시값이라는 점, iOS 실기기 테스트 시 app.json에 ATS 예외(HTTP 허용) 설정
+  필요하다는 점 함께 전달 필요)
+- 도메인 구매(Route 53)는 다음 세션에서 진행 예정 — 도메인은 프론트가 아니라
+  백엔드 API 주소 전용이며, SSL 인증서 발급이 IP로는 불가능해 도메인이 필요한 것이
+  구매 목적임을 확인
+
+### 다음 단계
+- Route 53에서 도메인 구매
+- Certbot으로 SSL(HTTPS) 적용
+- 카카오 개발자 콘솔에 도메인 기준 Redirect URI 추가 등록
+- 프론트 EXPO_PUBLIC_API_BASE_URL을 최종 도메인 주소로 교체
