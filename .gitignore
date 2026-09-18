@@ -38,3 +38,11 @@ out/
 
 ### Local secrets ###
 application-local.properties
+.env
+.env.*
+!.env.example
+credentials*.json
+*.pem
+*.p12
+*.jks
+*.key
