@@ -6,6 +6,7 @@ import com.hongmap.hongmapbackend.crawler.parser.ArticleDetail;
 import com.hongmap.hongmapbackend.crawler.parser.ArticleSummary;
 import com.hongmap.hongmapbackend.department.Department;
 import com.hongmap.hongmapbackend.news.News;
+import com.hongmap.hongmapbackend.news.NewsAttachment;
 import com.hongmap.hongmapbackend.news.NewsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 
 /**
  * 크롤링한 게시글 하나를 News 엔티티로 변환해 저장하는 책임만 진다.
@@ -50,6 +52,9 @@ public class NewsCrawlStorageService {
         News news = News.builder()
                 .title(summary.title())
                 .content(content)
+                .images(detail != null && detail.images() != null ? detail.images() : List.of())
+                .attachments(toNewsAttachments(detail))
+                .views(detail != null ? detail.views() : null)
                 .category(NewsCategoryClassifier.classify(summary.title()))
                 .sourceUrl(summary.link())
                 .department(department)
@@ -59,6 +64,14 @@ public class NewsCrawlStorageService {
 
         newsRepository.save(news);
         return true;
+    }
+
+    /** 크롤러의 Attachment(파싱 결과)를 news 도메인의 NewsAttachment(저장용)로 옮긴다. */
+    private List<NewsAttachment> toNewsAttachments(ArticleDetail detail) {
+        if (detail == null || detail.attachments() == null) return List.of();
+        return detail.attachments().stream()
+                .map(a -> new NewsAttachment(a.name(), a.url()))
+                .toList();
     }
 
     private LocalDateTime resolvePublishedAt(ArticleSummary summary, ArticleDetail detail) {

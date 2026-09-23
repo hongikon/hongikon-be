@@ -2,7 +2,10 @@ package com.hongmap.hongmapbackend.news;
 
 import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.department.Department;
+import com.hongmap.hongmapbackend.news.converter.NewsAttachmentListJsonConverter;
+import com.hongmap.hongmapbackend.news.converter.StringListJsonConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -19,6 +22,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 크롤링 소식. source_url UNIQUE — 크롤러 재실행 시 중복 저장 방지.
@@ -42,6 +46,26 @@ public class News {
 
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
+
+    /**
+     * 본문에 박힌 이미지 URL 목록(JSON 배열로 저장, StringListJsonConverter). 홍익대 공지는
+     * 본문이 이미지 한 장뿐인 경우가 흔해서 별도로 둔다 — content만으로는 그런 공지가
+     * "본문 없음"으로 보인다.
+     */
+    @Convert(converter = StringListJsonConverter.class)
+    @Column(name = "images", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> images = List.of();
+
+    /** 첨부파일(이름+URL) 목록. JSON 배열로 저장(NewsAttachmentListJsonConverter). */
+    @Convert(converter = NewsAttachmentListJsonConverter.class)
+    @Column(name = "attachments", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<NewsAttachment> attachments = List.of();
+
+    /** 원문 게시글 조회수. 크롤러가 못 읽었으면 null. */
+    @Column(name = "views")
+    private Integer views;
 
     @Column(name = "category", nullable = false, length = 30)
     private String category;
