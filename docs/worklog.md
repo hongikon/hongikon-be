@@ -263,3 +263,35 @@
 - Certbot으로 SSL(HTTPS) 적용
 - 카카오 개발자 콘솔에 도메인 기준 Redirect URI 추가 등록
 - 프론트 EXPO_PUBLIC_API_BASE_URL을 최종 도메인 주소로 교체
+
+## 2026-09-29 — HTTPS 배포 완료 (api.hongikon.com)
+
+### 도메인 상태
+- hongikon.com 구매 완료(가비아, 9/17), 최석훈 명의 가비아 계정에 등록되어 있음
+- 소유권(등록자 명의) 이전은 진행하지 않기로 결정 — 최석훈 계정을 계속 공유받아
+  DNS 관리 등 기술적 작업을 진행하는 방식으로 확정
+- DNS 레코드는 이미 9/23에 설정되어 있었음을 확인 (프론트 세션에서 처리):
+  - A @ → 75.2.60.5 (Netlify, 프론트 루트 도메인)
+  - CNAME www → hongmap12.netlify.app (Netlify)
+  - A api → 54.180.195.51 (백엔드 EC2, 미리 설정되어 있었음)
+
+### 백엔드 HTTPS 적용
+- 보안그룹(hongikon-ec2-sg)의 SSH 인바운드 소스 IP 갱신 (공인 IP 변경으로 접속 불가 상태였음 → "내 IP" 재선택으로 해결)
+- Nginx server_name을 `_`에서 `api.hongikon.com`으로 변경
+- Certbot(`certbot --nginx -d api.hongikon.com`)으로 Let's Encrypt SSL 발급 및 자동 적용
+  - 인증서 만료일 2026-12-28, 자동 갱신 스케줄 등록됨
+  - HTTP → HTTPS 자동 리다이렉트 적용
+- https://api.hongikon.com/status 외부 접속 및 인증서 정상 확인
+
+### 카카오 개발자 콘솔
+- Redirect URI에 `https://api.hongikon.com/login/oauth2/code/kakao` 추가 등록
+  (localhost, ngrok, IP 기준 기존 3개는 유지)
+
+### 프론트 전달 사항
+- 최종 API Base URL: `https://api.hongikon.com`
+- iOS ATS 예외 설정(app.json의 NSAppTransportSecurity)은 이제 불필요, HTTP 임시 조치였으므로 제거 요청 필요
+- 석훈(프론트) 쪽에서 요청했던 CORS(로컬 + 배포 도메인 허용) 설정은 아직 미착수 — 별도 확인 필요
+
+### 다음 단계
+- CORS 설정 검토 및 적용 (SecurityConfig에 미설정 상태 확인됨, 프론트 요청사항)
+- t3.micro 메모리 사용량 68%, 스왑 24% 사용 중 — 재부팅 필요 상태(System restart required) 확인, 여유 있을 때 재부팅 권장
