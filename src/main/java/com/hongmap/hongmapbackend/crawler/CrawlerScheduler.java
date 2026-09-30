@@ -16,12 +16,16 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CrawlerScheduler {
 
-    private final CrawlerService crawlerService;
+    private final CrawlerRunTracker crawlerRunTracker;
 
     @Scheduled(cron = "${crawler.schedule.cron:0 0 * * * *}")
     public void runScheduledCrawl() {
         log.info("정기 크롤링 시작");
-        int savedCount = crawlerService.crawlAll();
-        log.info("정기 크롤링 종료 — 신규 {}건", savedCount);
+        try {
+            int savedCount = crawlerRunTracker.run(CrawlerRunTracker.Trigger.SCHEDULED);
+            log.info("정기 크롤링 종료 — 신규 {}건", savedCount);
+        } catch (CrawlerRunTracker.AlreadyRunningException e) {
+            log.info("수동 크롤링이 진행 중이라 이번 정기 크롤링은 건너뜀");
+        }
     }
 }

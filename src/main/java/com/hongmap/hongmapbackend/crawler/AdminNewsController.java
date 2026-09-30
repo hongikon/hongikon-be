@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * department_id 또는 building_id가 비어 있는 기존 News를 재매칭하는 1회성 관리용 엔드포인트.
- * SecurityConfig에 permitAll을 추가하지 않았으므로 anyRequest().authenticated()에 걸려 로그인이 필요하다.
+ * SecurityConfig 의 /admin/** 규칙으로 ADMIN 만 호출할 수 있다(전체 뉴스를 다시 훑는 무거운 작업이라).
  */
 @Slf4j
 @RestController
@@ -28,7 +28,7 @@ public class AdminNewsController {
     @Operation(
             summary = "뉴스 위치정보(학과/건물) 백필",
             description = "department_id 또는 building_id가 NULL인 기존 News를 NewsLocationMatcher로 재매칭한다. "
-                    + "이미 채워진 값은 건드리지 않고, 매칭 실패한 필드는 NULL로 남긴다. 로그인한 사용자만 호출할 수 있다."
+                    + "이미 채워진 값은 건드리지 않고, 매칭 실패한 필드는 NULL로 남긴다. ADMIN 전용."
     )
     @PostMapping("/backfill-location")
     public ResponseEntity<NewsLocationBackfillResponse> backfillLocation(@AuthenticationPrincipal Long userId) {

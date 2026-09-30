@@ -6,7 +6,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,14 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class CrawlerController {
 
-    private final CrawlerService crawlerService;
+    private final CrawlerRunTracker crawlerRunTracker;
 
     @Tag(name = SwaggerConfig.TAG_ADMIN)
-    @Operation(summary = "뉴스 크롤링 수동 실행", description = "등록된 전체 게시판을 즉시 크롤링한다. 로그인한 사용자만 호출할 수 있는 관리용 엔드포인트다.")
+    @Operation(summary = "뉴스 크롤링 수동 실행", description = "등록된 전체 게시판을 즉시 크롤링한다. ADMIN 전용. 이미 도는 중이면 409.")
     @PostMapping("/trigger")
     public ResponseEntity<CrawlerTriggerResponse> trigger(@AuthenticationPrincipal Long userId) {
         log.info("수동 크롤링 트리거: userId={}", userId);
-        int savedCount = crawlerService.crawlAll();
+        int savedCount;
+        try {
+            savedCount = crawlerRunTracker.run(CrawlerRunTracker.Trigger.MANUAL);
+        } catch (CrawlerRunTracker.AlreadyRunningException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
         return ResponseEntity.ok(new CrawlerTriggerResponse(savedCount));
     }
 }

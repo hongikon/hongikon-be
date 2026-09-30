@@ -1,0 +1,197 @@
+package com.hongmap.hongmapbackend.admin;
+
+import com.hongmap.hongmapbackend.auth.jwt.JwtTokenProvider;
+import com.hongmap.hongmapbackend.building.Building;
+import com.hongmap.hongmapbackend.building.BuildingRepository;
+import com.hongmap.hongmapbackend.report.Report;
+import com.hongmap.hongmapbackend.report.ReportCategory;
+import com.hongmap.hongmapbackend.report.ReportRepository;
+import com.hongmap.hongmapbackend.user.SocialType;
+import com.hongmap.hongmapbackend.user.User;
+import com.hongmap.hongmapbackend.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * 관리자 API 권한(401/403/200)과 제보 승인·문의 흐름. H2 인메모리 DB(application-test.properties).
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class AdminApiIntegrationTest {
+
+    @Autowired MockMvc mockMvc;
+    @Autowired JwtTokenProvider jwtTokenProvider;
+    @Autowired UserRepository userRepository;
+    @Autowired BuildingRepository buildingRepository;
+    @Autowired ReportRepository reportRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
+
+    User admin;
+    User normal;
+    Building building;
+
+    @BeforeEach
+    void setUp() {
+        admin = userRepository.save(User.builder()
+                .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("관리자").build());
+        normal = userRepository.save(User.builder()
+                .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("학생").build());
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE id = ?", admin.getId());
+        building = buildingRepository.save(Building.builder()
+                .name("테스트관-" + UUID.randomUUID())
+                .latitude(new BigDecimal("37.5500000")).longitude(new BigDecimal("126.9250000"))
+                .build());
+    }
+
+    private String bearer(User user) {
+        return "Bearer " + jwtTokenProvider.generateAccessToken(user.getId());
+    }
+
+    private Report pendingReport() {
+        LocalDateTime now = LocalDateTime.now();
+        return reportRepository.save(Report.builder()
+                .user(normal).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.FOOD_TRUCK).title("붕어빵 트럭")
+                .startsAt(now.minusHours(1)).endsAt(now.plusHours(3))
+                .build());
+    }
+
+    @Test
+    void 관리자_API는_비로그인_401_일반사용자_403_관리자_200() throws Exception {
+        mockMvc.perform(get("/admin/overview")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/admin/overview").header("Authorization", bearer(normal)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports.pending").isNumber())
+                .andExpect(jsonPath("$.crawler.running").value(false));
+    }
+
+    @Test
+    void 크롤링_수동실행과_백필은_일반사용자에게_막힌다() throws Exception {
+        mockMvc.perform(post("/crawler/trigger").header("Authorization", bearer(normal)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/admin/news/backfill-location").header("Authorization", bearer(normal)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 승인하면_지도_제보목록에_노출된다() throws Exception {
+        Report report = pendingReport();
+
+        mockMvc.perform(get("/reports")).andExpect(jsonPath("$.reports.length()").value(0));
+        mockMvc.perform(get("/admin/reports").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.reports[0].id").value(report.getId()))
+                .andExpect(jsonPath("$.reports[0].buildingName").value(building.getName()))
+                .andExpect(jsonPath("$.reports[0].authorNickname").value("학생"))
+                .andExpect(jsonPath("$.reports[0].flagCount").value(0));
+
+        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.reviewedAt").isNotEmpty());
+
+        mockMvc.perform(get("/reports")).andExpect(jsonPath("$.reports[0].id").value(report.getId()));
+    }
+
+    @Test
+    void 반려는_사유가_필요하고_PENDING으로는_되돌릴_수_없다() throws Exception {
+        Report report = pendingReport();
+        String url = "/admin/reports/" + report.getId();
+
+        mockMvc.perform(patch(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"REJECTED\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"PENDING\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REJECTED\",\"note\":\"위치가 캠퍼스 밖\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moderationNote").value("위치가 캠퍼스 밖"));
+        mockMvc.perform(patch(url).header("Authorization", bearer(normal))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 비로그인_문의가_저장되고_관리자가_처리한다() throws Exception {
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"지도에 건물이 안 보여요\",\"contact\":\"a@b.c\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"  \"}"))
+                .andExpect(status().isBadRequest());
+
+        String body = mockMvc.perform(get("/admin/feedback").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedback[0].content").value("지도에 건물이 안 보여요"))
+                .andExpect(jsonPath("$.feedback[0].userId").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+        long id = Long.parseLong(body.replaceAll("(?s).*?\"id\":(\\d+).*", "$1"));
+
+        mockMvc.perform(patch("/admin/feedback/" + id).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.resolvedAt").isNotEmpty());
+    }
+
+    @Test
+    void 로그인_진입시_허용된_redirect_uri만_세션에_남는다() throws Exception {
+        String attr = com.hongmap.hongmapbackend.auth.oauth.OAuth2RedirectUriCaptureFilter.SESSION_ATTRIBUTE;
+
+        MockHttpSession allowed = new MockHttpSession();
+        mockMvc.perform(get("/oauth2/authorization/kakao").session(allowed)
+                        .param("redirect_uri", "https://hongikon.com/admin"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(allowed.getAttribute(attr)).isEqualTo("https://hongikon.com/admin");
+
+        MockHttpSession evil = new MockHttpSession();
+        mockMvc.perform(get("/oauth2/authorization/kakao").session(evil)
+                        .param("redirect_uri", "https://evil.example/steal"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(evil.getAttribute(attr)).isNull();
+    }
+
+    @Test
+    void 관리자가_승인한_제보는_신고가_쌓여도_자동숨김되지_않는다() throws Exception {
+        Report report = pendingReport();
+        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"));
+
+        for (int i = 0; i < 3; i++) {
+            User flagger = userRepository.save(User.builder()
+                    .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("신고자" + i).build());
+            mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(flagger))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(reportRepository.findById(report.getId()).orElseThrow().getStatus().name()).isEqualTo("ACTIVE");
+        mockMvc.perform(get("/admin/reports/" + report.getId() + "/flags").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.flags.length()").value(3))
+                .andExpect(jsonPath("$.flags[0].reason").value("SPAM"));
+    }
+}

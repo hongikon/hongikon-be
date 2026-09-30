@@ -3,9 +3,9 @@ package com.hongmap.hongmapbackend.auth.oauth;
 import com.hongmap.hongmapbackend.auth.exchange.AuthorizationCodeStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -19,9 +19,7 @@ import java.io.IOException;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final AuthorizationCodeStore authorizationCodeStore;
-
-    @Value("${app.oauth2.redirect-uri}")
-    private String redirectUri;
+    private final OAuth2RedirectUriPolicy redirectUriPolicy;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -35,13 +33,22 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
             String code = authorizationCodeStore.issue(principal.getUserId());
 
+            // 로그인 진입 때 OAuth2RedirectUriCaptureFilter가 세션에 적어 둔 주소(웹 관리자 등). 없으면 앱 딥링크.
+            HttpSession session = request.getSession(false);
+            String requested = session == null ? null
+                    : (String) session.getAttribute(OAuth2RedirectUriCaptureFilter.SESSION_ATTRIBUTE);
+            if (session != null) {
+                session.removeAttribute(OAuth2RedirectUriCaptureFilter.SESSION_ATTRIBUTE);
+            }
+            String redirectUri = redirectUriPolicy.resolve(requested);
+
+            // 1회용 코드가 로그에 남지 않도록 쿼리를 붙이기 전 주소만 기록한다.
             log.info("redirect target={}", redirectUri);
             String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
                     .queryParam("code", code)
                     .build()
                     .toUriString();
 
-            log.info("최종 리다이렉트 URL={}", targetUrl);
             response.sendRedirect(targetUrl);
         } catch (Exception e) {
             log.error("SuccessHandler에서 예외 발생", e);
