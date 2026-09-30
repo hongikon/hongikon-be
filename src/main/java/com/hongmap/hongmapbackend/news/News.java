@@ -87,4 +87,21 @@ public class News {
     @CreationTimestamp
     @Column(name = "crawled_at", nullable = false, updatable = false)
     private LocalDateTime crawledAt;
+
+    /**
+     * department/building이 이미 채워져 있으면 건드리지 않고, null인 자리에만 채운다.
+     * 실제로 하나라도 채워졌으면 true를 반환한다 (백필 결과 카운트용).
+     */
+    public boolean fillMissingLocation(Department department, Building building) {
+        boolean changed = false;
+        if (this.department == null && department != null) {
+            this.department = department;
+            changed = true;
+        }
+        if (this.building == null && building != null) {
+            this.building = building;
+            changed = true;
+        }
+        return changed;
+    }
 }

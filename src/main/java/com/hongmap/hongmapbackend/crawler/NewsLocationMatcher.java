@@ -3,11 +3,13 @@ package com.hongmap.hongmapbackend.crawler;
 import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.crawler.config.BoardConfig;
+import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.department.Department;
 import com.hongmap.hongmapbackend.department.DepartmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.util.Comparator;
 
 /**
@@ -41,5 +43,37 @@ public class NewsLocationMatcher {
                 .filter(building -> haystack.contains(building.getName()))
                 .max(Comparator.comparingInt(building -> building.getName().length()))
                 .orElse(null);
+    }
+
+    /**
+     * 이미 저장된 News는 원본 BoardConfig가 남아있지 않으므로, source_url의 호스트로
+     * CrawlerBoards.ALL에서 게시판을 역으로 추정해 matchDepartment를 재적용한다(백필 전용).
+     * 같은 호스트를 쓰는 게시판(-job/-doc/-gen/-ev 등 하위 게시판)은 전부 같은 학과로
+     * 등록돼 있어 호스트 하나로 학과를 특정하기에 충분하다. 대학공지 6종(학사/장학/...)은
+     * 같은 호스트를 공유하지만 departments 테이블에 해당 이름이 없어 어느 게시판이
+     * 골라져도 결과는 동일하게 null이다.
+     */
+    public Department matchDepartmentBySourceUrl(String sourceUrl) {
+        String host = extractHost(sourceUrl);
+        if (host == null) {
+            return null;
+        }
+
+        return CrawlerBoards.ALL.stream()
+                .filter(board -> host.equals(extractHost(board.listUrl())))
+                .findFirst()
+                .map(this::matchDepartment)
+                .orElse(null);
+    }
+
+    private String extractHost(String url) {
+        if (url == null) {
+            return null;
+        }
+        try {
+            return URI.create(url).getHost();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

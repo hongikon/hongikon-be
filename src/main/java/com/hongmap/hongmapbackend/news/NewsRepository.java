@@ -22,4 +22,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     );
 
     boolean existsBySourceUrl(String sourceUrl);
+
+    @Query("SELECT n FROM News n WHERE n.department IS NULL OR n.building IS NULL")
+    List<News> findAllMissingLocation();
 }
