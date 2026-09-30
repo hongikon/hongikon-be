@@ -84,7 +84,17 @@ curl -s 'https://api.hongikon.com/news' | head -c 300         # sourceId, depart
 curl -sI https://api.hongikon.com/status | grep -i '^server'  # 버전 번호 없어야 함
 ```
 
-## 5. 관리자 지정 → 관리자 화면
+## 5. 웹판 카카오 로그인 확인
+
+이번 배포 전까지 웹(`hongikon.com`)의 "카카오로 시작하기"는 구조상 끝까지 안 됐다(백엔드가 앱 스킴 `hongikon://` 로만 돌려보냄).
+이제 웹은 `?redirect_uri=https://hongikon.com/auth/callback` 으로 들어와 그 주소로 돌아간다.
+
+- [ ] PC 브라우저: 카카오로 시작하기 → **카카오계정(이메일)** 로그인 → 홍익온 지도 화면으로 돌아오면 성공
+      (PC 에서 "카카오톡으로 로그인"을 고르면 카카오톡 PC 앱 설치를 권한다 — 카카오 쪽 동작)
+- [ ] 모바일 브라우저: 카카오로 시작하기 → 카카오톡 앱이 열렸다가 브라우저로 돌아오면 성공
+- [ ] 앱(APK/iOS): 기존과 동일하게 동작
+
+## 6. 관리자 지정 → 관리자 화면
 
 1. https://hongikon.com/admin 에서 카카오 로그인 → "관리자 권한이 없는 계정입니다" 화면이 나오면 정상(아직 USER)
 2. RDS:

@@ -168,6 +168,12 @@ class AdminApiIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         assertThat(allowed.getAttribute(attr)).isEqualTo("https://hongikon.com/admin");
 
+        MockHttpSession webApp = new MockHttpSession();
+        mockMvc.perform(get("/oauth2/authorization/kakao").session(webApp)
+                        .param("redirect_uri", "https://hongikon.com/auth/callback"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(webApp.getAttribute(attr)).isEqualTo("https://hongikon.com/auth/callback");
+
         MockHttpSession evil = new MockHttpSession();
         mockMvc.perform(get("/oauth2/authorization/kakao").session(evil)
                         .param("redirect_uri", "https://evil.example/steal"))

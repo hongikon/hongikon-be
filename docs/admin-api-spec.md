@@ -19,7 +19,8 @@
    - 반드시 API 도메인으로 직접 이동해야 한다. Netlify `/api` 프록시를 거치면 세션 쿠키가
      `hongikon.com` 에 붙어 카카오 콜백(`api.hongikon.com`)에서 state 검증이 깨진다.
    - `redirect_uri` 는 서버 허용 목록(`app.oauth2.allowed-redirect-uris`)과 **정확히 일치**해야 한다.
-     기본 허용: `hongikon://auth/callback`, `https://hongikon.com/admin`, `https://www.hongikon.com/admin`.
+     기본 허용: `hongikon://auth/callback`(앱), `https://hongikon.com/auth/callback`·`https://www.hongikon.com/auth/callback`(웹판 앱),
+     `https://hongikon.com/admin`·`https://www.hongikon.com/admin`(관리자).
      로컬 개발은 백엔드 환경변수 `OAUTH2_ALLOWED_REDIRECT_URIS` 에 `http://localhost:8081/admin` 을 추가한다.
      목록에 없거나 생략하면 앱 주소(`hongikon://auth/callback`)로 간다.
 2. 로그인 성공 → `302 {redirect_uri}?code=<1회용 코드>`
