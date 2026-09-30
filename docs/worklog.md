@@ -331,3 +331,18 @@
 - 프론트가 실제로 GET /partners를 호출하도록 연동 (현재는 하드코딩 그대로 사용 중) — 하이브리드 방식으로 전환 예정: API 우선, 실패 시 로컬 fallback
 - 네이버 지도 secret 재발급 (보류 중, 최석훈 계정 소관)
 - 최석훈님이 만든 `src/admin/` 관리자 대시보드 관련 백엔드 API 필요 여부 확인
+
+### 오후 이어서 한 작업
+- `feat/admin-console` 브랜치를 main에 병합 (관리자 대시보드, 제보 검토, 문의 기능) — 커밋 `d7bcf25`
+- 로컬 검증: `/admin/overview`, `/admin/reports` 조회 및 승인(PATCH) 실제 동작 확인
+- POST/DELETE `/partners`를 ADMIN 전용으로 제한 — 커밋 `f5fb22b`
+- 존재하지 않는 id로 DELETE 시 500 대신 404 반환하도록 수정 (`ResponseStatusException` 방식) — 커밋 `767cd5f`
+- 배포 런북(`docs/deploy-runbook-2026-10.md`)에 제휴업체 시드 SQL 순서 및 ADMIN 정책 반영 — 커밋 `6a204c4`
+- 운영 서버 크롤러 정상 작동 확인 (https://api.hongikon.com/news 로 확인)
+- 카카오 개발자 콘솔 앱 이름 "홍대로" → "홍익온" 변경
+
+### 다음 단계 (오후 기준, 아직 안 한 것)
+- 운영 DB(RDS)에 `recreate_partner_affiliations_table.sql`, `partners_seed.sql`, `alter_admin_console.sql` 반영 필요 (배포 전 필수)
+- EC2 재배포 필요 (현재 9/17 빌드 그대로 운영 중)
+- `feat/news-board-source`(PR #2) 병합 여부 미결정
+- AWS 비용 확인 필요
