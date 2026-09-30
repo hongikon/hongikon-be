@@ -3,7 +3,7 @@ package com.hongmap.hongmapbackend.partner.dto;
 import com.hongmap.hongmapbackend.partner.entity.Partner;
 
 import java.math.BigDecimal;
-import java.util.Set;
+import java.util.List;
 
 public record PartnerResponse(
     Long id,
@@ -19,7 +19,7 @@ public record PartnerResponse(
     String mapIcon,
     String linkLabel,
     String linkUrl,
-    Set<String> affiliations
+    List<PartnerAffiliationResponse> affiliations
 ) {
     public static PartnerResponse from(Partner partner) {
         return new PartnerResponse(
@@ -36,7 +36,9 @@ public record PartnerResponse(
             partner.getMapIcon(),
             partner.getLinkLabel(),
             partner.getLinkUrl(),
-            partner.getAffiliations()
+            partner.getAffiliations().stream()
+                .map(PartnerAffiliationResponse::from)
+                .toList()
         );
     }
 }

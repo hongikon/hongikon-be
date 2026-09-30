@@ -4,8 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "partners")
@@ -53,13 +53,9 @@ public class Partner {
     @Column(name = "link_url", length = 500)
     private String linkUrl;
 
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-        name = "partner_affiliations",
-        joinColumns = @JoinColumn(name = "partner_id")
-    )
-    @Column(name = "affiliation", length = 50, nullable = false)
-    private Set<String> affiliations = new HashSet<>();
+    @OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    private List<PartnerAffiliation> affiliations = new ArrayList<>();
 
     @Builder
     public Partner(String name, String category, BigDecimal latitude, BigDecimal longitude,
@@ -79,11 +75,12 @@ public class Partner {
         this.linkUrl = linkUrl;
     }
 
-    public void addAffiliation(String affiliation) {
-        this.affiliations.add(affiliation);
+    // benefit이 null이면 이 업체의 기본 benefit을 따른다.
+    public void addAffiliation(String affiliation, String benefit) {
+        this.affiliations.add(new PartnerAffiliation(this, affiliation, benefit));
     }
 
     public void removeAffiliation(String affiliation) {
-        this.affiliations.remove(affiliation);
+        this.affiliations.removeIf(a -> a.getAffiliation().equals(affiliation));
     }
 }

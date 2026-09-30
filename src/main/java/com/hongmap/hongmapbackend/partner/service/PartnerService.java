@@ -4,11 +4,15 @@ import com.hongmap.hongmapbackend.partner.dto.*;
 import com.hongmap.hongmapbackend.partner.entity.Partner;
 import com.hongmap.hongmapbackend.partner.repository.PartnerRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +39,8 @@ public class PartnerService {
     }
 
     public PartnerResponse findById(Long id) {
-        Partner partner = getPartnerOrThrow(id);
+        Partner partner = partnerRepository.findWithAffiliationsById(id)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 제휴업체입니다. id=" + id));
         return PartnerResponse.from(partner);
     }
 
@@ -69,7 +74,14 @@ public class PartnerService {
             .build();
 
         if (request.affiliations() != null) {
-            request.affiliations().forEach(partner::addAffiliation);
+            Set<String> seen = new HashSet<>();
+            for (PartnerAffiliationRequest affiliation : request.affiliations()) {
+                if (!seen.add(affiliation.affiliation())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "중복된 소속입니다: " + affiliation.affiliation());
+                }
+                partner.addAffiliation(affiliation.affiliation(), affiliation.benefit());
+            }
         }
 
         Partner saved = partnerRepository.save(partner);
