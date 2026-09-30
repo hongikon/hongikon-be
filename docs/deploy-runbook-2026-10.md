@@ -11,6 +11,7 @@
 | `main` (9/30) | 학과 시드, 소식 학과/건물 백필 API, CORS | `seed_departments.sql` |
 | PR #2 | 소식 게시판 출처 `sourceId` (대학공지 학사/장학 등 구독 복구) | `alter_add_news_source_id_column.sql` |
 | PR #3 | 관리자 권한·제보 승인·문의·대시보드, 웹 관리자 로그인 | `alter_admin_console.sql` |
+| `main` (9/30) | 제휴업체 소속별 혜택(`PartnerAffiliation`), 제휴업체 119개 실데이터, 등록/삭제 ADMIN 전용 | `recreate_partner_affiliations_table.sql`, `partners_seed.sql` |
 
 `ddl-auto=validate` 라 **SQL 을 빠뜨리면 서버가 기동하지 않는다.** 반드시 1 → 2 → 3 순서.
 
@@ -26,6 +27,8 @@ SHOW COLUMNS FROM news LIKE 'images';        -- 있으면 alter_add_news_media_c
 SHOW COLUMNS FROM news LIKE 'source_id';     -- 있으면 alter_add_news_source_id_column 적용됨
 SHOW COLUMNS FROM users LIKE 'role';         -- 있으면 alter_admin_console 적용됨
 SELECT COUNT(*) FROM departments;            -- 43 이면 seed_departments 적용됨
+SHOW COLUMNS FROM partner_affiliations LIKE 'benefit';  -- 있으면 recreate_partner_affiliations_table 적용됨
+SELECT COUNT(*) FROM partners;               -- 119 면 partners_seed 적용됨. 0 도 119 도 아니면 아래 5·6번 전에 내용 확인
 ```
 
 ## 1. RDS 에 SQL 실행 (배포 전)
@@ -36,12 +39,17 @@ Workbench 라면 먼저 `SET SQL_SAFE_UPDATES = 0;`
 2. `db/seed_departments.sql` (미적용 시)
 3. `db/alter_add_news_source_id_column.sql` — 컬럼 추가 + 기존 소식 백필. 여러 번 돌려도 안전
 4. `db/alter_admin_console.sql`
+5. `db/recreate_partner_affiliations_table.sql` (미적용 시) — `partner_affiliations` 를 DROP 후 재생성한다. 기존 소속 행은 지워진다
+6. `db/partners_seed.sql` (미적용 시) — 제휴업체 119개 + 소속 137행. **INSERT 만 있어 두 번 돌리면 중복**되니 한 번만 실행.
+   반드시 5번 다음에 (새 `benefit` 컬럼에 넣는다). `partners` 에 테스트 행이 남아 있으면 먼저 지운다
 
 확인:
 ```sql
 SELECT source_id, COUNT(*) FROM news GROUP BY source_id ORDER BY 2 DESC;  -- 학사/장학/학과명들이 보여야 함
 SHOW COLUMNS FROM reports LIKE 'reviewed_at';
 SHOW TABLES LIKE 'feedback';
+SELECT COUNT(*) FROM partners;               -- 119
+SELECT COUNT(*) FROM partner_affiliations;   -- 137
 ```
 
 ## 2. 백엔드 재배포 (EC2)
