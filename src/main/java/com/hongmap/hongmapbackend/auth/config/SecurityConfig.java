@@ -1,5 +1,9 @@
 package com.hongmap.hongmapbackend.auth.config;
 
+import com.hongmap.hongmapbackend.auth.oauth.OAuth2RedirectUriCaptureFilter;
+import com.hongmap.hongmapbackend.auth.oauth.OAuth2RedirectUriPolicy;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import com.hongmap.hongmapbackend.auth.jwt.JwtAuthenticationFilter;
 import com.hongmap.hongmapbackend.auth.oauth.CustomOAuth2UserService;
 import com.hongmap.hongmapbackend.auth.oauth.OAuth2SuccessHandler;
@@ -28,6 +32,8 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AdminAccessChecker adminAccessChecker;
+    private final OAuth2RedirectUriPolicy oAuth2RedirectUriPolicy;
     private final Environment environment;
 
     @Bean
@@ -52,6 +58,11 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/departments").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
+                    // 문의하기는 비로그인(게스트)도 보낼 수 있다. 토큰이 있으면 작성자로 연결된다.
+                    auth.requestMatchers(HttpMethod.POST, "/feedback").permitAll();
+                    // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
+                    auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
+                            new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));
                     auth.anyRequest().authenticated();
                 })
                 .oauth2Login(oauth2 -> oauth2
@@ -60,6 +71,8 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
+                .addFilterBefore(new OAuth2RedirectUriCaptureFilter(oAuth2RedirectUriPolicy),
+                        OAuth2AuthorizationRequestRedirectFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

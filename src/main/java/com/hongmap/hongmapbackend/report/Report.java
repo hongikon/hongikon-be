@@ -89,6 +89,14 @@ public class Report {
     @Builder.Default
     private ReportStatus status = ReportStatus.PENDING;
 
+    /** 관리자 검토 메모. 반려(REJECTED) 사유 등 */
+    @Column(name = "moderation_note", length = 200)
+    private String moderationNote;
+
+    /** 관리자가 마지막으로 상태를 바꾼 시각. 값이 있으면 신고 누적 자동 숨김을 하지 않는다(관리자 판단 우선) */
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -96,4 +104,11 @@ public class Report {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */
+    public void moderate(ReportStatus status, String note, LocalDateTime reviewedAt) {
+        this.status = status;
+        this.moderationNote = note;
+        this.reviewedAt = reviewedAt;
+    }
 }

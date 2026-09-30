@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -32,4 +33,17 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     void updateStatus(@Param("id") Long id, @Param("status") ReportStatus status);
 
     void deleteByUser_Id(Long userId);
+
+    /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */
+    @Query("""
+            SELECT r FROM Report r
+            JOIN FETCH r.user
+            JOIN FETCH r.building
+            WHERE (:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
+               OR r.status = :status
+            ORDER BY r.createdAt DESC
+            """)
+    List<Report> findForAdmin(@Param("status") ReportStatus status, Pageable pageable);
+
+    long countByStatus(ReportStatus status);
 }

@@ -134,7 +134,9 @@ public class ReportService {
         reportFlagRepository.save(flag);
 
         long flagCount = reportFlagRepository.countByReportId(reportId);
-        if (flagCount >= flagThreshold && report.getStatus() == ReportStatus.ACTIVE) {
+        // 관리자가 이미 검토해 공개를 유지한 제보는 신고가 더 쌓여도 자동으로 숨기지 않는다.
+        if (flagCount >= flagThreshold && report.getStatus() == ReportStatus.ACTIVE
+                && report.getReviewedAt() == null) {
             reportRepository.updateStatus(reportId, ReportStatus.HIDDEN);
         }
 
