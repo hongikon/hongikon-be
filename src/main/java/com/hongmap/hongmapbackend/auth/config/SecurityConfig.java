@@ -63,6 +63,11 @@ public class SecurityConfig {
                     // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
                     auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
                             new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));
+                    // 제휴업체 등록/삭제도 운영 작업이라 ADMIN 만. (조회 GET 은 위에서 permitAll)
+                    auth.requestMatchers(HttpMethod.POST, "/partners").access((authentication, context) ->
+                            new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));
+                    auth.requestMatchers(HttpMethod.DELETE, "/partners/**").access((authentication, context) ->
+                            new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));
                     auth.anyRequest().authenticated();
                 })
                 .oauth2Login(oauth2 -> oauth2
