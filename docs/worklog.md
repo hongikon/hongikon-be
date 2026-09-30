@@ -295,3 +295,39 @@
 ### 다음 단계
 - CORS 설정 검토 및 적용 (SecurityConfig에 미설정 상태 확인됨, 프론트 요청사항)
 - t3.micro 메모리 사용량 68%, 스왑 24% 사용 중 — 재부팅 필요 상태(System restart required) 확인, 여유 있을 때 재부팅 권장
+
+## 2026-09-30 — CORS 설정 + 제휴업체(Partner) 리팩토링 및 실데이터 시딩
+
+### CORS 설정 (커밋 `7b6ea5b`)
+- SecurityConfig에 `CorsConfigurationSource` 빈 추가, SecurityFilterChain에 `.cors(...)` 적용
+- 허용 출처 7개:
+  - 로컬: `http://localhost:8080`, `http://localhost:8081`(Expo 웹), `http://10.0.2.2:8080`(안드로이드 에뮬레이터)
+  - 프론트 배포: `https://hongikon.com`, `https://www.hongikon.com`, `https://hongmap12.netlify.app`
+  - 백엔드 자체: `https://api.hongikon.com`
+- 메서드 GET/POST/PUT/PATCH/DELETE/OPTIONS, 헤더 전체 허용
+- `allowCredentials=false` — 쿠키 기반 로직 없음 확인 (access 토큰은 Authorization 헤더, refresh 토큰은 JSON body로 주고받음)
+
+### 지난 세션 작업분 재확인
+- 학과(department) 43개 시드 관련 이슈 없음 확인
+- 뉴스 위치정보(학과/건물) 백필 재확인
+
+### Partner 엔티티 리팩토링 (커밋 `892f6cc`)
+- `affiliations`를 `@ElementCollection Set<String>`에서 `PartnerAffiliation` 엔티티(`@OneToMany`, cascade ALL, orphanRemoval)로 전환
+- 소속별 혜택 지원: `partner_affiliations.benefit` 컬럼 추가, NULL이면 `partners.benefit`(기본 혜택)으로 서버에서 fallback 처리
+- API 응답 변경: `affiliations`가 문자열 배열 → `{affiliation, benefit}` 객체 배열 (프론트 수정 필요)
+- `@EntityGraph`/fetch join으로 N+1 쿼리 해결 (목록/소속 필터/상세 모두 쿼리 1회)
+- POST 요청에 소속 중복 시 400 반환
+- 마이그레이션: `db/recreate_partner_affiliations_table.sql` (테이블 DROP 후 재생성)
+
+### 제휴업체 실데이터 시딩 (커밋 `705ce03`)
+- 프론트 `constants/partners.ts`(119개 하드코딩 데이터)를 변환 스크립트로 파싱해 `db/partners_seed.sql` 생성
+- 로컬 DB 시딩 완료 (119 partners, 137 affiliations), GET /partners API 검증 완료
+
+### 카카오 개발자 콘솔
+- 앱 이름 "홍대로" → "홍익온"으로 수정 확인 (설정값만 변경, 코드 영향 없음)
+
+### 다음 단계
+- 운영 DB(RDS)에 `recreate_partner_affiliations_table.sql` → `partners_seed.sql` 순서로 반영 (배포 전 필수, 안 하면 `ddl-auto=validate` 실패)
+- 프론트가 실제로 GET /partners를 호출하도록 연동 (현재는 하드코딩 그대로 사용 중) — 하이브리드 방식으로 전환 예정: API 우선, 실패 시 로컬 fallback
+- 네이버 지도 secret 재발급 (보류 중, 최석훈 계정 소관)
+- 최석훈님이 만든 `src/admin/` 관리자 대시보드 관련 백엔드 API 필요 여부 확인
