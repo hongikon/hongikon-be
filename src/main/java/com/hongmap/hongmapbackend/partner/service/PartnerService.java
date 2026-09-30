@@ -40,7 +40,7 @@ public class PartnerService {
 
     public PartnerResponse findById(Long id) {
         Partner partner = partnerRepository.findWithAffiliationsById(id)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 제휴업체입니다. id=" + id));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 제휴업체입니다. id=" + id));
         return PartnerResponse.from(partner);
     }
 
@@ -96,6 +96,6 @@ public class PartnerService {
 
     private Partner getPartnerOrThrow(Long id) {
         return partnerRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 제휴업체입니다. id=" + id));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 제휴업체입니다. id=" + id));
     }
 }
