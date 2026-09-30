@@ -346,3 +346,22 @@
 - EC2 재배포 필요 (현재 9/17 빌드 그대로 운영 중)
 - `feat/news-board-source`(PR #2) 병합 여부 미결정
 - AWS 비용 확인 필요
+
+### 저녁 이어서 한 작업 (운영 배포)
+- 운영 RDS에 SQL 5개 반영 완료: `recreate_partner_affiliations_table.sql`, `partners_seed.sql`, `alter_admin_console.sql`, `alter_add_news_media_columns.sql`, `seed_departments.sql`
+- EC2 재배포 완료: `git pull`(61커밋 반영, 9/17 빌드에서 갱신) → `./gradlew clean build` → `docker build` → 컨테이너 재기동, 정상 기동 확인(`Started HongmapBackendApplication`)
+- 배포 후 확인: `/status` 최신 buildTime 확인, `/v3/api-docs` 401(비로그인 차단) 확인, `/admin/overview` 401(비로그인 차단) 확인, `/news` 정상 응답 확인
+- 관리자 권한 부여: id=1(주세원), id=2(최석훈) → `role='ADMIN'`
+- 운영 `/admin/overview` API 정상 응답 확인
+- 뉴스 위치정보(학과) 백필 실행(`POST /admin/news/backfill-location`) — 대상 11,681건 중 11,286건 갱신, `missingDepartment` 11,681 → 395
+- 웹판(hongikon.com) 카카오 로그인 정상 확인
+
+### 오늘 새로 발견한 이슈
+- 건축학부 게시판(`arch.hongik.ac.kr`) 크롤링 실패: `news.images` 컬럼(TEXT) 길이 초과로 `DataIntegrityViolationException` 발생, 스케줄 크롤러가 해당 게시판만 계속 저장 실패 중 — 원인 조사 및 수정 필요
+
+### 다음 단계 (9/30 저녁 기준)
+- Nginx 보안 설정 (`deploy/setup-https.sh`) 미적용 — IP 직접 접속 차단, 버전 노출 제거, 속도 제한
+- 건축학부 크롤링 실패 버그 수정 (`images` 컬럼 길이 초과)
+- `feat/news-board-source`(PR #2) 병합 여부 미결정
+- AWS 비용 확인 필요
+- 프론트 `.env` 임시로 `localhost:8080`으로 바꿔둔 것 원복 필요
