@@ -405,3 +405,16 @@
 - 최석훈님에게 전달: 프론트 push 내역, `GET /partners` 연동 요청
 - AWS 비용 확인 (프리티어 여부)
 - `GET /news` 페이지네이션 (별도 설계 필요)
+
+### 2026-10-01 (추가) - GET /news 페이지네이션
+
+- 건축학부 기존 중복 뉴스 9,704건 정리 완료 (RDS, COMMIT 완료) - db/cleanup_arch_duplicate_news.sql
+- 프론트엔드 .env의 EXPO_PUBLIC_API_BASE_URL을 localhost:8080 -> https://api.hongikon.com로 복원 확인
+- AWS 비용: 프리티어 기간 내, 특이사항 없음
+- GET /news 페이지네이션 + sourceId/keyword 필터 서버 이전 (커밋 5f3024a)
+  - 응답 형태 변경: { news: [...] } -> { content: [...], page, size, totalElements, totalPages, hasNext }
+  - 신규 쿼리 파라미터: page, size(최대 50), sourceId(다중값), keyword(제목 LIKE 검색)
+  - 기존 파라미터 유지: category, departmentId, buildingId
+  - 배포 완료 및 검증 완료 (buildTime 2026-10-01T04:24:10)
+  - 프론트 수정 필요 (res.news -> res.content, 클라이언트 필터링 -> 서버 파라미터 방식) - 석훈에게 전달 완료
+- 다음 단계: hongikon-fe 프론트 쪽 뉴스 API 연동 코드 수정 (석훈 작업 예정)
