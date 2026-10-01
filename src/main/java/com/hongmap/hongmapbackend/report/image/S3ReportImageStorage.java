@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report.image;
 
+import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -21,6 +22,7 @@ import java.util.Optional;
  * S3 구현. 버킷은 비공개(Block Public Access 전부 켬)로 두고, 업로드·보기 모두 presigned URL 로만 접근한다.
  * 자격 증명은 SDK 기본 체인(운영: EC2 인스턴스 역할)을 쓴다.
  */
+@Slf4j
 public class S3ReportImageStorage implements ReportImageStorage {
 
     private final S3Client s3;
@@ -66,7 +68,11 @@ public class S3ReportImageStorage implements ReportImageStorage {
         } catch (NoSuchKeyException e) {
             return Optional.empty();
         } catch (S3Exception e) {
-            if (e.statusCode() == 404) {
+            // s3:ListBucket 권한이 없으면 없는 키에 404 대신 403 이 온다. 어느 쪽이든 "확인 못 함" → 등록 400.
+            if (e.statusCode() == 404 || e.statusCode() == 403) {
+                if (e.statusCode() == 403) {
+                    log.warn("report image HeadObject 403 key={} — IAM 에 s3:ListBucket(reports/*) 이 있는지 확인", key);
+                }
                 return Optional.empty();
             }
             throw e;
