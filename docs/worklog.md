@@ -406,7 +406,7 @@
 - AWS 비용 확인 (프리티어 여부)
 - `GET /news` 페이지네이션 (별도 설계 필요)
 
-- ## 2026-10-01 (추가) - GET /news 페이지네이션
+### 2026-10-01 (추가) - GET /news 페이지네이션
 
 - 건축학부 기존 중복 뉴스 9,704건 정리 완료 (RDS, COMMIT 완료) - db/cleanup_arch_duplicate_news.sql
 - 프론트엔드 .env의 EXPO_PUBLIC_API_BASE_URL을 localhost:8080 -> https://api.hongikon.com로 복원 확인
