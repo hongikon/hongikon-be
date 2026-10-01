@@ -47,6 +47,13 @@ public class User {
     @Column(nullable = false, length = 50)
     private String nickname;
 
+    /**
+     * 사용자가 앱에서 직접 정한 공개용 닉네임(선택). 없으면 남에게는 {@link #getNickname()} 을 가린 이름이 보인다.
+     * 규칙은 AppNicknamePolicy. 운영 DB는 utf8mb4_unicode_ci 라 유니크 인덱스가 대소문자를 가리지 않는다.
+     */
+    @Column(name = "app_nickname", length = 30, unique = true)
+    private String appNickname;
+
     /** 관리자 화면(/admin/**) 접근 권한. 요청마다 DB에서 확인하므로 바꾸면 즉시 반영된다. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -86,5 +93,18 @@ public class User {
     @Override
     public int hashCode() {
         return getClass().hashCode();
+    }
+
+    /** null 이면 앱 닉네임을 지워 가린 로그인 닉네임으로 돌아간다. */
+    public void changeAppNickname(String appNickname) {
+        this.appNickname = appNickname;
+    }
+
+    /**
+     * 다른 사람에게 보여 줄 이름. 앱 닉네임이 있으면 그대로, 없으면 카카오/Apple 닉네임을 첫 글자만 남기고 가린다.
+     * 공개 응답에는 반드시 이 값만 싣는다(원래 닉네임은 실명인 경우가 많다).
+     */
+    public String getDisplayName() {
+        return DisplayNames.of(appNickname, nickname);
     }
 }

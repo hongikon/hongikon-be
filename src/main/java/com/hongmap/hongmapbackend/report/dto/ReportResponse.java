@@ -25,7 +25,9 @@ public record ReportResponse(
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         String status,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
+        String authorDisplayName
 ) {
     public static ReportResponse of(Report report, Long requesterId) {
         return ReportResponse.builder()
@@ -38,12 +40,13 @@ public record ReportResponse(
                 .customCategoryLabel(report.getCustomCategoryLabel())
                 .title(report.getTitle())
                 .content(report.getContent())
-                .authorNickname(report.getUser().getNickname())
+                .authorNickname(report.getUser().getDisplayName())
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
                 .status(report.getStatus().name())
                 .createdAt(report.getCreatedAt())
+                .authorDisplayName(report.getUser().getDisplayName())
                 .build();
     }
 }
