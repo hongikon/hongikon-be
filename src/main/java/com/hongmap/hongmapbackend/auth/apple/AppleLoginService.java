@@ -31,13 +31,19 @@ public class AppleLoginService {
     private final AppleAuthClient appleAuthClient;
     private final UserRepository userRepository;
     private final RefreshTokenService refreshTokenService;
+    private final AppleTokenCipher tokenCipher;
 
     public TokenResponse login(AppleLoginRequest request) {
         AppleIdentity identity = verifier.verify(request.identityToken(), request.nonce());
 
         // 탈퇴 시 폐기할 Apple refresh 토큰. 키 설정이 없거나 교환이 실패해도 로그인은 계속한다.
-        Optional<String> appleRefreshToken =
-                appleAuthClient.exchangeForRefreshToken(request.authorizationCode(), identity.clientId());
+        // 암호화 키(APPLE_TOKEN_ENC_KEY)가 없으면 평문으로 남기지 않도록 아예 받지 않는다(prod 는 기동 시 확인).
+        Optional<String> appleRefreshToken = Optional.empty();
+        if (tokenCipher.isEnabled()) {
+            appleRefreshToken = appleAuthClient.exchangeForRefreshToken(request.authorizationCode(), identity.clientId());
+        } else if (request.authorizationCode() != null && !request.authorizationCode().isBlank()) {
+            log.warn("APPLE_TOKEN_ENC_KEY 가 없어 Apple refresh 토큰을 받지 않습니다(탈퇴 시 Apple 토큰 폐기 불가).");
+        }
 
         User user = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, identity.subject())
                 .orElseGet(() -> createUser(identity, request.fullName()));

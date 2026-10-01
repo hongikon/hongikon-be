@@ -80,7 +80,7 @@ class AppleIdentityTokenVerifierTest {
     void 올바른_토큰이면_sub와_aud를_돌려준다() {
         String token = APPLE.token().now(now).subject("apple-sub-1").audience("com.hongmap.alimi.preview").build();
 
-        AppleIdentity identity = verifier.verify(token, null);
+        AppleIdentity identity = verifier.verify(token, AppleTestKeys.RAW_NONCE);
 
         assertThat(identity.subject()).isEqualTo("apple-sub-1");
         assertThat(identity.clientId()).isEqualTo("com.hongmap.alimi.preview");
@@ -91,7 +91,7 @@ class AppleIdentityTokenVerifierTest {
         AppleTestKeys attacker = new AppleTestKeys("kid-1");
         String token = APPLE.token().now(now).signedBy(attacker.keyPair).build();
 
-        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
@@ -99,7 +99,7 @@ class AppleIdentityTokenVerifierTest {
         String token = APPLE.token().now(now).build();
         String tampered = token.substring(0, token.length() - 4) + (token.endsWith("AAAA") ? "BBBB" : "AAAA");
 
-        assertUnauthorized(() -> verifier.verify(tampered, null));
+        assertUnauthorized(() -> verifier.verify(tampered, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
@@ -111,53 +111,57 @@ class AppleIdentityTokenVerifierTest {
                 .signWith(Keys.hmacShaKeyFor(new byte[32]), Jwts.SIG.HS256)
                 .compact();
 
-        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
     void iss가_Apple이_아니면_401() {
         String token = APPLE.token().now(now).issuer("https://evil.example.com").build();
 
-        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
     void aud가_허용_번들ID가_아니면_401() {
         String token = APPLE.token().now(now).audience("com.other.app").build();
 
-        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
     void 만료된_토큰은_401() {
         String token = APPLE.token().now(now.minusSeconds(3600)).expiresAt(now.minusSeconds(120)).build();
 
-        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, AppleTestKeys.RAW_NONCE));
     }
 
     @Test
-    void nonce는_원본의_SHA256이나_원본_그대로_둘_다_통과한다() {
+    void nonce는_원본의_SHA256만_통과한다() {
         String rawNonce = "raw-nonce-value-0123456789";
 
         String hashedInToken = APPLE.token().now(now).nonce(AppleIdentityTokenVerifier.sha256Hex(rawNonce)).build();
-        String rawInToken = APPLE.token().now(now).nonce(rawNonce).build();
-
         assertThat(verifier.verify(hashedInToken, rawNonce).subject()).isNotBlank();
-        assertThat(verifier.verify(rawInToken, rawNonce).subject()).isNotBlank();
+
+        // 토큰의 nonce 를 그대로 보내는 재사용(replay)은 막는다 — 토큰 nonce 는 누구나 읽을 수 있다.
+        String rawInToken = APPLE.token().now(now).nonce(rawNonce).build();
+        assertUnauthorized(() -> verifier.verify(rawInToken, rawNonce));
+        assertUnauthorized(() -> verifier.verify(hashedInToken, AppleIdentityTokenVerifier.sha256Hex(rawNonce)));
     }
 
     @Test
-    void nonce가_다르거나_토큰에_없으면_401() {
+    void nonce가_다르거나_없거나_토큰에_없으면_401() {
         String token = APPLE.token().now(now).nonce(AppleIdentityTokenVerifier.sha256Hex("expected")).build();
-        String withoutNonce = APPLE.token().now(now).build();
+        String withoutNonce = APPLE.token().now(now).nonce(null).build();
 
         assertUnauthorized(() -> verifier.verify(token, "something-else"));
+        assertUnauthorized(() -> verifier.verify(token, null));
+        assertUnauthorized(() -> verifier.verify(token, " "));
         assertUnauthorized(() -> verifier.verify(withoutNonce, "expected"));
     }
 
     @Test
     void 모르는_kid가_오면_JWKS를_다시_받아_새_키로_검증한다() {
-        verifier.verify(APPLE.token().now(now).build(), null);
+        verifier.verify(APPLE.token().now(now).build(), AppleTestKeys.RAW_NONCE);
         assertThat(source.calls.get()).isEqualTo(1);
 
         // 1분 뒤 Apple이 새 키를 추가(키 교체)
@@ -166,20 +170,20 @@ class AppleIdentityTokenVerifierTest {
         clock.instant = now.plusSeconds(61);
         String second = rotated.token().now(clock.instant).build();
 
-        assertThat(verifier.verify(second, null).subject()).isNotBlank();
+        assertThat(verifier.verify(second, AppleTestKeys.RAW_NONCE).subject()).isNotBlank();
         assertThat(source.calls.get()).isEqualTo(2);
         // 이미 아는 kid는 다시 받지 않는다
-        verifier.verify(APPLE.token().now(clock.instant).build(), null);
+        verifier.verify(APPLE.token().now(clock.instant).build(), AppleTestKeys.RAW_NONCE);
         assertThat(source.calls.get()).isEqualTo(2);
     }
 
     @Test
     void 모르는_kid가_연달아_와도_JWKS는_1분에_한_번만_받는다() {
-        verifier.verify(APPLE.token().now(now).build(), null);
+        verifier.verify(APPLE.token().now(now).build(), AppleTestKeys.RAW_NONCE);
         String unknown = APPLE.token().now(now).headerKid("nope").build();
 
-        assertUnauthorized(() -> verifier.verify(unknown, null));
-        assertUnauthorized(() -> verifier.verify(unknown, null));
+        assertUnauthorized(() -> verifier.verify(unknown, AppleTestKeys.RAW_NONCE));
+        assertUnauthorized(() -> verifier.verify(unknown, AppleTestKeys.RAW_NONCE));
 
         assertThat(source.calls.get()).isEqualTo(1);
     }
@@ -190,6 +194,6 @@ class AppleIdentityTokenVerifierTest {
             throw new IllegalStateException("apple down");
         }, CLIENT_IDS, Clock.fixed(now, ZoneOffset.UTC));
 
-        assertUnauthorized(() -> failing.verify(APPLE.token().now(now).build(), null));
+        assertUnauthorized(() -> failing.verify(APPLE.token().now(now).build(), AppleTestKeys.RAW_NONCE));
     }
 }

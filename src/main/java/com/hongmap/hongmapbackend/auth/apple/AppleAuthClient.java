@@ -26,8 +26,9 @@ import java.util.Optional;
  * Apple 서버 호출(토큰 교환·폐기). App Store 심사 가이드라인 5.1.1(v): Sign in with Apple을 제공하는 앱은 계정 삭제 시
  * Apple 토큰도 폐기해야 한다 — 그래서 로그인 때 authorization code를 Apple refresh 토큰으로 바꿔 두었다가 탈퇴 때 revoke한다.
  *
- * <p>두 호출 모두 "best effort"다: 키 설정(app.apple.team-id/key-id/private-key)이 없거나 Apple 호출이 실패해도
- * 예외를 던지지 않고 로그만 남긴다. 로그인·탈퇴 자체는 막지 않는다.
+ * <p>두 호출 모두 예외를 던지지 않는다: 키 설정(app.apple.team-id/key-id/private-key)이 없거나 Apple 호출이 실패해도
+ * 로그만 남기고 로그인·탈퇴 자체는 막지 않는다. 폐기 실패는 {@link AppleRevocationService} 가 기록해 다시 시도하고,
+ * prod 에서는 키가 없으면 기동하지 않는다({@link AppleStartupCheck}).
  */
 @Slf4j
 @Component
@@ -106,18 +107,21 @@ public class AppleAuthClient {
         }
     }
 
+    /** 폐기 결과. FAILED 만 재시도 대상이다(설정·토큰이 없어 건너뛴 SKIPPED 는 다시 해도 같다). */
+    public enum RevokeResult { REVOKED, SKIPPED, FAILED }
+
     /**
      * Apple refresh 토큰을 폐기한다(사용자의 "Apple로 로그인한 앱" 목록에서 이 앱 연결이 끊긴다).
-     * 성공하면 true. 설정이 없거나, 토큰이 없거나, 실패하면 로그만 남기고 false.
+     * 예외를 던지지 않는다 — 설정·토큰이 없으면 SKIPPED, Apple 호출이 실패하면 FAILED(로그만).
      */
-    public boolean revokeQuietly(String refreshToken, String clientId) {
+    public RevokeResult revoke(String refreshToken, String clientId) {
         if (refreshToken == null || refreshToken.isBlank() || clientId == null || clientId.isBlank()) {
             log.warn("저장된 Apple refresh 토큰이 없어 Apple 토큰 폐기를 건너뜁니다.");
-            return false;
+            return RevokeResult.SKIPPED;
         }
         if (!isConfigured()) {
             log.warn("Apple 키 설정이 없어 탈퇴 사용자의 Apple 토큰 폐기를 건너뜁니다.");
-            return false;
+            return RevokeResult.SKIPPED;
         }
         try {
             MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -132,11 +136,16 @@ public class AppleAuthClient {
                     .retrieve()
                     .toBodilessEntity();
             log.info("Apple 토큰 폐기 완료");
-            return true;
+            return RevokeResult.REVOKED;
         } catch (RuntimeException e) {
-            log.warn("Apple 토큰 폐기 실패(탈퇴는 그대로 진행): {}", e.getMessage());
-            return false;
+            log.warn("Apple 토큰 폐기 실패(탈퇴는 그대로 진행, 재시도 대기열에 넣음): {}", e.getMessage());
+            return RevokeResult.FAILED;
         }
+    }
+
+    /** {@link #revoke} 가 성공했는지만. */
+    public boolean revokeQuietly(String refreshToken, String clientId) {
+        return revoke(refreshToken, clientId) == RevokeResult.REVOKED;
     }
 
     /**

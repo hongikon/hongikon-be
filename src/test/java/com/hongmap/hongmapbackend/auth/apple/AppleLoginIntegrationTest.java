@@ -50,6 +50,9 @@ class AppleLoginIntegrationTest {
     @Autowired RefreshTokenRepository refreshTokenRepository;
     @Autowired UserService userService;
     @Autowired JwtTokenProvider jwtTokenProvider;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired PendingAppleRevocationRepository pendingRevocationRepository;
+    @Autowired AppleRevocationService appleRevocationService;
 
     @MockitoBean AppleJwksSource jwksSource;
     @MockitoSpyBean AppleAuthClient appleAuthClient;
@@ -57,6 +60,7 @@ class AppleLoginIntegrationTest {
     @BeforeEach
     void setUp() {
         when(jwksSource.fetchKeys()).thenReturn(List.of(APPLE.jwk()));
+        pendingRevocationRepository.deleteAll();
     }
 
     private MvcResult login(String body) throws Exception {
@@ -100,13 +104,13 @@ class AppleLoginIntegrationTest {
     void 이름이_없으면_기본_닉네임으로_만들고_다시_로그인하면_같은_회원이다() throws Exception {
         String sub = newSub();
 
-        login("{\"identityToken\":\"%s\"}".formatted(APPLE.token().subject(sub).build()));
+        login(body(APPLE.token().subject(sub).build()));
         User created = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
         assertThat(created.getNickname()).matches("Apple 사용자 [0-9A-F]{4}");
 
         MvcResult second = login("""
-                {"identityToken":"%s","fullName":{"givenName":"Other","familyName":"Name"}}
-                """.formatted(APPLE.token().subject(sub).build()));
+                {"identityToken":"%s","nonce":"%s","fullName":{"givenName":"Other","familyName":"Name"}}
+                """.formatted(APPLE.token().subject(sub).build(), AppleTestKeys.RAW_NONCE));
 
         assertThat(second.getResponse().getStatus()).isEqualTo(200);
         String accessToken = JsonPath.read(second.getResponse().getContentAsString(), "$.accessToken");
@@ -119,20 +123,33 @@ class AppleLoginIntegrationTest {
     void 검증에_실패하면_401이고_회원을_만들지_않는다() throws Exception {
         String sub = newSub();
 
-        assertThat(login("{\"identityToken\":\"%s\"}".formatted(APPLE.token().subject(sub).audience("com.other.app").build()))
+        assertThat(login(body(APPLE.token().subject(sub).audience("com.other.app").build()))
                 .getResponse().getStatus()).isEqualTo(401);
-        assertThat(login("{\"identityToken\":\"%s\"}".formatted(APPLE.token().subject(sub).issuer("https://evil.example").build()))
+        assertThat(login(body(APPLE.token().subject(sub).issuer("https://evil.example").build()))
                 .getResponse().getStatus()).isEqualTo(401);
         assertThat(login("{\"identityToken\":\"%s\",\"nonce\":\"wrong\"}".formatted(APPLE.token().subject(sub).nonce("right").build()))
                 .getResponse().getStatus()).isEqualTo(401);
-        assertThat(login("{\"identityToken\":\"not-a-jwt\"}").getResponse().getStatus()).isEqualTo(401);
+        // 토큰에 nonce 가 없거나, 토큰 nonce 를 그대로 보내는 재사용은 401
+        assertThat(login(body(APPLE.token().subject(sub).nonce(null).build())).getResponse().getStatus()).isEqualTo(401);
+        String hashed = AppleIdentityTokenVerifier.sha256Hex(AppleTestKeys.RAW_NONCE);
+        assertThat(login("{\"identityToken\":\"%s\",\"nonce\":\"%s\"}".formatted(APPLE.token().subject(sub).build(), hashed))
+                .getResponse().getStatus()).isEqualTo(401);
+        assertThat(login(body("not-a-jwt")).getResponse().getStatus()).isEqualTo(401);
 
         assertThat(userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub)).isEmpty();
     }
 
     @Test
-    void identityToken이_없으면_400() throws Exception {
-        assertThat(login("{\"authorizationCode\":\"c\"}").getResponse().getStatus()).isEqualTo(400);
+    void identityToken이나_nonce가_없으면_400() throws Exception {
+        assertThat(login("{\"authorizationCode\":\"c\",\"nonce\":\"n\"}").getResponse().getStatus()).isEqualTo(400);
+        String sub = newSub();
+        assertThat(login("{\"identityToken\":\"%s\"}".formatted(APPLE.token().subject(sub).build()))
+                .getResponse().getStatus()).isEqualTo(400);
+        assertThat(userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub)).isEmpty();
+    }
+
+    private static String body(String identityToken) {
+        return "{\"identityToken\":\"%s\",\"nonce\":\"%s\"}".formatted(identityToken, AppleTestKeys.RAW_NONCE);
     }
 
     @Test
@@ -140,27 +157,32 @@ class AppleLoginIntegrationTest {
         String sub = newSub();
         doReturn(Optional.of("r.apple-refresh")).when(appleAuthClient)
                 .exchangeForRefreshToken("c-ok", "com.hongmap.alimi.preview");
-        doReturn(true).when(appleAuthClient).revokeQuietly(anyString(), anyString());
+        doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke(anyString(), anyString());
 
         MvcResult result = login("""
-                {"identityToken":"%s","authorizationCode":"c-ok"}
-                """.formatted(APPLE.token().subject(sub).audience("com.hongmap.alimi.preview").build()));
+                {"identityToken":"%s","authorizationCode":"c-ok","nonce":"%s"}
+                """.formatted(APPLE.token().subject(sub).audience("com.hongmap.alimi.preview").build(), AppleTestKeys.RAW_NONCE));
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
 
         User user = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
         assertThat(user.getAppleRefreshToken()).isEqualTo("r.apple-refresh");
         assertThat(user.getAppleClientId()).isEqualTo("com.hongmap.alimi.preview");
+        // DB 에는 AES-GCM 암호문만 있다
+        String stored = jdbcTemplate.queryForObject(
+                "SELECT apple_refresh_token FROM users WHERE id = ?", String.class, user.getId());
+        assertThat(stored).startsWith("v1:").doesNotContain("apple-refresh");
 
         userService.withdraw(user.getId());
 
-        verify(appleAuthClient).revokeQuietly("r.apple-refresh", "com.hongmap.alimi.preview");
+        verify(appleAuthClient).revoke("r.apple-refresh", "com.hongmap.alimi.preview");
         assertThat(userRepository.findById(user.getId())).isEmpty();
     }
 
     @Test
     void 키_설정이_없어도_Apple_회원_탈퇴는_성공한다() throws Exception {
         String sub = newSub();
-        login("{\"identityToken\":\"%s\",\"authorizationCode\":\"c\"}".formatted(APPLE.token().subject(sub).build()));
+        login("{\"identityToken\":\"%s\",\"authorizationCode\":\"c\",\"nonce\":\"%s\"}"
+                .formatted(APPLE.token().subject(sub).build(), AppleTestKeys.RAW_NONCE));
         User user = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/auth/me")
@@ -168,7 +190,8 @@ class AppleLoginIntegrationTest {
                 .andExpect(status().isNoContent());
 
         assertThat(userRepository.findById(user.getId())).isEmpty();
-        verify(appleAuthClient).revokeQuietly(null, null); // 실제 클라이언트: 저장된 토큰 없음 → WARN 후 건너뜀
+        verify(appleAuthClient).revoke(null, null); // 실제 클라이언트: 저장된 토큰 없음 → WARN 후 건너뜀(SKIPPED, 대기열 안 넣음)
+        assertThat(pendingRevocationRepository.count()).isZero();
     }
 
     @Test
@@ -178,6 +201,39 @@ class AppleLoginIntegrationTest {
 
         userService.withdraw(kakao.getId());
 
-        verify(appleAuthClient, never()).revokeQuietly(any(), any());
+        verify(appleAuthClient, never()).revoke(any(), any());
+    }
+
+    @Test
+    void 탈퇴_때_Apple_폐기가_실패하면_암호화해_대기열에_넣고_재시도로_지운다() throws Exception {
+        String sub = newSub();
+        doReturn(Optional.of("r.retry-me")).when(appleAuthClient).exchangeForRefreshToken("c-retry", "com.hongmap.alimi");
+        doReturn(AppleAuthClient.RevokeResult.FAILED).when(appleAuthClient).revoke("r.retry-me", "com.hongmap.alimi");
+        login("""
+                {"identityToken":"%s","authorizationCode":"c-retry","nonce":"%s"}
+                """.formatted(APPLE.token().subject(sub).build(), AppleTestKeys.RAW_NONCE));
+        User user = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/auth/me")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.generateAccessToken(user.getId())))
+                .andExpect(status().isNoContent());
+
+        assertThat(userRepository.findById(user.getId())).isEmpty();
+        List<PendingAppleRevocation> pending = pendingRevocationRepository.findAll();
+        assertThat(pending).hasSize(1);
+        assertThat(pending.get(0).getRefreshToken()).isEqualTo("r.retry-me");
+        assertThat(pending.get(0).getClientId()).isEqualTo("com.hongmap.alimi");
+        assertThat(jdbcTemplate.queryForObject("SELECT refresh_token FROM apple_pending_revocations", String.class))
+                .startsWith("v1:").doesNotContain("retry-me");
+
+        // 아직 재시도 시각 전이면 건드리지 않는다
+        appleRevocationService.retryPending();
+        assertThat(pendingRevocationRepository.count()).isEqualTo(1);
+
+        // 재시도 시각이 지나고 Apple 이 성공하면 지운다
+        jdbcTemplate.update("UPDATE apple_pending_revocations SET next_attempt_at = ?", java.time.LocalDateTime.now().minusMinutes(1));
+        doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke("r.retry-me", "com.hongmap.alimi");
+        appleRevocationService.retryPending();
+        assertThat(pendingRevocationRepository.count()).isZero();
     }
 }

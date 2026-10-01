@@ -144,7 +144,9 @@ class AppleAuthClientTest {
     void 폐기가_실패해도_예외를_던지지_않는다() {
         server.expect(requestTo(REVOKE_URL)).andRespond(withBadRequest());
 
-        assertThat(configuredClient().revokeQuietly("r.apple-refresh", "com.hongmap.alimi")).isFalse();
+        // FAILED 는 재시도 대기열 대상(SKIPPED 와 구분)
+        assertThat(configuredClient().revoke("r.apple-refresh", "com.hongmap.alimi"))
+                .isEqualTo(AppleAuthClient.RevokeResult.FAILED);
         server.verify();
     }
 
@@ -155,6 +157,7 @@ class AppleAuthClientTest {
         assertThat(client.isConfigured()).isFalse();
         assertThat(client.exchangeForRefreshToken("auth-code", "com.hongmap.alimi")).isEmpty();
         assertThat(client.revokeQuietly("r.apple-refresh", "com.hongmap.alimi")).isFalse();
+        assertThat(client.revoke("r.apple-refresh", "com.hongmap.alimi")).isEqualTo(AppleAuthClient.RevokeResult.SKIPPED);
         server.verify(); // 요청 0건
     }
 

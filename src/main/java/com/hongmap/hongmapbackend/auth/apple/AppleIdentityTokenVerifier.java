@@ -31,9 +31,9 @@ import java.util.Set;
  * <ul>
  *     <li>서명: RS256, Apple JWKS의 kid 키로 검증. 모르는 kid면 JWKS를 다시 받아 본다(키 교체 대응).</li>
  *     <li>iss = https://appleid.apple.com, aud ∈ app.apple.client-ids, exp 유효(시계 오차 60초 허용).</li>
- *     <li>nonce: 앱이 보냈을 때만 비교한다. Apple은 요청에 넣은 nonce 값을 그대로 토큰에 넣으므로, 앱이 Firebase 방식으로
- *     SHA-256(원본)을 Apple에 넘기고 원본을 서버로 보내든, 원본을 그대로 넘기든 둘 다 통과시킨다
- *     (토큰 nonce == sha256hex(nonce) 또는 == nonce).</li>
+ *     <li>nonce(필수): 앱은 원본 nonce 의 SHA-256(16진수)을 Apple 에 넘기고 원본을 서버로 보낸다. Apple 은 받은 값을
+ *     그대로 토큰에 넣으므로 토큰 nonce == sha256hex(원본) 이어야 통과한다. 토큰의 nonce 는 누구나 읽을 수 있으므로
+ *     "원본 그대로 일치"는 받지 않는다 — 그러면 탈취한 토큰에서 nonce 를 꺼내 그대로 보내 재사용(replay)할 수 있다.</li>
  * </ul>
  * 실패는 모두 401로 응답한다(어느 검사에서 걸렸는지는 로그에만 남긴다).
  */
@@ -108,7 +108,10 @@ public class AppleIdentityTokenVerifier {
         if (subject == null || subject.isBlank()) {
             throw unauthorized("sub 없음");
         }
-        if (nonce != null && !nonce.isBlank() && !nonceMatches(nonce, claims.get("nonce", String.class))) {
+        if (nonce == null || nonce.isBlank()) {
+            throw unauthorized("nonce 없음");
+        }
+        if (!nonceMatches(nonce, claims.get("nonce", String.class))) {
             throw unauthorized("nonce 불일치");
         }
         return new AppleIdentity(subject, clientId);
@@ -162,9 +165,8 @@ public class AppleIdentityTokenVerifier {
         if (tokenNonce == null) {
             return false;
         }
-        byte[] expected = tokenNonce.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(expected, sha256Hex(nonce).getBytes(StandardCharsets.UTF_8))
-                || MessageDigest.isEqual(expected, nonce.getBytes(StandardCharsets.UTF_8));
+        return MessageDigest.isEqual(tokenNonce.getBytes(StandardCharsets.UTF_8),
+                sha256Hex(nonce).getBytes(StandardCharsets.UTF_8));
     }
 
     static String sha256Hex(String value) {

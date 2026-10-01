@@ -48,6 +48,9 @@ final class AppleTestKeys {
         return bytes;
     }
 
+    /** 앱이 서버로 보내는 원본 nonce. 토큰에는 기본으로 sha256hex(RAW_NONCE) 가 들어간다(앱과 같은 방식). */
+    static final String RAW_NONCE = "test-raw-nonce-0123456789abcdef";
+
     Builder token() {
         return new Builder();
     }
@@ -58,7 +61,7 @@ final class AppleTestKeys {
         String subject = "001234.abcdef0123456789.0123";
         Instant now = Instant.now();
         Instant expiresAt;
-        String nonce;
+        String nonce = AppleIdentityTokenVerifier.sha256Hex(RAW_NONCE);
         String headerKid = kid;
         KeyPair signer = keyPair;
 
