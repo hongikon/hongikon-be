@@ -31,11 +31,11 @@ public class UserService {
     private final BookmarkRepository bookmarkRepository;
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
+    private final ReportImageService reportImageService;
     private final KeywordSubscriptionRepository keywordSubscriptionRepository;
     private final UserDepartmentRepository userDepartmentRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final ReportImageService reportImageService;
 
     @Transactional
     public void withdraw(Long userId) {
