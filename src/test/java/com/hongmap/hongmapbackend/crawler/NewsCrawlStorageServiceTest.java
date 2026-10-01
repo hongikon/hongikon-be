@@ -38,7 +38,7 @@ class NewsCrawlStorageServiceTest {
     @Test
     void 링크가_매번_바뀌는_게시판은_제목과_작성일로_이미_저장된_글을_알아본다() {
         String title = "AAVS Korea 2026: Encoded Heritage 결과물 전시 " + UUID.randomUUID();
-        assertThat(storageService.save(archBoard, summary(title, "2026.08.10"), null)).isTrue();
+        assertThat(storageService.save(archBoard, summary(title, "2026.08.10"), null)).isPresent();
 
         ArticleSummary recrawled = summary(title, "2026.08.10");
 

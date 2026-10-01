@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 크롤링한 게시글 하나를 News 엔티티로 변환해 저장하는 책임만 진다.
@@ -62,11 +63,11 @@ public class NewsCrawlStorageService {
         return newsRepository.fillMissingSourceId(board.sourceId(), sourceUrls);
     }
 
-    /** 이미 저장된 글이면 저장하지 않고 false를 돌려준다. */
+    /** 새로 저장한 News를 돌려준다(푸시 발송용). 이미 저장된 글이면 저장하지 않고 빈 값을 돌려준다. */
     @Transactional
-    public boolean save(BoardConfig board, ArticleSummary summary, ArticleDetail detail) {
+    public Optional<News> save(BoardConfig board, ArticleSummary summary, ArticleDetail detail) {
         if (newsRepository.existsBySourceUrl(summary.link())) {
-            return false;
+            return Optional.empty();
         }
 
         String content = detail != null ? detail.content() : null;
@@ -87,8 +88,7 @@ public class NewsCrawlStorageService {
                 .publishedAt(resolvePublishedAt(summary, detail))
                 .build();
 
-        newsRepository.save(news);
-        return true;
+        return Optional.of(newsRepository.save(news));
     }
 
     /** 크롤러의 Attachment(파싱 결과)를 news 도메인의 NewsAttachment(저장용)로 옮긴다. */

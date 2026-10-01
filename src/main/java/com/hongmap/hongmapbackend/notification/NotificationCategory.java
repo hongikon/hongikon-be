@@ -21,7 +21,9 @@ import java.io.Serializable;
 /**
  * 유저별 알림 카테고리 구독 여부. PK가 (user_id, category) 복합키라 IdClass 사용.
  * 행 기반 설계라 카테고리 추가 시 ALTER TABLE 없이 INSERT만으로 확장 가능.
- * [가정 A 확인 필요] 앱 7종(공지·장학·행사·수강·시설·취업·상담) 기준으로 category 값 사용 예정.
+ * [가정 A 확인됨] category 값은 앱 7종(공지·장학·행사·수강·시설·취업·상담) — News.category(NewsCategoryClassifier)와 같은 값.
+ * 대학공지(News.department 없음)가 올라오면 그 category를 끄지 않은(enabled = false 행이 없는) 유저에게 푸시한다(NewsPushDispatcher).
+ * 행이 없으면 켜짐 — 화면(NotificationCategoryService.getUserCategories)과 같은 기준.
  *
  * DB: notification_categories
  */

@@ -12,9 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * [가정 B, 트래커 확인중] 자유 키워드 알림으로 해석하고 구현.
- * 만약 카테고리 구독의 다른 이름이었던 거라면, 이 클래스와 KeywordSubscription 엔티티,
- * keyword_subscriptions 테이블은 통째로 삭제 대상 — 트래커에 명시해둠.
+ * [가정 B 확인됨] 자유 키워드 알림. 제목에 키워드가 포함된 새 소식은 학과·카테고리 구독과 무관하게 푸시된다(NewsPushDispatcher).
  */
 @Service
 @RequiredArgsConstructor

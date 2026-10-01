@@ -18,8 +18,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * 자유 키워드 알림 구독. 제목에 keyword가 포함된 소식이 올라오면 알림.
- * [가정 B 확인 필요] 카테고리 구독(NotificationCategory)·학과 구독(UserDepartment)과 겹치지 않는
- * "자유 키워드"로 해석. 원래 의도가 카테고리였다면 이 엔티티는 삭제 대상.
+ * [가정 B 확인됨] 카테고리 구독(NotificationCategory)·학과 구독(UserDepartment)과 별개인 "자유 키워드" 구독.
+ * 학과·카테고리 매칭과 무관하게 제목에 keyword가 포함되면(대소문자 무시) 추가로 푸시 대상이 된다(NewsPushDispatcher).
  *
  * DB: keyword_subscriptions (UNIQUE user_id, keyword)
  */

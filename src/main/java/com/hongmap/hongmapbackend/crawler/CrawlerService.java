@@ -7,6 +7,8 @@ import com.hongmap.hongmapbackend.crawler.parser.ArticleDetail;
 import com.hongmap.hongmapbackend.crawler.parser.ArticleSummary;
 import com.hongmap.hongmapbackend.crawler.parser.BoardParser;
 import com.hongmap.hongmapbackend.crawler.parser.BoardParserRegistry;
+import com.hongmap.hongmapbackend.news.News;
+import com.hongmap.hongmapbackend.push.NewsPushDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 게시판 전체를 순회하며 크롤링을 오케스트레이션한다.
@@ -29,22 +32,33 @@ public class CrawlerService {
     private final CrawlerHttpClient httpClient;
     private final BoardParserRegistry parserRegistry;
     private final NewsCrawlStorageService storageService;
+    private final NewsPushDispatcher pushDispatcher;
     private final CrawlerProperties properties;
 
-    /** 게시판 하나가 실패해도 나머지 게시판 수집은 계속한다. 반환값은 전체 게시판에서 신규 저장된 건수 합계. */
+    /**
+     * 게시판 하나가 실패해도 나머지 게시판 수집은 계속한다. 반환값은 전체 게시판에서 신규 저장된 건수 합계.
+     * 새 소식 푸시는 전체 게시판 수집이 끝난 뒤 한 번에 보낸다(배치 발송, 수집 속도에 영향 없음). 푸시 실패는 결과에 영향 없다.
+     */
     public int crawlAll() {
-        int totalSaved = 0;
+        List<News> newNews = new ArrayList<>();
         for (BoardConfig board : CrawlerBoards.ALL) {
             try {
-                totalSaved += crawlBoard(board);
+                crawlBoard(board, newNews);
             } catch (Exception e) {
                 log.warn("게시판 크롤링 실패: {} ({})", board.source(), board.listUrl(), e);
             }
         }
-        return totalSaved;
+
+        try {
+            pushDispatcher.dispatch(newNews);
+        } catch (Exception e) {
+            log.warn("새 소식 푸시 발송 실패", e);
+        }
+        return newNews.size();
     }
 
-    private int crawlBoard(BoardConfig board) {
+    /** 새로 저장한 소식을 newNews에 더한다. */
+    private void crawlBoard(BoardConfig board, List<News> newNews) {
         BoardParser parser = parserRegistry.resolve(board.parser());
         int saved = 0;
 
@@ -79,7 +93,9 @@ public class CrawlerService {
                 }
 
                 ArticleDetail detail = fetchDetail(parser, summary);
-                if (storageService.save(board, summary, detail)) {
+                Optional<News> savedNews = storageService.save(board, summary, detail);
+                if (savedNews.isPresent()) {
+                    newNews.add(savedNews.get());
                     saved++;
                 }
             }
@@ -88,7 +104,6 @@ public class CrawlerService {
         }
 
         log.info("게시판 크롤링 완료: {} — 신규 {}건", board.source(), saved);
-        return saved;
     }
 
     private boolean isExcluded(BoardConfig board, ArticleSummary summary) {
