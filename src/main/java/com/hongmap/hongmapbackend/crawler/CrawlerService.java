@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -60,6 +61,7 @@ public class CrawlerService {
                 break;
             }
 
+            List<String> existingUrls = new ArrayList<>();
             for (ArticleSummary summary : summaries) {
                 if (saved >= board.maxItems()) {
                     break;
@@ -69,6 +71,7 @@ public class CrawlerService {
                 }
                 // 이미 저장된 글이면 상세 요청까지 갈 필요가 없다(불필요한 트래픽 방지).
                 if (storageService.alreadyExists(summary.link())) {
+                    existingUrls.add(summary.link());
                     continue;
                 }
 
@@ -77,6 +80,8 @@ public class CrawlerService {
                     saved++;
                 }
             }
+            // source_id 컬럼 도입 전에 저장된 글이면 이번에 다시 만난 김에 게시판 출처를 채운다(페이지당 UPDATE 1회).
+            storageService.fillMissingSourceId(board, existingUrls);
         }
 
         log.info("게시판 크롤링 완료: {} — 신규 {}건", board.source(), saved);

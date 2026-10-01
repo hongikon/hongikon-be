@@ -73,6 +73,15 @@ public class News {
     @Column(name = "source_url", nullable = false, unique = true, length = 500)
     private String sourceUrl;
 
+    /**
+     * 이 글을 수집한 게시판의 sourceId(BoardConfig.sourceId). 프론트 TREE_DATA 리프 id와 같다.
+     * 학과 게시판이면 학과명(예: "컴퓨터공학과"), 대학공지면 분류 라벨(예: "학사", "장학").
+     * 대학공지는 departments 테이블에 없어 department가 null이므로, 프론트가 구독 필터링에
+     * 쓸 수 있도록 게시판 출처를 따로 저장한다. 이 컬럼 도입 전 저장된 글은 null일 수 있다.
+     */
+    @Column(name = "source_id", length = 50)
+    private String sourceId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;

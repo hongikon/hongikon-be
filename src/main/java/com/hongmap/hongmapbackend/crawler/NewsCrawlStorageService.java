@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -38,6 +39,19 @@ public class NewsCrawlStorageService {
         return newsRepository.existsBySourceUrl(sourceUrl);
     }
 
+    /**
+     * 이미 저장된 글들(sourceUrls)의 source_id가 비어 있으면 이 게시판의 sourceId로 채운다.
+     * source_id 컬럼 도입 전에 저장된 글을 시간당 크롤링이 다시 만날 때 자연스럽게 메우기 위함이다.
+     * 이미 값이 있는 행은 건드리지 않는다.
+     */
+    @Transactional
+    public int fillMissingSourceId(BoardConfig board, Collection<String> sourceUrls) {
+        if (sourceUrls == null || sourceUrls.isEmpty()) {
+            return 0;
+        }
+        return newsRepository.fillMissingSourceId(board.sourceId(), sourceUrls);
+    }
+
     /** 이미 저장된 글이면 저장하지 않고 false를 돌려준다. */
     @Transactional
     public boolean save(BoardConfig board, ArticleSummary summary, ArticleDetail detail) {
@@ -57,6 +71,7 @@ public class NewsCrawlStorageService {
                 .views(detail != null ? detail.views() : null)
                 .category(NewsCategoryClassifier.classify(summary.title()))
                 .sourceUrl(summary.link())
+                .sourceId(board.sourceId())
                 .department(department)
                 .building(building)
                 .publishedAt(resolvePublishedAt(summary, detail))

@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
  *                             이 값으로 Department를 조회해 news.department_id를 채운다.
  *                             대학공지처럼 학과가 아닌 분류(예: "학사", "장학")는 Department에 없는 라벨이라
  *                             매칭되지 않고 department_id는 null로 남는다. 정상 동작이다.
+ *                             이 값은 news.source_id에도 그대로 저장돼 프론트 구독 필터링 키로 쓰인다.
  * @param source               표시용 출처명. News 엔티티에는 이 값을 담을 별도 컬럼이 없어(department FK로 대체)
  *                             지금은 로그 출력용으로만 쓰인다.
  * @param listUrl              목록 URL
