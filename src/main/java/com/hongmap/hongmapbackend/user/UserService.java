@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.auth.token.RefreshTokenRepository;
 import com.hongmap.hongmapbackend.bookmark.BookmarkRepository;
 import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
 import com.hongmap.hongmapbackend.notification.KeywordSubscriptionRepository;
+import com.hongmap.hongmapbackend.notification.UserBoardSubscriptionRepository;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class UserService {
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final KeywordSubscriptionRepository keywordSubscriptionRepository;
+    private final UserBoardSubscriptionRepository userBoardSubscriptionRepository;
     private final UserDepartmentRepository userDepartmentRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -44,6 +46,7 @@ public class UserService {
 
         bookmarkRepository.deleteByUser_Id(userId);
         keywordSubscriptionRepository.deleteByUser_Id(userId);
+        userBoardSubscriptionRepository.deleteByUser_Id(userId);
         userDepartmentRepository.deleteByUser_Id(userId);
         userDeviceRepository.deleteByUserId(userId);
         refreshTokenRepository.deleteByUser_Id(userId);

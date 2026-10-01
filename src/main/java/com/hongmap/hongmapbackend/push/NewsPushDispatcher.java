@@ -77,8 +77,8 @@ public class NewsPushDispatcher {
 
     /** 소식 하나의 푸시 대상 기기. 매칭 기준은 {@link UserDeviceRepository#findPushTargets} 참고. */
     public List<UserDevice> findTargets(News news) {
-        Long departmentId = news.getDepartment() != null ? news.getDepartment().getId() : null;
-        return userDeviceRepository.findPushTargets(TokenType.EXPO, departmentId, news.getCategory(), news.getTitle());
+        String sourceId = news.getSourceId() != null && !news.getSourceId().isBlank() ? news.getSourceId() : null;
+        return userDeviceRepository.findPushTargets(TokenType.EXPO, sourceId, news.getCategory(), news.getTitle());
     }
 
     private List<ExpoPushMessage> buildMessages(List<News> newsList) {
