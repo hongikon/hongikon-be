@@ -47,6 +47,10 @@ import java.util.regex.Pattern;
  *   &lt;div class="v_file"&gt;&lt;strong&gt;첨부파일&lt;/strong&gt;&lt;div&gt;&lt;a href="../../aseoul_bbs/down.php?...">파일명&lt;/a&gt;&lt;/div&gt;&lt;/div&gt;
  * </pre>
  * pNo만 붙여도 페이지네이션이 동작해 목록 CSRF 성격의 code 파라미터는 붙이지 않아도 된다(직접 확인).
+ *
+ * 주의: 상세 링크의 idx·code는 요청(세션)마다 새로 암호화된 값이 나온다 — 같은 글도 크롤링할 때마다 URL이 다르다
+ * (2026.10 직접 확인. 예전 링크도 계속 열리긴 한다). 상세·목록 어디에도 고정 글 번호가 없어서(event.php는 No.도 없다)
+ * {@link #hasStableArticleUrl()}을 false로 두고 게시판 출처+제목+작성일로 중복을 판단한다.
  */
 @Component
 public class ArchBoardParser implements BoardParser {
@@ -58,6 +62,11 @@ public class ArchBoardParser implements BoardParser {
     @Override
     public ParserType type() {
         return ParserType.ARCH;
+    }
+
+    @Override
+    public boolean hasStableArticleUrl() {
+        return false;
     }
 
     @Override

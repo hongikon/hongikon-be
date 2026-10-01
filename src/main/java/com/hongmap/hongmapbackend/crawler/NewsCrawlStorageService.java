@@ -33,10 +33,20 @@ public class NewsCrawlStorageService {
     private final NewsRepository newsRepository;
     private final NewsLocationMatcher locationMatcher;
 
-    /** news.source_url UNIQUE 제약을 그대로 중복 판단 기준으로 쓴다(=크롤러의 knownIds 역할). */
+    /**
+     * news.source_url UNIQUE 제약을 그대로 중복 판단 기준으로 쓴다(=크롤러의 knownIds 역할).
+     * 단 상세 링크가 매번 바뀌는 게시판(stableUrl=false, 건축학부)은 링크로는 판단할 수 없어
+     * 게시판 출처+제목+작성일로 판단한다.
+     */
     @Transactional(readOnly = true)
-    public boolean alreadyExists(String sourceUrl) {
-        return newsRepository.existsBySourceUrl(sourceUrl);
+    public boolean alreadyExists(BoardConfig board, ArticleSummary summary, boolean stableUrl) {
+        if (stableUrl) {
+            return newsRepository.existsBySourceUrl(summary.link());
+        }
+        LocalDateTime publishedAt = parseDate(summary.date());
+        return publishedAt != null
+                ? newsRepository.existsBySourceIdAndTitleAndPublishedAt(board.sourceId(), summary.title(), publishedAt)
+                : newsRepository.existsBySourceIdAndTitle(board.sourceId(), summary.title());
     }
 
     /**
@@ -91,15 +101,20 @@ public class NewsCrawlStorageService {
 
     private LocalDateTime resolvePublishedAt(ArticleSummary summary, ArticleDetail detail) {
         String raw = !summary.date().isBlank() ? summary.date() : (detail != null ? detail.date() : "");
-        if (raw == null || raw.isBlank()) {
-            // 날짜를 못 읽은 경우까지 저장을 막을 정도는 아니라고 판단, 크롤링 시각으로 대체한다.
-            return LocalDateTime.now();
-        }
+        LocalDateTime parsed = parseDate(raw);
+        // 날짜를 못 읽은 경우까지 저장을 막을 정도는 아니라고 판단, 크롤링 시각으로 대체한다.
+        return parsed != null ? parsed : LocalDateTime.now();
+    }
 
+    /** "yyyy.MM.dd" → 그날 0시. 비어 있거나 형식이 다르면 null. */
+    private LocalDateTime parseDate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
         try {
             return LocalDate.parse(raw, DATE_FORMAT).atStartOfDay();
         } catch (DateTimeParseException e) {
-            return LocalDateTime.now();
+            return null;
         }
     }
 }

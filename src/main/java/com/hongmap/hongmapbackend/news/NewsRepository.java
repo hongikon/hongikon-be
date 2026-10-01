@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -24,6 +25,12 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     );
 
     boolean existsBySourceUrl(String sourceUrl);
+
+    /** 상세 링크가 매번 바뀌는 게시판(건축학부 등)의 중복 판단용 — 게시판 출처+제목+작성일. */
+    boolean existsBySourceIdAndTitleAndPublishedAt(String sourceId, String title, LocalDateTime publishedAt);
+
+    /** 위와 같되 목록에서 작성일을 못 읽은 경우. */
+    boolean existsBySourceIdAndTitle(String sourceId, String title);
 
     /**
      * 이미 저장된 글을 크롤러가 다시 만났을 때 source_id가 비어 있으면 채운다(자가 치유용).

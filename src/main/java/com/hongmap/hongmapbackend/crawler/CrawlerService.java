@@ -70,8 +70,11 @@ public class CrawlerService {
                     continue;
                 }
                 // 이미 저장된 글이면 상세 요청까지 갈 필요가 없다(불필요한 트래픽 방지).
-                if (storageService.alreadyExists(summary.link())) {
-                    existingUrls.add(summary.link());
+                if (storageService.alreadyExists(board, summary, parser.hasStableArticleUrl())) {
+                    // 링크가 매번 바뀌는 게시판은 이번 링크가 DB에 없으니 source_id 채우기 대상에서 뺀다.
+                    if (parser.hasStableArticleUrl()) {
+                        existingUrls.add(summary.link());
+                    }
                     continue;
                 }
 
