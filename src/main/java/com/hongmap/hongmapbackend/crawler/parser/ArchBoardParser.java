@@ -9,7 +9,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -133,9 +132,7 @@ public class ArchBoardParser implements BoardParser {
         Element contentBox = document.selectFirst("div.v_con");
         String content = contentBox != null ? contentBox.text() : "";
 
-        List<String> images = contentBox == null
-                ? List.of()
-                : new ArrayList<>(new LinkedHashSet<>(contentBox.select("img[src]").eachAttr("abs:src")));
+        List<String> images = BoardParser.extractImageUrls(contentBox);
 
         return new ArticleDetail(title, "", date, views, content, images, parseAttachments(document));
     }

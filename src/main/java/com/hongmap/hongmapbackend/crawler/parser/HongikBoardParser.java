@@ -9,7 +9,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -138,9 +137,7 @@ public class HongikBoardParser implements BoardParser {
         Element hitBox = document.selectFirst("li.b-hit-box");
         Integer views = extractHitCount(hitBox);
 
-        List<String> images = contentBox == null
-                ? List.of()
-                : new ArrayList<>(new LinkedHashSet<>(contentBox.select("img[src]").eachAttr("abs:src")));
+        List<String> images = BoardParser.extractImageUrls(contentBox);
 
         return new ArticleDetail(title, writer, date, views, content, images, parseAttachments(document));
     }
