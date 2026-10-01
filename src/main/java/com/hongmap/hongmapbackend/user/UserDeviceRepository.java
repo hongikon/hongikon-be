@@ -54,6 +54,23 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
             @Param("title") String title
     );
 
+    /**
+     * 새 제보 푸시 대상 기기 — UserNotificationSettingRepository.claimNewReportRecipients가 방금 선점한 유저
+     * (new_report_last_sent_at = claimedAt)의 활성 기기.
+     */
+    @Query("""
+            SELECT d FROM UserDevice d
+            WHERE d.active = true
+              AND d.tokenType = :tokenType
+              AND d.user.id IN (
+                  SELECT s.userId FROM UserNotificationSetting s
+                  WHERE s.newReportsEnabled = true AND s.newReportLastSentAt = :claimedAt)
+            """)
+    List<UserDevice> findNewReportTargets(
+            @Param("tokenType") TokenType tokenType,
+            @Param("claimedAt") java.time.LocalDateTime claimedAt
+    );
+
     /** Expo가 DeviceNotRegistered로 알려준 토큰(앱 삭제 등)의 기기를 비활성화한다. */
     @Transactional
     @Modifying(clearAutomatically = true)
