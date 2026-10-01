@@ -33,13 +33,23 @@ class ReportImageServiceTest {
         S3ReportImageStorage storage = s3Storage();
 
         ReportImageStorage.PresignedUpload upload =
-                storage.presignUpload("reports/abc.jpg", "image/jpeg", Duration.ofMinutes(5));
+                storage.presignUpload("reports/abc.jpg", "image/jpeg", null, Duration.ofMinutes(5));
         assertThat(upload.url()).startsWith("https://hongikon-test.s3.ap-northeast-2.amazonaws.com/reports/abc.jpg?")
                 .contains("X-Amz-Signature=").contains("X-Amz-Expires=300").contains("content-type");
-        assertThat(upload.headers()).containsEntry("content-type", "image/jpeg").doesNotContainKey("host");
+        assertThat(upload.headers()).containsEntry("content-type", "image/jpeg").doesNotContainKey("host")
+                .doesNotContainKey("content-length");
 
         assertThat(storage.presignView("reports/abc.jpg", Duration.ofHours(1)))
                 .contains("reports/abc.jpg?").contains("X-Amz-Expires=3600");
+    }
+
+    @Test
+    void contentLength를_주면_presigned_PUT이_Content_Length도_서명한다() {
+        ReportImageStorage.PresignedUpload upload =
+                s3Storage().presignUpload("reports/abc.jpg", "image/jpeg", 123_456L, Duration.ofMinutes(5));
+        // X-Amz-SignedHeaders 에 content-length 가 들어가 S3 가 다른 크기의 PUT 을 서명 불일치(403)로 거절한다.
+        assertThat(upload.url()).containsPattern("X-Amz-SignedHeaders=[^&]*content-length");
+        assertThat(upload.headers()).containsEntry("content-length", "123456");
     }
 
     @Test

@@ -1,9 +1,12 @@
 package com.hongmap.hongmapbackend.report.image;
 
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -41,14 +44,20 @@ public class S3ReportImageStorage implements ReportImageStorage {
     }
 
     @Override
-    public PresignedUpload presignUpload(String key, String contentType, Duration ttl) {
+    public PresignedUpload presignUpload(String key, String contentType, Long contentLength, Duration ttl) {
+        // presigned PUT 은 "최대 크기"를 서명할 수 없다(그건 POST 정책의 content-length-range 만 가능).
+        // 클라이언트가 크기를 미리 알려 주면 정확한 Content-Length 를 서명해 다른 크기의 PUT 을 S3 가 거절하게 한다.
+        // 알려 주지 않으면(구버전 앱) 등록 시 HeadObject·본문 읽기로 크기를 확인한다.
+        PutObjectRequest.Builder put = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType);
+        if (contentLength != null) {
+            put.contentLength(contentLength);
+        }
         PresignedPutObjectRequest presigned = presigner.presignPutObject(builder -> builder
                 .signatureDuration(ttl)
-                .putObjectRequest(PutObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(key)
-                        .contentType(contentType)
-                        .build()));
+                .putObjectRequest(put.build()));
 
         // 서명에 들어간 헤더(host 제외)를 그대로 돌려줘야 클라이언트가 같은 값을 보낸다.
         Map<String, String> headers = new LinkedHashMap<>();
@@ -77,6 +86,29 @@ public class S3ReportImageStorage implements ReportImageStorage {
             }
             throw e;
         }
+    }
+
+    @Override
+    public Optional<byte[]> get(String key, long maxBytes) {
+        try {
+            // Range 로 상한을 걸어 큰 객체를 통째로 받지 않는다(maxBytes+1 바이트면 초과로 판단).
+            ResponseBytes<GetObjectResponse> bytes = s3.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket).key(key).range("bytes=0-" + maxBytes).build());
+            return Optional.of(bytes.asByteArray());
+        } catch (NoSuchKeyException e) {
+            return Optional.empty();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404 || e.statusCode() == 403) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public void put(String key, String contentType, byte[] bytes) {
+        s3.putObject(PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
+                RequestBody.fromBytes(bytes));
     }
 
     @Override

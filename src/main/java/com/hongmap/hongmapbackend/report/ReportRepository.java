@@ -34,6 +34,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     void deleteByUser_Id(Long userId);
 
+    /** 회원탈퇴 시 S3 사진을 지우려고 제보를 지우기 전에 키를 모은다. */
+    @Query("SELECT r.imageKey FROM Report r WHERE r.user.id = :userId AND r.imageKey IS NOT NULL")
+    List<String> findImageKeysByUserId(@Param("userId") Long userId);
+
     /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */
     @Query("""
             SELECT r FROM Report r

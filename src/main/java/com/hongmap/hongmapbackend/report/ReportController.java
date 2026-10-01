@@ -50,6 +50,8 @@ public class ReportController {
     @Operation(summary = "제보 사진 업로드 URL 발급",
             description = "S3 presigned PUT URL 을 발급합니다(5분 유효, 최대 5MB, image/jpeg·image/png). "
                     + "응답의 headers 를 그대로 실어 uploadUrl 로 PUT 한 뒤, POST /reports 의 imageKey 에 key 를 넣습니다. "
+                    + "contentLength(바이트 수)를 함께 보내면 Content-Length 가 서명되어 그 크기로만 올릴 수 있습니다. "
+                    + "등록 시 서버가 사진 메타데이터(위치 등)를 지운 사본을 새 키로 저장합니다. "
                     + "저장소가 설정되지 않은 서버는 503 을 돌려줍니다.")
     @PostMapping("/reports/images")
     public ResponseEntity<ReportImageUploadResponse> issueImageUploadUrl(
@@ -57,7 +59,7 @@ public class ReportController {
             @Valid @RequestBody ReportImageUploadRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(reportImageService.issueUploadUrl(userId, request.contentType()));
+                .body(reportImageService.issueUploadUrl(userId, request.contentType(), request.contentLength()));
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)

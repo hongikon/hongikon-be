@@ -12,13 +12,23 @@ public class DisabledReportImageStorage implements ReportImageStorage {
     }
 
     @Override
-    public PresignedUpload presignUpload(String key, String contentType, Duration ttl) {
+    public PresignedUpload presignUpload(String key, String contentType, Long contentLength, Duration ttl) {
         throw new IllegalStateException("report image storage is disabled");
     }
 
     @Override
     public Optional<StoredObject> head(String key) {
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<byte[]> get(String key, long maxBytes) {
+        return Optional.empty();
+    }
+
+    @Override
+    public void put(String key, String contentType, byte[] bytes) {
+        throw new IllegalStateException("report image storage is disabled");
     }
 
     @Override
