@@ -93,7 +93,8 @@ class UserWithdrawIntegrationTest {
                 .user(me).pushToken("ExponentPushToken[" + UUID.randomUUID() + "]")
                 .tokenType(TokenType.EXPO).platform(DevicePlatform.IOS).build());
         refreshTokenRepository.save(new RefreshToken(me, "a".repeat(64), LocalDateTime.now().plusDays(14)));
-        feedbackRepository.save(new Feedback(me, "탈퇴 전에 남긴 문의", null));
+        feedbackRepository.save(new Feedback(me, "탈퇴 전에 남긴 문의", "me@example.com"));
+        feedbackRepository.save(new Feedback(other, "다른 학생 문의", "other@example.com"));
 
         // 내 제보에 다른 사람이 단 신고, 다른 사람 제보에 내가 단 신고
         Report myReport = reportRepository.save(report(me, building));
@@ -116,10 +117,16 @@ class UserWithdrawIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM report_flags WHERE report_id = ?", Long.class, myReport.getId())).isZero();
 
-        // 문의는 남고 작성자만 비워진다
+        // 문의는 내용만 남고 작성자·연락처(이메일)는 비워진다
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM feedback WHERE content = '탈퇴 전에 남긴 문의' AND user_id IS NULL", Long.class))
-                .isEqualTo(1L);
+                "SELECT COUNT(*) FROM feedback WHERE content = '탈퇴 전에 남긴 문의' AND user_id IS NULL AND contact IS NULL",
+                Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM feedback WHERE contact = 'me@example.com'", Long.class)).isZero();
+        // 다른 유저 문의의 연락처는 그대로
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT contact FROM feedback WHERE user_id = ?", String.class, other.getId()))
+                .isEqualTo("other@example.com");
 
         // 다른 유저 데이터는 그대로
         assertThat(userRepository.findById(other.getId())).isPresent();

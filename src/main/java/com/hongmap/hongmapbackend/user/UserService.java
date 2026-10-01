@@ -54,7 +54,7 @@ public class UserService {
         // 분야 알림 설정(user_id NOT NULL FK). 빠뜨리면 알림 설정을 한 번이라도 바꾼 유저의 탈퇴가 FK 위반으로 실패한다.
         notificationCategoryRepository.deleteByUser_Id(userId);
         refreshTokenRepository.deleteByUser_Id(userId);
-        // 문의(feedback)는 지우지 않고 작성자만 NULL로 남긴다.
+        // 문의(feedback)는 지우지 않고 작성자·연락처(contact)만 NULL로 비운다(처리방침: 내용만 남음).
         feedbackRepository.detachUser(userId);
 
         userRepository.delete(user);
