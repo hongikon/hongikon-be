@@ -5,6 +5,7 @@ import com.hongmap.hongmapbackend.notification.dto.NotificationSettingsResponse;
 import com.hongmap.hongmapbackend.notification.dto.NotificationSettingsUpdateRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +37,7 @@ public class NotificationSettingController {
             description = "보낸 필드만 바꿉니다(부분 수정). 예: {\"newReports\": true}. 바뀐 뒤의 전체 설정을 돌려줍니다.")
     @PatchMapping("/users/me/notification-settings")
     public NotificationSettingsResponse update(@AuthenticationPrincipal Long userId,
-                                               @RequestBody NotificationSettingsUpdateRequest request) {
+                                               @Valid @RequestBody NotificationSettingsUpdateRequest request) {
         return notificationSettingService.update(userId, request);
     }
 }

@@ -45,11 +45,14 @@ public class ExpoPushSender {
                     } else if (ticket.isDeviceNotRegistered()) {
                         unregisteredTokens.add(batch.get(i).to());
                     } else {
-                        log.warn("Expo 푸시 거부: to={}, message={}, details={}", batch.get(i).to(), ticket.message(), ticket.details());
+                        // 토큰 원문은 남기지 않는다(메시지에 섞여 오는 토큰도 가림). details 는 오류 코드만.
+                        log.warn("Expo 푸시 거부: to={}, message={}, error={}", PushTokenMasker.mask(batch.get(i).to()),
+                                PushTokenMasker.maskWithin(ticket.message()),
+                                ticket.details() == null ? null : ticket.details().get("error"));
                     }
                 }
             } catch (Exception e) {
-                log.warn("Expo 푸시 배치 발송 실패 ({}건): {}", batch.size(), e.getMessage());
+                log.warn("Expo 푸시 배치 발송 실패 ({}건): {}", batch.size(), PushTokenMasker.maskWithin(e.getMessage()));
             }
         }
         deactivate(unregisteredTokens);
@@ -64,7 +67,7 @@ public class ExpoPushSender {
             int count = userDeviceRepository.deactivateByPushTokens(tokens);
             log.info("DeviceNotRegistered 기기 비활성화: {}대", count);
         } catch (Exception e) {
-            log.warn("푸시 기기 비활성화 실패 ({}개 토큰): {}", tokens.size(), e.getMessage());
+            log.warn("푸시 기기 비활성화 실패 ({}개 토큰): {}", tokens.size(), PushTokenMasker.maskWithin(e.getMessage()));
         }
     }
 }

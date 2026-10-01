@@ -122,6 +122,16 @@ class NotificationSettingApiIntegrationTest {
     }
 
     @Test
+    void 범위_값이_너무_길면_요청_검증에서_400이고_아무것도_바꾸지_않는다() throws Exception {
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newReports\":true,\"newReportsScope\":\"" + "C".repeat(5000) + "\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(BASE).header("Authorization", bearer(user)))
+                .andExpect(jsonPath("$.newReports").value(false));
+    }
+
+    @Test
     void 로그인하지_않으면_401() throws Exception {
         mockMvc.perform(get(BASE)).andExpect(status().isUnauthorized());
         mockMvc.perform(patch(BASE).contentType(MediaType.APPLICATION_JSON).content("{\"newReports\":true}"))
