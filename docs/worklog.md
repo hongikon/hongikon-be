@@ -365,3 +365,43 @@
 - `feat/news-board-source`(PR #2) 병합 여부 미결정
 - AWS 비용 확인 필요
 - 프론트 `.env` 임시로 `localhost:8080`으로 바꿔둔 것 원복 필요
+
+- ## 2026-10-01
+
+### 보안그룹 SSH 소스 갱신
+- 어제와 다른 네트워크에서 접속 시도 시 타임아웃 — `hongikon-ec2-sg`의 SSH(22) 인바운드 규칙 소스를 현재 네트워크 IP로 갱신하여 해결
+
+### Nginx 보안 설정 적용
+- `deploy/setup-https.sh` 실행 완료 — 기존엔 `sites-enabled/default`를 고쳐 쓰고 있어 IP 직접 접속·Host 위조에 취약했던 상태를 해결
+- 전용 `hongikon-api` 사이트로 교체: Host 불일치 시 444 차단, 속도 제한(20r/s, burst 40), 보안 헤더 추가
+- 기존 Let's Encrypt 인증서 재사용하여 무중단 전환
+- 추가로 컨테이너 포트 바인딩을 `0.0.0.0:8080` → `127.0.0.1:8080`으로 변경 (보안그룹이 막고 있었지만 이중 방어 차원)
+
+### 건축학부 크롤링 버그 수정 (커밋 `426605d`)
+- 원인: 건축학부 행사 게시판 글 하나(AAVS Korea 2026)의 이미지가 외부 URL이 아니라 `data:image/png;base64,...`로 본문에 직접 박혀있었음(약 97만자) — `news.images`(TEXT, 65535바이트 한도) 저장 시 매번 실패하며 해당 게시판 크롤링 전체가 막힘
+- 조사: Jsoup으로 실제 페이지를 파싱해 각 글의 이미지 URL 총 길이를 확인하는 디버그 코드로 원인 확정
+- 수정: `BoardParser`에 공통 `extractImageUrls()` 메서드 추가, `data:`로 시작하는 src를 필터링. `ArchBoardParser`/`HongikBoardParser`/`ImwebBoardParser` 세 파서가 모두 이 메서드를 쓰도록 통일 (중복 코드 제거 겸 재발 방지)
+- 운영 재배포 후 수동 크롤링 트리거로 검증: 해당 게시글이 에러 없이 저장됨(images=NULL) 확인
+
+### 테스트 설정 수정 (커밋 `870a38e`)
+- `HongmapBackendApplicationTests`가 `@ActiveProfiles` 없이 기본 프로필로 돌아 로컬 Windows 계정으로 로컬 MySQL 접속을 시도 → 환경에 따라 실패
+- `@ActiveProfiles("test")` 추가하여 `AdminApiIntegrationTest`처럼 H2 인메모리로 전환, 로컬 MySQL 상태와 무관하게 테스트 가능해짐
+
+### PR #2(`feat/news-board-source`) 병합 + 배포
+- main에 충돌 없이 병합 — 소식에 수집 게시판 출처(`source_id`) 저장/노출, 대학공지 학사·장학 등 구독 필터링 지원
+- 운영 RDS에 `db/alter_add_news_source_id_column.sql` 적용 (컬럼 추가 + 기존 소식 백필, 약 1.3만 건)
+- 재배포 후 `GET /news` 응답에 `sourceId` 정상 노출 확인
+
+### 배포 런북(`docs/deploy-runbook-2026-10.md`) 0~6단계 전체 완료 확인
+- 사전확인, RDS SQL 6개, 백엔드 재배포, Nginx 보안 설정, 배포 후 확인(버전 미노출·401·sourceId), 웹판 카카오 로그인, 관리자 지정까지 전부 검증 완료
+
+### 오늘 새로 발견한 이슈
+- 건축학부 게시판에서 같은 글(예: "AAVS 국제 학생 워크숍")이 크롤링마다 계속 중복 저장되고 있음 — 해당 게시판의 중복 감지 로직 점검 필요 (오늘 수정한 base64 버그와는 별개)
+
+### 다음 단계
+- `POST /auth/test-token` 운영에서 제거
+- 건축학부 게시글 중복 저장 버그 조사·수정
+- 프론트 `.env` 원복 확인 (`localhost:8080` → `https://api.hongikon.com`)
+- 최석훈님에게 전달: 프론트 push 내역, `GET /partners` 연동 요청
+- AWS 비용 확인 (프리티어 여부)
+- `GET /news` 페이지네이션 (별도 설계 필요)
