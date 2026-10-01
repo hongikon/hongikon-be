@@ -33,6 +33,10 @@ public record ReportCreateRequest(
         @Size(max = 500)
         String content,
 
+        /** POST /reports/images 로 받은 key. 사진이 없으면 생략. */
+        @Size(max = 200)
+        String imageKey,
+
         @NotNull
         LocalDateTime startsAt,
 

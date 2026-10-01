@@ -13,6 +13,8 @@ public record AdminReportResponse(
         String customCategoryLabel,
         String title,
         String content,
+        /** 첨부 사진 보기 URL(presigned GET). 사진이 없거나 반려·삭제로 지워졌으면 null */
+        String imageUrl,
         Long buildingId,
         String buildingName,
         Integer floor,
@@ -27,7 +29,7 @@ public record AdminReportResponse(
         String moderationNote,
         LocalDateTime reviewedAt
 ) {
-    public static AdminReportResponse of(Report report, long flagCount) {
+    public static AdminReportResponse of(Report report, long flagCount, String imageUrl) {
         return new AdminReportResponse(
                 report.getId(),
                 report.getStatus().name(),
@@ -35,6 +37,7 @@ public record AdminReportResponse(
                 report.getCustomCategoryLabel(),
                 report.getTitle(),
                 report.getContent(),
+                imageUrl,
                 report.getBuilding().getId(),
                 report.getBuilding().getName(),
                 report.getFloor(),

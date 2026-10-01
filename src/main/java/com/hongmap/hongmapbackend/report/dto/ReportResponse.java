@@ -21,13 +21,15 @@ public record ReportResponse(
         String title,
         String content,
         String authorNickname,
+        /** 첨부 사진 보기 URL(presigned GET, 1시간 유효). 사진이 없으면 null */
+        String imageUrl,
         boolean isMine,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         String status,
         LocalDateTime createdAt
 ) {
-    public static ReportResponse of(Report report, Long requesterId) {
+    public static ReportResponse of(Report report, Long requesterId, String imageUrl) {
         return ReportResponse.builder()
                 .id(report.getId())
                 .buildingId(report.getBuilding() != null ? report.getBuilding().getId() : null)
@@ -39,6 +41,7 @@ public record ReportResponse(
                 .title(report.getTitle())
                 .content(report.getContent())
                 .authorNickname(report.getUser().getNickname())
+                .imageUrl(imageUrl)
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())

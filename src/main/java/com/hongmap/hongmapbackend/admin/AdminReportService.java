@@ -8,6 +8,7 @@ import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.ReportStatus;
+import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -36,6 +37,7 @@ public class AdminReportService {
 
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
+    private final ReportImageService reportImageService;
 
     @Transactional(readOnly = true)
     public AdminReportListResponse list(String status) {
@@ -44,7 +46,8 @@ public class AdminReportService {
         Map<Long, Long> flagCounts = flagCounts(reports);
 
         return new AdminReportListResponse(reports.stream()
-                .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L)))
+                .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L),
+                        reportImageService.viewUrl(r.getImageKey())))
                 .toList());
     }
 
@@ -70,8 +73,13 @@ public class AdminReportService {
         }
 
         report.moderate(target, note, LocalDateTime.now());
+        // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
+        if ((target == ReportStatus.REJECTED || target == ReportStatus.DELETED) && report.getImageKey() != null) {
+            reportImageService.deleteAfterCommit(report.getImageKey());
+            report.clearImage();
+        }
         long flagCount = reportFlagRepository.countByReportId(reportId);
-        return AdminReportResponse.of(report, flagCount);
+        return AdminReportResponse.of(report, flagCount, reportImageService.viewUrl(report.getImageKey()));
     }
 
     private Map<Long, Long> flagCounts(List<Report> reports) {

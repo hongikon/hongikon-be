@@ -46,4 +46,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findForAdmin(@Param("status") ReportStatus status, Pageable pageable);
 
     long countByStatus(ReportStatus status);
+
+    boolean existsByImageKey(String imageKey);
 }

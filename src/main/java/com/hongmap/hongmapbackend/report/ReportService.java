@@ -8,6 +8,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportFlagResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportSummaryResponse;
+import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class ReportService {
     private final ReportFlagRepository reportFlagRepository;
     private final UserRepository userRepository;
     private final BuildingRepository buildingRepository;
+    private final ReportImageService reportImageService;
 
     @Value("${report.endsAt.maxDays}")
     private long endsAtMaxDays;
@@ -70,6 +72,9 @@ public class ReportService {
         Building building = buildingRepository.findById(request.buildingId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 건물입니다."));
 
+        // 사진은 앱이 presigned URL 로 S3 에 먼저 올렸다. 키 형식·업로드 여부·크기를 확인한다(실패 시 400).
+        String imageKey = reportImageService.validateForAttach(request.imageKey());
+
         Report report = Report.builder()
                 .user(user)
                 .building(building)
@@ -80,20 +85,21 @@ public class ReportService {
                 .customCategoryLabel(category == ReportCategory.ETC ? request.customCategoryLabel() : null)
                 .title(request.title())
                 .content(request.content())
+                .imageKey(imageKey)
                 .startsAt(request.startsAt())
                 .endsAt(request.endsAt())
                 .status(ReportStatus.PENDING)
                 .build();
 
         Report saved = reportRepository.save(report);
-        return ReportResponse.of(saved, userId);
+        return ReportResponse.of(saved, userId, reportImageService.viewUrl(saved.getImageKey()));
     }
 
     @Transactional(readOnly = true)
     public ReportListResponse getLiveReports(Long requesterId, Long buildingId) {
         List<Report> reports = reportRepository.findLiveReports(ReportStatus.ACTIVE, LocalDateTime.now(), buildingId);
         List<ReportSummaryResponse> body = reports.stream()
-                .map(r -> ReportSummaryResponse.of(r, requesterId))
+                .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrl(r.getImageKey())))
                 .toList();
         return new ReportListResponse(body);
     }
@@ -108,6 +114,7 @@ public class ReportService {
         }
 
         reportRepository.delete(report);
+        reportImageService.deleteAfterCommit(report.getImageKey());
     }
 
     @Transactional

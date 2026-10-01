@@ -76,6 +76,10 @@ public class Report {
     @Column(name = "content", length = 500)
     private String content;
 
+    /** 첨부 사진의 S3 키(reports/{uuid}.jpg). URL 은 응답 때마다 presigned GET 으로 만든다. 사진이 없으면 null */
+    @Column(name = "image_key", length = 200)
+    private String imageKey;
+
     /** UTC 저장, 표시 시 KST 변환 */
     @Column(name = "starts_at", nullable = false)
     private LocalDateTime startsAt;
@@ -104,6 +108,11 @@ public class Report {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** 반려·삭제된 제보의 사진을 S3 에서 지운 뒤 연결을 끊는다. */
+    public void clearImage() {
+        this.imageKey = null;
+    }
 
     /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */
     public void moderate(ReportStatus status, String note, LocalDateTime reviewedAt) {

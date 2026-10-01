@@ -4,8 +4,11 @@ import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
 import com.hongmap.hongmapbackend.report.dto.ReportCreateRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagResponse;
+import com.hongmap.hongmapbackend.report.dto.ReportImageUploadRequest;
+import com.hongmap.hongmapbackend.report.dto.ReportImageUploadResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
+import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ReportImageService reportImageService;
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
     @Operation(summary = "실시간 제보 등록", description = "특정 건물/위치에 대한 실시간 제보(혼잡도, 공사 등)를 등록합니다.")
@@ -40,6 +44,20 @@ public class ReportController {
     ) {
         ReportResponse response = reportService.create(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
+    @Operation(summary = "제보 사진 업로드 URL 발급",
+            description = "S3 presigned PUT URL 을 발급합니다(5분 유효, 최대 5MB, image/jpeg·image/png). "
+                    + "응답의 headers 를 그대로 실어 uploadUrl 로 PUT 한 뒤, POST /reports 의 imageKey 에 key 를 넣습니다. "
+                    + "저장소가 설정되지 않은 서버는 503 을 돌려줍니다.")
+    @PostMapping("/reports/images")
+    public ResponseEntity<ReportImageUploadResponse> issueImageUploadUrl(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody ReportImageUploadRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reportImageService.issueUploadUrl(userId, request.contentType()));
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)

@@ -20,12 +20,14 @@ public record ReportSummaryResponse(
         String customCategoryLabel,
         String title,
         String authorNickname,
+        /** 첨부 사진 보기 URL(presigned GET, 1시간 유효). 사진이 없으면 null */
+        String imageUrl,
         boolean isMine,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         LocalDateTime createdAt
 ) {
-    public static ReportSummaryResponse of(Report report, Long requesterId) {
+    public static ReportSummaryResponse of(Report report, Long requesterId, String imageUrl) {
         return ReportSummaryResponse.builder()
                 .id(report.getId())
                 .buildingId(report.getBuilding() != null ? report.getBuilding().getId() : null)
@@ -36,6 +38,7 @@ public record ReportSummaryResponse(
                 .customCategoryLabel(report.getCustomCategoryLabel())
                 .title(report.getTitle())
                 .authorNickname(report.getUser().getNickname())
+                .imageUrl(imageUrl)
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
