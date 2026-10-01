@@ -200,4 +200,11 @@ class AdminApiIntegrationTest {
                 .andExpect(jsonPath("$.flags.length()").value(3))
                 .andExpect(jsonPath("$.flags[0].reason").value("SPAM"));
     }
+
+    @Test
+    void 처리_중_오류는_401로_위장되지_않는다() throws Exception {
+        mockMvc.perform(get("/news/abc")).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON).content("{bad"))
+                .andExpect(status().isBadRequest());
+    }
 }
