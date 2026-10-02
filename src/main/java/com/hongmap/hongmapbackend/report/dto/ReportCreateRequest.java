@@ -50,7 +50,7 @@ public record ReportCreateRequest(
         @NotNull
         LocalDateTime startsAt,
 
-        /** 종료 시각(UTC). startsAt 보다 뒤, 진행 시간은 report.maxDurationHours(기본 12)시간 이내. */
+        /** 종료 시각(UTC). startsAt 보다 뒤, 진행 기간은 report.maxDurationDays(기본 7)일 이내. */
         @NotNull
         @Future(message = "종료 시각이 이미 지났어요. 시간을 다시 골라 주세요.")
         LocalDateTime endsAt

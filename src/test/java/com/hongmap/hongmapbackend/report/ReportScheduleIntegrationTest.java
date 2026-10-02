@@ -96,13 +96,15 @@ class ReportScheduleIntegrationTest {
     }
 
     @Test
-    void 진행_시간은_시작보다_뒤이고_12시간_이내() throws Exception {
+    void 진행_기간은_시작보다_뒤이고_7일_이내() throws Exception {
         Instant starts = Instant.now().plus(Duration.ofHours(3));
-        create(starts, starts.plus(Duration.ofHours(12))).andExpect(status().isCreated());
+        // 여러 날 행사(예: 3일짜리 축제 부스)도 된다.
+        create(starts, starts.plus(Duration.ofDays(3))).andExpect(status().isCreated());
+        create(starts, starts.plus(Duration.ofDays(7))).andExpect(status().isCreated());
 
-        create(starts, starts.plus(Duration.ofHours(12)).plusSeconds(60))
+        create(starts, starts.plus(Duration.ofDays(7)).plusSeconds(60))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("진행 시간은 최대 12시간까지 정할 수 있어요."));
+                .andExpect(jsonPath("$.message").value("진행 기간은 최대 7일까지 정할 수 있어요."));
         create(starts, starts)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("종료 시각은 시작 시각보다 뒤여야 해요."));
@@ -126,14 +128,18 @@ class ReportScheduleIntegrationTest {
         Report sooner = active(now.plusHours(2), now.plusHours(4), "오늘 오후");
         Report later = active(now.plusHours(30), now.plusHours(32), "모레");
         Report pendingSoon = reportRepository.save(builder(now.plusHours(1), now.plusHours(3), "검토 전").build());
+        // 어제 시작해 모레 끝나는 여러 날 제보는 진행 중이다.
+        Report multiDay = active(now.minusDays(1), now.plusDays(2), "3일 축제 부스");
 
-        assertThat(ids("/reports?buildingId=" + building.getId())).containsExactly(live.getId());
+        assertThat(ids("/reports?buildingId=" + building.getId())).containsExactlyInAnyOrder(live.getId(), multiDay.getId());
         // live 다음에 예정이 시작 시각 순으로 붙는다. 승인 전(PENDING)·24시간 밖은 빠진다.
-        assertThat(ids("/reports?buildingId=" + building.getId() + "&include=upcoming"))
-                .containsExactly(live.getId(), sooner.getId(), soon.getId())
-                .doesNotContain(later.getId(), pendingSoon.getId());
+        List<Long> withUpcoming = ids("/reports?buildingId=" + building.getId() + "&include=upcoming");
+        assertThat(withUpcoming.subList(0, 2)).containsExactlyInAnyOrder(live.getId(), multiDay.getId());
+        assertThat(withUpcoming.subList(2, withUpcoming.size())).containsExactly(sooner.getId(), soon.getId());
+        assertThat(withUpcoming).doesNotContain(later.getId(), pendingSoon.getId());
         // 알 수 없는 include 값은 무시(기본 목록).
-        assertThat(ids("/reports?buildingId=" + building.getId() + "&include=all")).containsExactly(live.getId());
+        assertThat(ids("/reports?buildingId=" + building.getId() + "&include=all"))
+                .containsExactlyInAnyOrder(live.getId(), multiDay.getId());
     }
 
     // ---------- 픽스처 ----------

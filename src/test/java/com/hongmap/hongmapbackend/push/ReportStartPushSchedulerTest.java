@@ -104,6 +104,27 @@ class ReportStartPushSchedulerTest {
     }
 
     @Test
+    void 여러_날_제보도_시작_알림은_시작할_때_한_번뿐이다() {
+        LocalDateTime t0 = isolatedNow();
+        Report festival = reportRepository.save(Report.builder()
+                .user(author).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.FOOD_TRUCK).title("3일 축제 부스")
+                .startsAt(t0.plusMinutes(2)).endsAt(t0.plusDays(3)).status(ReportStatus.ACTIVE)
+                .reviewedAt(t0.minusDays(1))
+                .build());
+        scheduler.resetCheckedUntil(t0);
+
+        scheduler.runUntil(t0.plusMinutes(3));
+        assertThat(newReports()).singleElement()
+                .satisfies(m -> assertThat(m.data()).containsEntry("reportId", festival.getId()));
+        // 진행 중인 다음 날들의 확인 구간에도 다시 보내지 않는다(시작 시각이 구간 안에 있을 때만 집는다).
+        scheduler.runUntil(t0.plusDays(1));
+        scheduler.runUntil(t0.plusDays(2));
+        assertThat(newReports()).hasSize(1);
+    }
+
+    @Test
     void 시작_뒤에_승인됐거나_승인되지_않은_제보는_보내지_않는다() {
         LocalDateTime t0 = isolatedNow();
         // 시작 뒤 승인 → 승인 때 이미 보냈다.

@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * 실시간 제보 서비스.
  * 신고 임계치는 report.flag.threshold, 시작 시각 상한(일)은 report.startsAt.maxDays,
- * 진행 시간 상한(시간)은 report.maxDurationHours 설정값으로 관리.
+ * 진행 기간 상한(일)은 report.maxDurationDays 설정값으로 관리.
  *
  * 예정 제보: startsAt 을 미래로 잡아 미리 올릴 수 있다(예: 내일 11:00~15:00 붕어빵 트럭).
  * 지도(GET /reports)에는 시작 시각이 된 뒤에야 뜨고, include=upcoming 이면 24시간 안에 시작할 제보를 따로 붙여 준다.
@@ -53,8 +53,8 @@ public class ReportService {
     @Value("${report.startsAt.maxDays}")
     private long startsAtMaxDays;
 
-    @Value("${report.maxDurationHours}")
-    private long maxDurationHours;
+    @Value("${report.maxDurationDays}")
+    private long maxDurationDays;
 
     @Value("${report.flag.threshold}")
     private long flagThreshold;
@@ -107,7 +107,7 @@ public class ReportService {
      * 시작·종료 시각 규칙(서버 시각 UTC 기준). 앱도 같은 규칙으로 막지만, 구버전 앱·직접 호출을 위해 여기서 확정한다.
      * <ul>
      *   <li>startsAt: 지금(10분 여유) ~ 지금 + startsAtMaxDays일</li>
-     *   <li>endsAt: startsAt 보다 뒤, startsAt + maxDurationHours시간 이내 (지났는지는 @Future 가 본다)</li>
+     *   <li>endsAt: startsAt 보다 뒤, startsAt + maxDurationDays일 이내(여러 날 행사 가능) (지났는지는 @Future 가 본다)</li>
      * </ul>
      */
     void validateSchedule(LocalDateTime startsAt, LocalDateTime endsAt, LocalDateTime now) {
@@ -122,9 +122,9 @@ public class ReportService {
         if (!endsAt.isAfter(startsAt)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "종료 시각은 시작 시각보다 뒤여야 해요.");
         }
-        if (endsAt.isAfter(startsAt.plusHours(maxDurationHours))) {
+        if (endsAt.isAfter(startsAt.plusDays(maxDurationDays))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "진행 시간은 최대 " + maxDurationHours + "시간까지 정할 수 있어요.");
+                    "진행 기간은 최대 " + maxDurationDays + "일까지 정할 수 있어요.");
         }
     }
 
