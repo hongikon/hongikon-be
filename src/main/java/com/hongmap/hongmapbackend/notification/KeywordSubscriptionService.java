@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * [가정 B 확인됨] 자유 키워드 알림. 제목에 키워드가 포함된 새 소식은 학과·카테고리 구독과 무관하게 푸시된다(NewsPushDispatcher).
+ * [가정 B 확인됨] 자유 키워드 알림. 제목에 키워드가 포함된 새 소식은 게시판 구독·카테고리 설정과 무관하게 푸시된다(NewsPushDispatcher).
  */
 @Service
 @RequiredArgsConstructor

@@ -1,5 +1,7 @@
 package com.hongmap.hongmapbackend.auth;
 
+import com.hongmap.hongmapbackend.auth.apple.AppleLoginService;
+import com.hongmap.hongmapbackend.auth.dto.AppleLoginRequest;
 import com.hongmap.hongmapbackend.auth.dto.RefreshTokenRequest;
 import com.hongmap.hongmapbackend.auth.dto.TokenExchangeRequest;
 import com.hongmap.hongmapbackend.auth.dto.TokenResponse;
@@ -29,15 +31,24 @@ public class AuthController {
     private final AuthorizationCodeStore authorizationCodeStore;
     private final UserService userService;
     private final RefreshTokenService refreshTokenService;
+    private final AppleLoginService appleLoginService;
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
     @Operation(summary = "토큰 교환", description = "OAuth 로그인 성공 후 발급된 일회성 code를 access/refresh 토큰으로 교환합니다.")
     @PostMapping("/token/exchange")
     public TokenResponse exchange(@Valid @RequestBody TokenExchangeRequest request) {
-        Long userId = authorizationCodeStore.consume(request.code())
+        Long userId = authorizationCodeStore.consume(request.code(), request.codeVerifier())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 code입니다."));
 
         return refreshTokenService.issueTokenPair(userId);
+    }
+
+    @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
+    @Operation(summary = "Apple 로그인", description = "iOS 앱의 Sign in with Apple 결과(identityToken 등)를 검증하고 "
+            + "access/refresh 토큰을 발급합니다. 처음이면 회원을 만듭니다. 검증 실패는 401.")
+    @PostMapping("/apple")
+    public TokenResponse appleLogin(@Valid @RequestBody AppleLoginRequest request) {
+        return appleLoginService.login(request);
     }
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)

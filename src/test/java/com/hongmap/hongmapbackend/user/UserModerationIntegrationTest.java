@@ -128,6 +128,20 @@ class UserModerationIntegrationTest {
     }
 
     @Test
+    void 관리자는_앱에_보이는_앱_닉네임으로도_회원을_찾는다() throws Exception {
+        String appName = "붕어빵왕" + UUID.randomUUID().toString().substring(0, 4);
+        jdbcTemplate.update("UPDATE users SET app_nickname = ? WHERE id = ?", appName, author.getId());
+
+        mockMvc.perform(get("/admin/users").param("q", appName.substring(0, 6)).header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users[?(@.id == " + author.getId() + ")].displayName").value(appName))
+                .andExpect(jsonPath("$.users[?(@.id == " + author.getId() + ")].nickname").value("작성자"));
+        // 로그인 닉네임으로도 그대로 찾는다
+        mockMvc.perform(get("/admin/users").param("q", "다른학").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.users[?(@.id == " + other.getId() + ")].displayName").value("다***"));
+    }
+
+    @Test
     void 정지된_사용자는_제보_신고_문의가_403이고_조회는_된다_해제하면_다시_된다() throws Exception {
         Report report = activeReport(other);
 

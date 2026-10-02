@@ -29,7 +29,7 @@ public class AdminUserService {
      * <ul>
      *   <li>회원 번호(영문·숫자 10자리, 대소문자 무시): "K7Q2M9XA4D", "k7q2m9xa4d"</li>
      *   <li>숫자면 회원 id</li>
-     *   <li>숫자가 아니면 닉네임 일부(10글자 닉네임이 회원 번호 형식과 겹칠 수 있어 함께 찾는다)</li>
+     *   <li>숫자가 아니면 닉네임·앱 닉네임 일부(10글자 닉네임이 회원 번호 형식과 겹칠 수 있어 함께 찾는다)</li>
      * </ul>
      */
     @Transactional(readOnly = true)
@@ -46,7 +46,7 @@ public class AdminUserService {
         if (query.matches("\\d{1,18}")) {
             userRepository.findById(Long.parseLong(query)).ifPresent(user -> found.putIfAbsent(user.getId(), user));
         } else {
-            userRepository.findTop50ByNicknameContainingOrderByIdDesc(query)
+            userRepository.findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(query, query)
                     .forEach(user -> found.putIfAbsent(user.getId(), user));
         }
         return new AdminUserListResponse(found.values().stream().map(AdminUserResponse::of).toList());

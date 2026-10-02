@@ -1,6 +1,8 @@
 package com.hongmap.hongmapbackend.user;
 
+import com.hongmap.hongmapbackend.auth.apple.AppleRefreshTokenConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
@@ -49,10 +51,28 @@ public class User {
     @Column(nullable = false, length = 50)
     private String nickname;
 
+    /**
+     * 사용자가 앱에서 직접 정한 공개용 닉네임(선택). 없으면 남에게는 {@link #getNickname()} 을 가린 이름이 보인다.
+     * 규칙은 AppNicknamePolicy. 운영 DB는 utf8mb4_unicode_ci 라 유니크 인덱스가 대소문자를 가리지 않는다.
+     */
+    @Column(name = "app_nickname", length = 30, unique = true)
+    private String appNickname;
+
     /** 관리자 화면(/admin/**) 접근 권한. 요청마다 DB에서 확인하므로 바꾸면 즉시 반영된다. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserRole role = UserRole.USER;
+
+    /**
+     * Sign in with Apple 사용자만: 탈퇴 시 Apple에 폐기(revoke) 요청할 refresh 토큰과, 그 토큰을 받은 client_id(번들 ID).
+     * Apple 키 설정이 없을 때 가입한 사용자는 비어 있다(다음 로그인 때 채워진다).
+     */
+    @Convert(converter = AppleRefreshTokenConverter.class) // AES-GCM 암호화 저장(APPLE_TOKEN_ENC_KEY)
+    @Column(name = "apple_refresh_token", length = 512)
+    private String appleRefreshToken;
+
+    @Column(name = "apple_client_id", length = 100)
+    private String appleClientId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -122,6 +142,12 @@ public class User {
         this.nickname = nickname;
     }
 
+    /** 로그인할 때마다 Apple이 새로 준 refresh 토큰으로 바꿔 둔다(가장 최근 것만 있으면 폐기할 수 있다). */
+    public void linkAppleCredential(String appleRefreshToken, String appleClientId) {
+        this.appleRefreshToken = appleRefreshToken;
+        this.appleClientId = appleClientId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -136,5 +162,18 @@ public class User {
     @Override
     public int hashCode() {
         return getClass().hashCode();
+    }
+
+    /** null 이면 앱 닉네임을 지워 가린 로그인 닉네임으로 돌아간다. */
+    public void changeAppNickname(String appNickname) {
+        this.appNickname = appNickname;
+    }
+
+    /**
+     * 다른 사람에게 보여 줄 이름. 앱 닉네임이 있으면 그대로, 없으면 카카오/Apple 닉네임을 첫 글자만 남기고 가린다.
+     * 공개 응답에는 반드시 이 값만 싣는다(원래 닉네임은 실명인 경우가 많다).
+     */
+    public String getDisplayName() {
+        return DisplayNames.of(appNickname, nickname);
     }
 }

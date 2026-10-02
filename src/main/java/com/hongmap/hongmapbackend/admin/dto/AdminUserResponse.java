@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 public record AdminUserResponse(
         Long id,
         String nickname,
+        /** 앱 사용자에게 보이는 이름(앱 닉네임, 없으면 가린 nickname — DisplayNames). 신고·문의 속 이름과 맞춰 볼 때 쓴다. */
+        String displayName,
         String socialType,
         String role,
         String status,
@@ -20,6 +22,7 @@ public record AdminUserResponse(
         return new AdminUserResponse(
                 user.getId(),
                 user.getNickname(),
+                user.getDisplayName(),
                 user.getSocialType().name(),
                 user.getRole().name(),
                 user.getStatus().name(),
