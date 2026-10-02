@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.push;
 
+import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.user.TokenType;
 import com.hongmap.hongmapbackend.user.UserDevice;
@@ -55,7 +56,10 @@ public class NewsPushDispatcher {
     /** 소식 하나의 푸시 대상 기기. 매칭 기준은 {@link UserDeviceRepository#findPushTargets} 참고. */
     public List<UserDevice> findTargets(News news) {
         String sourceId = news.getSourceId() != null && !news.getSourceId().isBlank() ? news.getSourceId() : null;
-        return userDeviceRepository.findPushTargets(TokenType.EXPO, sourceId, news.getCategory(), news.getTitle());
+        // sourceId가 없으면 구독 기준은 :sourceId IS NOT NULL에서 걸러지므로 목록 값은 쓰이지 않는다(빈 IN 방지용 자리값).
+        List<String> subscriberSourceIds = sourceId != null ? CrawlerBoards.subscriberSourceIds(sourceId) : List.of("");
+        return userDeviceRepository.findPushTargets(
+                TokenType.EXPO, sourceId, subscriberSourceIds, news.getCategory(), news.getTitle());
     }
 
     private List<ExpoPushMessage> buildMessages(List<News> newsList) {

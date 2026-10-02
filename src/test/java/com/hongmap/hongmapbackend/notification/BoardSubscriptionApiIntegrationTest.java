@@ -111,6 +111,17 @@ class BoardSubscriptionApiIntegrationTest {
     }
 
     @Test
+    void 이번에_추가한_게시판과_상위_게시판을_빌려_쓰는_전공도_구독할_수_있다() throws Exception {
+        for (String sourceId : new String[]{"기초과학과", "자율전공", "바이오헬스융합학부", "디자인엔지니어링전공",
+                "디자인경영전공", "예술경영전공", "데이터사이언스전공", "사물인터넷공학전공", "지능로봇공학전공"}) {
+            mockMvc.perform(put(BASE + "/{sourceId}", sourceId).header("Authorization", bearer(user))
+                            .contentType(MediaType.APPLICATION_JSON).content(body(true)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.sourceId").value(sourceId));
+        }
+    }
+
+    @Test
     void 알_수_없는_게시판은_400() throws Exception {
         mockMvc.perform(put(BASE + "/{sourceId}", "없는게시판").header("Authorization", bearer(user))
                         .contentType(MediaType.APPLICATION_JSON).content(body(true)))
