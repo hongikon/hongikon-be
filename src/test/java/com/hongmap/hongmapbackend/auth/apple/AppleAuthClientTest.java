@@ -64,7 +64,7 @@ class AppleAuthClientTest {
     }
 
     private static AppleProperties properties(String teamId, String keyId, String privateKey) {
-        return new AppleProperties(List.of("com.hongmap.alimi"), teamId, keyId, privateKey,
+        return new AppleProperties(List.of("com.hongikon.app"), teamId, keyId, privateKey,
                 "https://appleid.apple.com/auth/keys", TOKEN_URL, REVOKE_URL, 1000, 1000);
     }
 
@@ -91,12 +91,12 @@ class AppleAuthClientTest {
                          "refresh_token":"r.apple-refresh","id_token":"x.y.z"}
                         """, MediaType.APPLICATION_JSON));
 
-        Optional<String> refreshToken = configuredClient().exchangeForRefreshToken("auth-code", "com.hongmap.alimi");
+        Optional<String> refreshToken = configuredClient().exchangeForRefreshToken("auth-code", "com.hongikon.app");
 
         server.verify();
         assertThat(refreshToken).contains("r.apple-refresh");
         assertThat(sent.get())
-                .containsEntry("client_id", "com.hongmap.alimi")
+                .containsEntry("client_id", "com.hongikon.app")
                 .containsEntry("code", "auth-code")
                 .containsEntry("grant_type", "authorization_code");
 
@@ -107,7 +107,7 @@ class AppleAuthClientTest {
         assertThat(secret.getHeader().getAlgorithm()).isEqualTo("ES256");
         assertThat(secret.getHeader().getKeyId()).isEqualTo("KEY1234567");
         assertThat(secret.getPayload().getIssuer()).isEqualTo("TEAM123456");
-        assertThat(secret.getPayload().getSubject()).isEqualTo("com.hongmap.alimi");
+        assertThat(secret.getPayload().getSubject()).isEqualTo("com.hongikon.app");
         assertThat(secret.getPayload().getAudience()).containsExactly("https://appleid.apple.com");
         assertThat(secret.getPayload().getExpiration()).isAfter(java.util.Date.from(NOW));
     }
@@ -117,7 +117,7 @@ class AppleAuthClientTest {
         server.expect(requestTo(TOKEN_URL))
                 .andRespond(withBadRequest().body("{\"error\":\"invalid_grant\"}").contentType(MediaType.APPLICATION_JSON));
 
-        assertThat(configuredClient().exchangeForRefreshToken("used-code", "com.hongmap.alimi")).isEmpty();
+        assertThat(configuredClient().exchangeForRefreshToken("used-code", "com.hongikon.app")).isEmpty();
         server.verify();
     }
 
@@ -129,12 +129,12 @@ class AppleAuthClientTest {
                 .andExpect(request -> sent.set(form((MockClientHttpRequest) request)))
                 .andRespond(withSuccess());
 
-        boolean revoked = configuredClient().revokeQuietly("r.apple-refresh", "com.hongmap.alimi.preview");
+        boolean revoked = configuredClient().revokeQuietly("r.apple-refresh", "com.hongikon.app.preview");
 
         server.verify();
         assertThat(revoked).isTrue();
         assertThat(sent.get())
-                .containsEntry("client_id", "com.hongmap.alimi.preview")
+                .containsEntry("client_id", "com.hongikon.app.preview")
                 .containsEntry("token", "r.apple-refresh")
                 .containsEntry("token_type_hint", "refresh_token")
                 .containsKey("client_secret");
@@ -145,7 +145,7 @@ class AppleAuthClientTest {
         server.expect(requestTo(REVOKE_URL)).andRespond(withBadRequest());
 
         // FAILED 는 재시도 대기열 대상(SKIPPED 와 구분)
-        assertThat(configuredClient().revoke("r.apple-refresh", "com.hongmap.alimi"))
+        assertThat(configuredClient().revoke("r.apple-refresh", "com.hongikon.app"))
                 .isEqualTo(AppleAuthClient.RevokeResult.FAILED);
         server.verify();
     }
@@ -155,9 +155,9 @@ class AppleAuthClientTest {
         AppleAuthClient client = new AppleAuthClient(properties("", "", ""), builder, Clock.systemUTC());
 
         assertThat(client.isConfigured()).isFalse();
-        assertThat(client.exchangeForRefreshToken("auth-code", "com.hongmap.alimi")).isEmpty();
-        assertThat(client.revokeQuietly("r.apple-refresh", "com.hongmap.alimi")).isFalse();
-        assertThat(client.revoke("r.apple-refresh", "com.hongmap.alimi")).isEqualTo(AppleAuthClient.RevokeResult.SKIPPED);
+        assertThat(client.exchangeForRefreshToken("auth-code", "com.hongikon.app")).isEmpty();
+        assertThat(client.revokeQuietly("r.apple-refresh", "com.hongikon.app")).isFalse();
+        assertThat(client.revoke("r.apple-refresh", "com.hongikon.app")).isEqualTo(AppleAuthClient.RevokeResult.SKIPPED);
         server.verify(); // 요청 0건
     }
 
@@ -166,7 +166,7 @@ class AppleAuthClientTest {
         AppleAuthClient client = new AppleAuthClient(properties("TEAM", "KEY", "not-a-pem"), builder, Clock.systemUTC());
 
         assertThat(client.isConfigured()).isFalse();
-        assertThat(client.exchangeForRefreshToken("auth-code", "com.hongmap.alimi")).isEmpty();
+        assertThat(client.exchangeForRefreshToken("auth-code", "com.hongikon.app")).isEmpty();
     }
 
     @Test
@@ -178,7 +178,7 @@ class AppleAuthClientTest {
 
     @Test
     void 저장된_토큰이_없으면_폐기를_건너뛴다() {
-        assertThat(configuredClient().revokeQuietly(null, "com.hongmap.alimi")).isFalse();
+        assertThat(configuredClient().revokeQuietly(null, "com.hongikon.app")).isFalse();
         server.verify();
     }
 }

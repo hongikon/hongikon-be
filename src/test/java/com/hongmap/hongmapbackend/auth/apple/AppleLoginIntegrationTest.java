@@ -156,17 +156,17 @@ class AppleLoginIntegrationTest {
     void Apple_refresh_토큰을_저장했다가_탈퇴하면_폐기한다() throws Exception {
         String sub = newSub();
         doReturn(Optional.of("r.apple-refresh")).when(appleAuthClient)
-                .exchangeForRefreshToken("c-ok", "com.hongmap.alimi.preview");
+                .exchangeForRefreshToken("c-ok", "com.hongikon.app.preview");
         doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke(anyString(), anyString());
 
         MvcResult result = login("""
                 {"identityToken":"%s","authorizationCode":"c-ok","nonce":"%s"}
-                """.formatted(APPLE.token().subject(sub).audience("com.hongmap.alimi.preview").build(), AppleTestKeys.RAW_NONCE));
+                """.formatted(APPLE.token().subject(sub).audience("com.hongikon.app.preview").build(), AppleTestKeys.RAW_NONCE));
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
 
         User user = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
         assertThat(user.getAppleRefreshToken()).isEqualTo("r.apple-refresh");
-        assertThat(user.getAppleClientId()).isEqualTo("com.hongmap.alimi.preview");
+        assertThat(user.getAppleClientId()).isEqualTo("com.hongikon.app.preview");
         // DB 에는 AES-GCM 암호문만 있다
         String stored = jdbcTemplate.queryForObject(
                 "SELECT apple_refresh_token FROM users WHERE id = ?", String.class, user.getId());
@@ -174,7 +174,7 @@ class AppleLoginIntegrationTest {
 
         userService.withdraw(user.getId());
 
-        verify(appleAuthClient).revoke("r.apple-refresh", "com.hongmap.alimi.preview");
+        verify(appleAuthClient).revoke("r.apple-refresh", "com.hongikon.app.preview");
         assertThat(userRepository.findById(user.getId())).isEmpty();
     }
 
@@ -207,8 +207,8 @@ class AppleLoginIntegrationTest {
     @Test
     void 탈퇴_때_Apple_폐기가_실패하면_암호화해_대기열에_넣고_재시도로_지운다() throws Exception {
         String sub = newSub();
-        doReturn(Optional.of("r.retry-me")).when(appleAuthClient).exchangeForRefreshToken("c-retry", "com.hongmap.alimi");
-        doReturn(AppleAuthClient.RevokeResult.FAILED).when(appleAuthClient).revoke("r.retry-me", "com.hongmap.alimi");
+        doReturn(Optional.of("r.retry-me")).when(appleAuthClient).exchangeForRefreshToken("c-retry", "com.hongikon.app");
+        doReturn(AppleAuthClient.RevokeResult.FAILED).when(appleAuthClient).revoke("r.retry-me", "com.hongikon.app");
         login("""
                 {"identityToken":"%s","authorizationCode":"c-retry","nonce":"%s"}
                 """.formatted(APPLE.token().subject(sub).build(), AppleTestKeys.RAW_NONCE));
@@ -222,7 +222,7 @@ class AppleLoginIntegrationTest {
         List<PendingAppleRevocation> pending = pendingRevocationRepository.findAll();
         assertThat(pending).hasSize(1);
         assertThat(pending.get(0).getRefreshToken()).isEqualTo("r.retry-me");
-        assertThat(pending.get(0).getClientId()).isEqualTo("com.hongmap.alimi");
+        assertThat(pending.get(0).getClientId()).isEqualTo("com.hongikon.app");
         assertThat(jdbcTemplate.queryForObject("SELECT refresh_token FROM apple_pending_revocations", String.class))
                 .startsWith("v1:").doesNotContain("retry-me");
 
@@ -232,7 +232,7 @@ class AppleLoginIntegrationTest {
 
         // 재시도 시각이 지나고 Apple 이 성공하면 지운다
         jdbcTemplate.update("UPDATE apple_pending_revocations SET next_attempt_at = ?", java.time.LocalDateTime.now().minusMinutes(1));
-        doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke("r.retry-me", "com.hongmap.alimi");
+        doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke("r.retry-me", "com.hongikon.app");
         appleRevocationService.retryPending();
         assertThat(pendingRevocationRepository.count()).isZero();
     }

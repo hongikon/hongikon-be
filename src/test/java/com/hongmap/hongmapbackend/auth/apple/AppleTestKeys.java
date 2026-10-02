@@ -15,7 +15,7 @@ import java.util.Map;
  */
 final class AppleTestKeys {
 
-    static final String CLIENT_ID = "com.hongmap.alimi";
+    static final String CLIENT_ID = "com.hongikon.app";
 
     final String kid;
     final KeyPair keyPair;

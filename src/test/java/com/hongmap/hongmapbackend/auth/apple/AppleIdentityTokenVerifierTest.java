@@ -23,7 +23,7 @@ class AppleIdentityTokenVerifierTest {
 
     private static final AppleTestKeys APPLE = new AppleTestKeys("kid-1");
     private static final List<String> CLIENT_IDS =
-            List.of("com.hongmap.alimi", "com.hongmap.alimi.preview", "com.hongmap.alimi.dev");
+            List.of("com.hongikon.app", "com.hongikon.app.preview", "com.hongikon.app.dev");
 
     /** 돌려줄 키 목록을 바꿀 수 있고, 몇 번 불렸는지 센다. */
     static class StubJwksSource implements AppleJwksSource {
@@ -78,12 +78,12 @@ class AppleIdentityTokenVerifierTest {
 
     @Test
     void 올바른_토큰이면_sub와_aud를_돌려준다() {
-        String token = APPLE.token().now(now).subject("apple-sub-1").audience("com.hongmap.alimi.preview").build();
+        String token = APPLE.token().now(now).subject("apple-sub-1").audience("com.hongikon.app.preview").build();
 
         AppleIdentity identity = verifier.verify(token, AppleTestKeys.RAW_NONCE);
 
         assertThat(identity.subject()).isEqualTo("apple-sub-1");
-        assertThat(identity.clientId()).isEqualTo("com.hongmap.alimi.preview");
+        assertThat(identity.clientId()).isEqualTo("com.hongikon.app.preview");
     }
 
     @Test
@@ -106,7 +106,7 @@ class AppleIdentityTokenVerifierTest {
     void HS256_등_RS256이_아닌_토큰은_401() {
         String token = Jwts.builder()
                 .header().keyId("kid-1").and()
-                .issuer(AppleIdentityTokenVerifier.ISSUER).audience().add("com.hongmap.alimi").and()
+                .issuer(AppleIdentityTokenVerifier.ISSUER).audience().add("com.hongikon.app").and()
                 .subject("x").expiration(java.util.Date.from(now.plusSeconds(600)))
                 .signWith(Keys.hmacShaKeyFor(new byte[32]), Jwts.SIG.HS256)
                 .compact();

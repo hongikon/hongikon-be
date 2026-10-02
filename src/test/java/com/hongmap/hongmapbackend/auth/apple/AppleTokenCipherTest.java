@@ -68,7 +68,7 @@ class AppleTokenCipherTest {
     @Test
     void prod에서_Apple_로그인이_켜져_있는데_키가_없으면_기동하지_않는다() {
         AppleProperties props = mock(AppleProperties.class);
-        when(props.getClientIds()).thenReturn(List.of("com.hongmap.alimi"));
+        when(props.getClientIds()).thenReturn(List.of("com.hongikon.app"));
         AppleAuthClient configured = mock(AppleAuthClient.class);
         when(configured.isConfigured()).thenReturn(true);
         AppleAuthClient notConfigured = mock(AppleAuthClient.class);
