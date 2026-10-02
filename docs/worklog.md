@@ -624,3 +624,16 @@
 - 배포 후 실기기로 푸시(새 소식·제보 승인/반려·새 제보) 수신 확인
 - 처리방침 문구 반영 (사진 전송, 앱 닉네임, 카카오 연결 해제) — 프론트와 함께
 - 이전 목록에서 남은 것: `POST /auth/test-token` 운영 노출 여부 확인·제거, 건축학부 게시글 중복 저장 버그, AWS 비용 확인
+
+## 2026-10-02 (오후) — PR 현황 갱신
+
+**머지됨(main)**: #4, #5, #6, #8. **남은 순서**: #7 → #10 → #9 → #11 → #13 → #14 → #15 (`docs/deploy-order-2026-10.md`). 각 PR 의 자세한 기록은 그 PR 이 붙인 이 파일의 섹션에 있다 — #9·#12·#14·#15 가 모두 이 파일 끝에 덧붙여 머지 때 이 파일만 충돌하니 양쪽 다 남긴다.
+
+- **#7 Apple 로그인**: 앱 ID 변경에 맞춰 `APPLE_CLIENT_IDS` 기본값 `com.hongikon.app,.preview,.dev`, 테스트 픽스처도 새 ID(65개 통과). Apple Developer 에 새 App ID·Sign in with Apple 키 생성 완료(Team ID `GB56N8GWDQ`) — Key ID·.p8 은 석훈 → 세원 직접 전달.
+- **#9 제보 사진**: 최대 3장으로 변경. `reports.image_key` 대신 `report_images` 테이블(`db/create_report_images_table.sql`, 옛 ALTER 파일 삭제). `imageKeys[]`(최대 3) + 구버전 `imageKey` 호환, 응답 `imageUrls[]` + `imageUrl`. main 병합으로 `AdminReportService` 충돌 해소. 93개 통과, 가이드 순서 전체 병합 207개 통과.
+- **#13 UGC 관리**: 관리자 지정·해제 API(`POST /admin/users/{id}/grant-admin`, `/revoke-admin`) 추가 — 자기 자신 해제 불가(관리자 0명 방지), 정지 회원 지정 불가.
+- **#14 관리자 알림** (신규, main 기준): 새 PENDING 제보·문의·신고 자동 숨김 시 ADMIN 기기로 `[관리]` 푸시(Android `admin` 채널), 2분 묶음, 관리자 끄기 설정 `admin_alerts_enabled`(`db/alter_user_notification_settings_add_admin_alerts.sql`). 자동 숨김을 조건부 UPDATE 로 바꿔 동시 신고 시 알림 중복 방지. 82개 통과.
+- **#15 회원 번호** (신규, base #13): `users.member_code` 영문 대문자·숫자 10자리, 가입 시 발급. SQL 하나로 기존 회원(#1·#2 포함) 백필·검증 SELECT·NOT NULL(`db/alter_users_add_member_code.sql`). **RDS 스냅샷 → SQL → 머지 → 배포**, SQL 직후 바로 배포. 관리자 검색이 회원 번호(대소문자 무시)도 찾음. 공개 제보 응답엔 없음. 56개 통과(#7·#11 포함 병합 122개).
+- **확인**: `POST /auth/test-token` 은 `@Profile("local")` 이라 운영엔 없음(운영 401 확인).
+
+**운영(사람) 추가 할 일**: 첫 관리자는 #15 배포 후 `UPDATE users SET role='ADMIN' WHERE member_code='<10자리>';`(그전엔 id 로), 이후엔 앱 관리 탭에서 지정. `KAKAO_ADMIN_KEY`(처리방침에 카카오 연결 끊기를 적음), `AUTHOR_KEY_SECRET`, `APPLE_*`·`APPLE_TOKEN_ENC_KEY`, S3 버킷(사진 3장) 준비.
