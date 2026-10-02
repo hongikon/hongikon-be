@@ -487,3 +487,4 @@
   - main 병합(#9 등 22커밋): `ReportService.java` 필드·`create()` 끝(둘 다 유지), worklog 정리
   - 충돌(`git merge-tree`): #13 없음. #17 `application-test.properties` 끝 한 줄씩(둘 다 유지). #12·#15·#16·#17 `docs/worklog.md`(끝 덧붙임 → 둘 다 남기기)
   - 프론트: `feat/admin-reminder-route` — ADMIN_REPORT_REMINDER를 ADMIN_REPORT_PENDING처럼 라우팅(관리 탭 → 제보 검토 → 승인 대기, oldestReportId 강조)
+- 10-02 버그 점검 반영: 리마인드에서 이미 끝난(ends_at 지남) PENDING 제보 제외(개수·가장 오래된 것·선점), `@Scheduled` 스레드 1→4(`SCHEDULING_POOL_SIZE`, 정각 크롤링이 리마인드·Apple 재시도를 막던 문제). 테스트 193개 통과
