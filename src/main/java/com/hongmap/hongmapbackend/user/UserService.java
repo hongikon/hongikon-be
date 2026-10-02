@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.user;
 
+import com.hongmap.hongmapbackend.auth.apple.AppleRevocationService;
 import com.hongmap.hongmapbackend.auth.token.RefreshTokenRepository;
 import com.hongmap.hongmapbackend.bookmark.BookmarkRepository;
 import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -21,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
  * DB에도 FK cascade가 없다고 가정하므로, 자식 → 부모 순서로 명시적으로 지운다.
  * 제보(Report)는 다른 유저도 지도에서 보는 콘텐츠지만 ends_at이 지나면 어차피 사라지는
  * 시간 한정 정보라 작성자 탈퇴 시 함께 삭제한다(익명화 대신 삭제로 결정).
+ * Apple 로그인 사용자는 커밋 뒤 Apple 토큰도 폐기한다(App Store 가이드라인 5.1.1(v)). 폐기 실패는 탈퇴를 막지 않고
+ * 재시도 대기열(apple_pending_revocations)에 들어간다.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,6 +44,7 @@ public class UserService {
     private final UserDepartmentRepository userDepartmentRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final AppleRevocationService appleRevocationService;
 
     @Transactional
     public void withdraw(Long userId) {
@@ -64,5 +70,23 @@ public class UserService {
         feedbackRepository.detachUser(userId);
 
         userRepository.delete(user);
+
+        if (user.getSocialType() == SocialType.APPLE) {
+            revokeAppleTokenAfterCommit(user.getAppleRefreshToken(), user.getAppleClientId());
+        }
+    }
+
+    /** 삭제가 실제로 커밋된 뒤에만 Apple을 호출한다(롤백되면 Apple 연결은 그대로 둔다). 실패는 재시도 대기열에 넣는다. */
+    private void revokeAppleTokenAfterCommit(String appleRefreshToken, String appleClientId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            appleRevocationService.revokeOrQueue(appleRefreshToken, appleClientId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                appleRevocationService.revokeOrQueue(appleRefreshToken, appleClientId);
+            }
+        });
     }
 }

@@ -48,6 +48,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/error").permitAll();
                     auth.requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange",
                             "/auth/reissue", "/auth/logout").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/auth/apple").permitAll();
                     // AuthTestController와 동일하게 local 프로필에서만 인증 없이 열어준다.
                     if (environment.acceptsProfiles(Profiles.of("local"))) {
                         auth.requestMatchers("/auth/test-token").permitAll();
