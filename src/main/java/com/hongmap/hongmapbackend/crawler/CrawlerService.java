@@ -41,12 +41,19 @@ public class CrawlerService {
      */
     public int crawlAll() {
         List<News> newNews = new ArrayList<>();
+        List<String> emptyBoards = new ArrayList<>();
         for (BoardConfig board : CrawlerBoards.ALL) {
             try {
-                crawlBoard(board, newNews);
+                if (crawlBoard(board, newNews) == 0) {
+                    emptyBoards.add(board.boardKey() + "(" + board.sourceId() + ")");
+                }
             } catch (Exception e) {
                 log.warn("게시판 크롤링 실패: {} ({})", board.source(), board.listUrl(), e);
             }
+        }
+        // 첫 페이지에서 글을 한 건도 못 읽은 게시판. 게시판이 비어 있거나(예: 조소과) URL·마크업이 바뀐 경우라 운영자가 확인할 목록이다.
+        if (!emptyBoards.isEmpty()) {
+            log.warn("목록 0건 게시판 {}개: {}", emptyBoards.size(), String.join(", ", emptyBoards));
         }
 
         try {
@@ -57,10 +64,11 @@ public class CrawlerService {
         return newNews.size();
     }
 
-    /** 새로 저장한 소식을 newNews에 더한다. */
-    private void crawlBoard(BoardConfig board, List<News> newNews) {
+    /** 새로 저장한 소식을 newNews에 더하고, 첫 페이지 목록에서 읽은 글 수를 돌려준다(0이면 비었거나 파싱 실패). */
+    private int crawlBoard(BoardConfig board, List<News> newNews) {
         BoardParser parser = parserRegistry.resolve(board.parser());
         int saved = 0;
+        int firstPageCount = 0;
 
         for (int page = 0; page < properties.getDefaultPages(); page++) {
             if (page > 0) {
@@ -70,6 +78,9 @@ public class CrawlerService {
             String listUrl = parser.buildListUrl(board.listUrl(), page, properties.getPageSize());
             Document listDocument = httpClient.get(listUrl);
             List<ArticleSummary> summaries = parser.parseList(listDocument, board.listUrl(), board.tableSummary());
+            if (page == 0) {
+                firstPageCount = summaries.size();
+            }
 
             if (summaries.isEmpty()) {
                 break;
@@ -103,7 +114,8 @@ public class CrawlerService {
             storageService.fillMissingSourceId(board, existingUrls);
         }
 
-        log.info("게시판 크롤링 완료: {} — 신규 {}건", board.source(), saved);
+        log.info("게시판 크롤링 완료: {} — 목록 {}건, 신규 {}건", board.source(), firstPageCount, saved);
+        return firstPageCount;
     }
 
     private boolean isExcluded(BoardConfig board, ArticleSummary summary) {

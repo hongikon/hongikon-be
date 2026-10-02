@@ -459,3 +459,13 @@
 - 테스트: +7 → 93개(main 병합 기준). #7·#10·#9·#11·#13·#14·#15 순서로 합친 상태 207개 통과
 - 머지 충돌: main·#7·#10·#13·#15 없음. #11 `ReportResponse`·`ReportSummaryResponse` 각 1곳(#11의 `authorNickname(...getDisplayName())` + #9의 `imageUrl`·`imageUrls` 두 줄 유지). #14 `ReportService.java` 2곳(필드 둘 다, `create()`에서 `publishEvent(...)` 뒤 #9의 `return`). #12·#14·#15와 `docs/worklog.md`(파일 끝 덧붙임 → 양쪽 다 남기기)
 - 프론트: `feat/report-multi-photo` — 앨범 다중 선택·카메라 1장씩, 썸네일·n/3, 장마다 메타데이터 제거·순차 업로드(재시도 시 올린 키 재사용), `imageKeys`+`imageKey` 전송, 응답에 `imageUrls`가 없으면(구서버) "1장만 첨부" 안내
+
+## 2026-10-02 — 소식 0건 게시판 10개 수집 (`fix/crawler-missing-boards`, base main)
+- 왜: 앱 구독 게시판 49개(FE `TREE_DATA`) 중 10개가 운영 `/news?sourceId=`에서 0건. 9개는 `CrawlerBoards`에 아예 없었고(구독 PUT도 400), 조소과는 설정돼 있는데 저장된 글이 없었음
+- 원인·조치(사이트는 robots.txt 확인 후 크롤러 UA로 몇 건만 요청해 확인)
+  - 새 게시판: 기초과학과 `science/0401.do`(표 summary `학과공지사항`), 자율전공 → 서울캠퍼스 자율전공 `fm/0401.do`, 디자인엔지니어링전공 `smpd/0401.do`, 바이오헬스융합학부 → 바이오헬스 혁신융합대학사업단 Imweb `biohealth.hongik.ac.kr/22`
+  - 자체 게시판 없음 → 상위 게시판 별칭(`CrawlerBoards.SOURCE_ALIASES`): 디자인경영·예술경영전공 → 디자인예술경영학부, 데이터사이언스 → 산업데이터공학과, 사물인터넷공학 → 전자전기공학부, 지능로봇공학 → 기계시스템디자인공학과. 글은 상위 sourceId로 한 번만 저장하고 `GET /news` 필터·구독 검증·새 소식 푸시 대상에서 펼침
+  - 조소과·기초과학과: URL·마크업·파서 모두 정상, 게시판 자체가 비어 있음("등록된 글이 없습니다"). 글이 올라오면 수집됨
+  - 크롤링 끝에 첫 페이지 목록 0건 게시판을 `WARN 목록 0건 게시판 N개: ...`로 한 줄 기록
+- DB·환경변수: 변화 없음
+- 테스트: 저장한 목록 HTML 픽스처(`src/test/resources/crawler`)로 파서 확인, FE 49개 id 전부 구독 가능 확인, 별칭 조회·푸시·구독 테스트 추가. `./gradlew test` 통과

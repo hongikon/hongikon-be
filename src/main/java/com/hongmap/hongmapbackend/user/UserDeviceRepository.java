@@ -24,6 +24,8 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
      *   <li>게시판 구독: 그 소식의 게시판(news.source_id)을 구독했고(user_board_subscriptions) 그 구독의 alert_enabled = true이며,
      *       그 소식의 category를 끄지 않은 유저(notification_categories에 enabled = false 행이 없음).
      *       학과 게시판·대학공지(학사·장학 등 6개 분류) 모두 같은 기준이다. source_id가 null인 소식은 이 기준에 걸리지 않는다.
+     *       구독 게시판 id는 subscriberSourceIds(그 게시판 + 그 게시판을 빌려 쓰는 별칭, CrawlerBoards.subscriberSourceIds)로 받는다 —
+     *       예: 산업데이터공학과 소식은 데이터사이언스전공 구독자에게도 간다.
      *       한 번도 저장하지 않은 카테고리는 켜짐으로 본다 — NotificationCategoryService.getUserCategories()가 화면에 보여주는 값과 같은 기준.</li>
      *   <li>위와 무관하게 제목에 구독 키워드가 들어간 유저(keyword_subscriptions, 대소문자 무시)</li>
      * </ul>
@@ -38,7 +40,7 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
                    (:sourceId IS NOT NULL
                     AND d.user.id IN (
                         SELECT s.user.id FROM UserBoardSubscription s
-                        WHERE s.sourceId = :sourceId AND s.alertEnabled = true)
+                        WHERE s.sourceId IN :subscriberSourceIds AND s.alertEnabled = true)
                     AND d.user.id NOT IN (
                         SELECT nc.user.id FROM NotificationCategory nc
                         WHERE nc.category = :category AND nc.enabled = false))
@@ -50,6 +52,7 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
     List<UserDevice> findPushTargets(
             @Param("tokenType") TokenType tokenType,
             @Param("sourceId") String sourceId,
+            @Param("subscriberSourceIds") List<String> subscriberSourceIds,
             @Param("category") String category,
             @Param("title") String title
     );

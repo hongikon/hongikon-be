@@ -1,6 +1,5 @@
 package com.hongmap.hongmapbackend.notification;
 
-import com.hongmap.hongmapbackend.crawler.config.BoardConfig;
 import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.notification.dto.BoardSubscriptionListResponse;
 import com.hongmap.hongmapbackend.notification.dto.BoardSubscriptionResponse;
@@ -13,13 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 게시판 구독. 새 소식 푸시 대상은 "그 게시판(news.source_id)을 구독 + alert_enabled + 그 카테고리를 끄지 않음"인 유저다
  * (UserDeviceRepository.findPushTargets). 키워드 구독(KeywordSubscription)은 이와 별개로 추가 발송된다.
  *
- * sourceId는 크롤러가 실제로 수집하는 게시판(CrawlerBoards.ALL — 학과 게시판 + 대학공지 6개 분류)만 허용한다.
+ * sourceId는 크롤러가 실제로 수집하는 게시판(CrawlerBoards.ALL — 학과 게시판 + 대학공지 6개 분류)과
+ * 상위 게시판을 빌려 쓰는 별칭(CrawlerBoards.SOURCE_ALIASES, 예: 데이터사이언스전공)만 허용한다.
  * 게시판이 추가·삭제되면 CrawlerBoards만 고치면 된다.
  */
 @Service
@@ -29,9 +28,7 @@ public class BoardSubscriptionService {
     /** 유저 한 명이 구독할 수 있는 게시판 수 상한. 지금 게시판이 50개 남짓이라 넉넉하게 잡았다. */
     static final int MAX_SUBSCRIPTIONS_PER_USER = 100;
 
-    private static final Set<String> KNOWN_SOURCE_IDS = CrawlerBoards.ALL.stream()
-            .map(BoardConfig::sourceId)
-            .collect(Collectors.toUnmodifiableSet());
+    private static final Set<String> KNOWN_SOURCE_IDS = CrawlerBoards.KNOWN_SOURCE_IDS;
 
     private final UserBoardSubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;

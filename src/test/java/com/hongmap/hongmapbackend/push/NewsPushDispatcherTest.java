@@ -143,6 +143,31 @@ class NewsPushDispatcherTest {
     }
 
     @Test
+    void 상위_게시판을_빌려_쓰는_전공_구독자도_상위_게시판_소식을_받는다() {
+        // 데이터사이언스전공은 자체 게시판이 없어 산업데이터공학과 게시판으로 저장된다(CrawlerBoards.SOURCE_ALIASES).
+        User majorSubscriber = user();
+        subscribeBoard(majorSubscriber, "데이터사이언스전공", true);
+        String majorToken = device(majorSubscriber, TokenType.EXPO, true);
+
+        User parentSubscriber = user();
+        subscribeBoard(parentSubscriber, "산업데이터공학과", true);
+        String parentToken = device(parentSubscriber, TokenType.EXPO, true);
+
+        // 같은 사람이 둘 다 구독해도 한 번만 간다.
+        User both = user();
+        subscribeBoard(both, "데이터사이언스전공", true);
+        subscribeBoard(both, "산업데이터공학과", true);
+        String bothToken = device(both, TokenType.EXPO, true);
+
+        User otherMajor = user();
+        subscribeBoard(otherMajor, "사물인터넷공학전공", true);
+        device(otherMajor, TokenType.EXPO, true);
+
+        assertThat(targetTokens(news("산업데이터공학과", "공지", "융합전공 신청 안내 " + run)))
+                .containsExactlyInAnyOrder(majorToken, parentToken, bothToken);
+    }
+
+    @Test
     void 학과_구독만_있고_게시판_구독이_없으면_받지_않는다() {
         Department dept = departmentRepository.save(Department.builder().name(boardA).college("테스트대학").build());
         User deptOnly = user();
