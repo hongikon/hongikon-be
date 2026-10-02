@@ -645,3 +645,4 @@
 - **#16 (신규) 내 제보 내역**: `GET /users/me/reports`, `/count`. 신고로 숨겨진(HIDDEN) 제보는 작성자 삭제 불가(409) — 검토 전 삭제로 제재 근거가 사라지는 것 방지. SQL·env 없음.
 - **#17 (신규) 예정 제보**: 시작 최대 14일 뒤, 진행 최대 7일(`REPORT_MAX_DURATION_DAYS`), `include=upcoming`, 시작 전 승인 시 작성자에게 "…부터 지도에 보여요", 캠퍼스 새 제보 알림은 시작 시각에(`ReportStartPushScheduler`). SQL 없음. #14·#17 중 나중 머지 쪽에서 `AdminAlertDispatcherTest` 167행 고정 과거 시각 수정 필요. 앱 화면은 #17 배포 후 OTA.
 - **결정**: 게스트 기기 기반 알림(서버 개편)은 하지 않음 — 알림은 계정 기준 유지, 앱은 로그인 후 알림 권한을 묻는다.
+- 10-02 밤 배포 가이드 갱신(`docs/deploy-order-2026-10.md`): #4–#11 머지됨, 남은 순서 #13 → #14 → #15 → #16 → #17, PR별 SQL·env(`AUTHOR_KEY_SECRET`·`KAKAO_ADMIN_KEY`는 #13 전에, `SCHEDULING_POOL_SIZE`), `AdminAlertDispatcherTest` 167행 수정, worklog 양쪽 유지, 배포 뒤 스모크 체크리스트. 5개 합친 상태 240개 통과·MySQL validate 기동 확인
