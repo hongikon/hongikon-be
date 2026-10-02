@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import com.hongmap.hongmapbackend.auth.exchange.Pkce;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -20,6 +21,9 @@ import java.io.IOException;
 public class OAuth2RedirectUriCaptureFilter extends OncePerRequestFilter {
 
     public static final String SESSION_ATTRIBUTE = OAuth2RedirectUriCaptureFilter.class.getName() + ".REDIRECT_URI";
+    /** 앱이 보낸 PKCE code_challenge(S256). 로그인 성공 때 1회용 code 에 묶인다({@link Pkce}). */
+    public static final String CODE_CHALLENGE_ATTRIBUTE = OAuth2RedirectUriCaptureFilter.class.getName() + ".CODE_CHALLENGE";
+    private static final String CODE_CHALLENGE_PARAMETER = "code_challenge";
     private static final String AUTHORIZATION_PATH_PREFIX = "/oauth2/authorization/";
     private static final String PARAMETER = "redirect_uri";
 
@@ -44,6 +48,12 @@ public class OAuth2RedirectUriCaptureFilter extends OncePerRequestFilter {
         } else {
             // 이전 로그인 시도의 값이 남아 엉뚱한 곳으로 가지 않도록 매번 초기화한다.
             session.removeAttribute(SESSION_ATTRIBUTE);
+        }
+        String codeChallenge = request.getParameter(CODE_CHALLENGE_PARAMETER);
+        if (Pkce.isValidChallenge(codeChallenge)) {
+            session.setAttribute(CODE_CHALLENGE_ATTRIBUTE, codeChallenge);
+        } else {
+            session.removeAttribute(CODE_CHALLENGE_ATTRIBUTE);
         }
         filterChain.doFilter(request, response);
     }

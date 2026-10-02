@@ -444,6 +444,22 @@
   401 재발급 미구현 등)를 정리해 Notion으로 석훈에게 전달 완료
 - 다음 단계: 제보 사진 업로드 API 설계/구현 (백엔드), 픽토그램 라우팅(PM 데이터 대기)
 
+## 2026-10-02 — PR #9 제보 사진 최대 3장 (`feat/report-images`, base main)
+- 왜: 제보 사진을 1장만 붙일 수 있어 현장 상황(전경·안내문·세부)을 함께 보여주기 어려웠음. #9가 아직 미머지라 후속 마이그레이션 대신 #9 스키마 자체를 바꿈
+- 변경
+  - `reports.image_key` 컬럼 → **`report_images` 테이블**(id, report_id FK ON DELETE CASCADE, image_key UNIQUE, sort_order, created_at). `Report.images` `@OneToMany`(cascade ALL·orphanRemoval, `@OrderBy sortOrder`, 목록 N+1 방지 `@BatchSize(100)`)
+  - `POST /reports`: `imageKeys: string[]`(최대 3장, 중복 불가). 키마다 기존과 같은 검증(형식·HeadObject·5MB·형식·매직 바이트) + 서버 메타데이터 제거·새 키 저장. 장수·빈 값·중복·형식은 S3 호출 전에 한꺼번에 확인. 중간 1장이 실패하면 롤백(앞 장 정리본 삭제, 원래 키는 남아 재시도 가능)
+  - 구버전 앱의 `imageKey`(1장)도 계속 받음. 둘 다 오면 `imageKeys` 우선(새 앱이 구버전 서버 대비로 함께 보내도 됨)
+  - 응답(`POST/GET /reports`, `GET/PATCH /admin/reports`): `imageUrls`(presigned GET, 순서 유지, 없으면 `[]`) + `imageUrl`(첫 장, 하위 호환)
+  - 삭제: 본인 삭제·관리자 반려/삭제·탈퇴 시 모든 장 S3 삭제
+  - 업로드 URL 발급 한도 기본 20 → **30회/시간**(사진 1장마다 1회)
+  - 같은 PR에서 main(#6 `ReportModeratedEvent`)을 병합해 `AdminReportService.java` 충돌 해소(이벤트 발행 + 사진 삭제 둘 다 유지)
+- SQL: `db/alter_add_report_image_key.sql` 삭제 → **`db/create_report_images_table.sql`**(IF NOT EXISTS). 이전 ALTER를 이미 실행했다면 `reports.image_key`는 남겨 둬도 동작(정리 SQL은 파일 끝 주석)
+- 환경변수: 변화 없음(`REPORT_IMAGE_UPLOAD_LIMIT_PER_HOUR` 기본값만 30)
+- 테스트: +7 → 93개(main 병합 기준). #7·#10·#9·#11·#13·#14·#15 순서로 합친 상태 207개 통과
+- 머지 충돌: main·#7·#10·#13·#15 없음. #11 `ReportResponse`·`ReportSummaryResponse` 각 1곳(#11의 `authorNickname(...getDisplayName())` + #9의 `imageUrl`·`imageUrls` 두 줄 유지). #14 `ReportService.java` 2곳(필드 둘 다, `create()`에서 `publishEvent(...)` 뒤 #9의 `return`). #12·#14·#15와 `docs/worklog.md`(파일 끝 덧붙임 → 양쪽 다 남기기)
+- 프론트: `feat/report-multi-photo` — 앨범 다중 선택·카메라 1장씩, 썸네일·n/3, 장마다 메타데이터 제거·순차 업로드(재시도 시 올린 키 재사용), `imageKeys`+`imageKey` 전송, 응답에 `imageUrls`가 없으면(구서버) "1장만 첨부" 안내
+
 ## 2026-10-02 — PR #14 관리자 알림 (`feat/admin-alerts`, base main)
 - 왜: 새 제보 승인 대기·새 문의·신고 누적 자동 숨김이 생겨도 관리 탭을 열기 전엔 알 수 없었음
 - 변경

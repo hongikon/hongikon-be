@@ -22,27 +22,28 @@ public class InMemoryAuthorizationCodeStore implements AuthorizationCodeStore {
     }
 
     @Override
-    public String issue(Long userId) {
+    public String issue(Long userId, String codeChallenge) {
         codes.entrySet().removeIf(entry -> entry.getValue().isExpired());
 
         byte[] randomBytes = new byte[32];
         secureRandom.nextBytes(randomBytes);
         String code = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
 
-        codes.put(code, new CodeEntry(userId, Instant.now().plusSeconds(ttlSeconds)));
+        codes.put(code, new CodeEntry(userId, Instant.now().plusSeconds(ttlSeconds),
+                Pkce.isValidChallenge(codeChallenge) ? codeChallenge : null));
         return code;
     }
 
     @Override
-    public Optional<Long> consume(String code) {
+    public Optional<Long> consume(String code, String codeVerifier) {
         CodeEntry entry = codes.remove(code);
-        if (entry == null || entry.isExpired()) {
+        if (entry == null || entry.isExpired() || !Pkce.matches(entry.codeChallenge(), codeVerifier)) {
             return Optional.empty();
         }
         return Optional.of(entry.userId());
     }
 
-    private record CodeEntry(Long userId, Instant expiresAt) {
+    private record CodeEntry(Long userId, Instant expiresAt, String codeChallenge) {
         boolean isExpired() {
             return Instant.now().isAfter(expiresAt);
         }

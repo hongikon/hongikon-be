@@ -9,6 +9,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportFlagResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportSummaryResponse;
+import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class ReportService {
     private final ReportFlagRepository reportFlagRepository;
     private final UserRepository userRepository;
     private final BuildingRepository buildingRepository;
+    private final ReportImageService reportImageService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${report.endsAt.maxDays}")
@@ -73,6 +75,10 @@ public class ReportService {
         Building building = buildingRepository.findById(request.buildingId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 건물입니다."));
 
+        // 사진(최대 3장)은 앱이 presigned URL 로 S3 에 먼저 올렸다. 키 형식·업로드 여부·크기를 확인하고
+        // 메타데이터를 지운 사본의 새 키를 받는다(실패 시 400).
+        List<String> imageKeys = reportImageService.validateForAttach(request.requestedImageKeys());
+
         Report report = Report.builder()
                 .user(user)
                 .building(building)
@@ -87,19 +93,20 @@ public class ReportService {
                 .endsAt(request.endsAt())
                 .status(ReportStatus.PENDING)
                 .build();
+        report.addImages(imageKeys);
 
         Report saved = reportRepository.save(report);
         // 관리자 "승인 대기" 알림(AdminAlertDispatcher)은 커밋 뒤 비동기로 나간다.
         eventPublisher.publishEvent(AdminAlertEvent.reportPending(
                 saved.getId(), userId, saved.getTitle(), building.getName(), saved.getFloor()));
-        return ReportResponse.of(saved, userId);
+        return ReportResponse.of(saved, userId, reportImageService.viewUrls(saved.getImageKeys()));
     }
 
     @Transactional(readOnly = true)
     public ReportListResponse getLiveReports(Long requesterId, Long buildingId) {
         List<Report> reports = reportRepository.findLiveReports(ReportStatus.ACTIVE, LocalDateTime.now(), buildingId);
         List<ReportSummaryResponse> body = reports.stream()
-                .map(r -> ReportSummaryResponse.of(r, requesterId))
+                .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
                 .toList();
         return new ReportListResponse(body);
     }
@@ -113,7 +120,9 @@ public class ReportService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 작성한 제보만 삭제할 수 있습니다.");
         }
 
+        List<String> imageKeys = report.getImageKeys();
         reportRepository.delete(report);
+        reportImageService.deleteAfterCommit(imageKeys);
     }
 
     @Transactional

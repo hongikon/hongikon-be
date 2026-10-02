@@ -2,6 +2,7 @@ package com.hongmap.hongmapbackend.report;
 
 import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.user.User;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,17 +13,22 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 실시간 제보. 로그인 유저가 지도의 특정 지점(건물+층)에 올리는 시간 한정 이벤트 정보.
@@ -37,6 +43,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 public class Report {
+
+    /** 제보 1건에 붙일 수 있는 사진 수 */
+    public static final int MAX_IMAGES = 3;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -76,6 +85,16 @@ public class Report {
     @Column(name = "content", length = 500)
     private String content;
 
+    /**
+     * 첨부 사진(최대 {@link #MAX_IMAGES}장, sort_order 순). URL 은 응답 때마다 presigned GET 으로 만든다.
+     * 목록 화면에서 제보마다 따로 읽지 않게 IN 절로 묶어 읽는다(@BatchSize).
+     */
+    @OneToMany(mappedBy = "report", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC")
+    @BatchSize(size = 100)
+    @Builder.Default
+    private List<ReportImage> images = new ArrayList<>();
+
     /** UTC 저장, 표시 시 KST 변환 */
     @Column(name = "starts_at", nullable = false)
     private LocalDateTime startsAt;
@@ -104,6 +123,28 @@ public class Report {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** 사진 키를 순서대로(없으면 빈 목록). */
+    public List<String> getImageKeys() {
+        return images.stream().map(ReportImage::getImageKey).toList();
+    }
+
+    /** 검증·정리를 마친 키를 순서대로 붙인다. 기존 사진은 그대로 두고 뒤에 이어 붙인다. */
+    public void addImages(List<String> imageKeys) {
+        if (images.size() + imageKeys.size() > MAX_IMAGES) {
+            throw new IllegalArgumentException("사진은 최대 " + MAX_IMAGES + "장까지 붙일 수 있습니다.");
+        }
+        for (String key : imageKeys) {
+            images.add(new ReportImage(this, key, images.size()));
+        }
+    }
+
+    /** 반려·삭제된 제보의 사진 연결을 끊고(행 삭제) 지운 키를 돌려준다 — 호출한 쪽이 S3 에서 지운다. */
+    public List<String> clearImages() {
+        List<String> removed = getImageKeys();
+        images.clear();
+        return removed;
+    }
 
     /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */
     public void moderate(ReportStatus status, String note, LocalDateTime reviewedAt) {
