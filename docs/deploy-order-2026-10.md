@@ -1,4 +1,4 @@
-# 홍익온 백엔드 PR #4–#13 배포 가이드
+# 홍익온 백엔드 PR #4–#15 배포 가이드
 
 열려 있는 PR 8개를 아래 순서로 머지하면 손으로 풀어야 할 충돌은 두 군데뿐이에요. 이 순서로 8개를 한꺼번에 합쳐 본 결과 테스트 163개가 모두 통과했어요.
 
@@ -12,6 +12,8 @@
 
 ## 머지·배포 순서
 
+> **10-02 현재 머지됨**: #4, #5, #6, #8 (백엔드 main). 남은 순서: #7 → #10 → #9 → #11 → #13 → #14 → #15. #12·#14·#15 는 `docs/worklog.md` 끝에 각자 섹션을 붙여 그 파일만 충돌 — 양쪽 다 남기면 돼요.
+
 | 순서 | PR | 내용 | 먼저 실행할 SQL | 비고 |
 |---|---|---|---|---|
 | 1 | #4 | 소식 장학 분류 개선, 빈 401 오류 수정 | `db/update_news_category_2026_10_01.sql` | |
@@ -23,6 +25,8 @@
 | 7 | #9 | 제보 사진 S3 업로드 | `db/alter_add_report_image_key.sql` | 충돌 1곳 |
 | 8 | #11 | 앱 닉네임, 공개 작성자 이름 가리기 | `db/alter_users_add_app_nickname.sql` | 충돌 2곳 |
 | 9 | #13 | 신고 사유·작성자 숨기기 키(authorKey)·회원 정지·카카오 연결 끊기·크롤러 이름 | `db/alter_users_add_status.sql` | env `AUTHOR_KEY_SECRET`(한 번 정하면 바꾸지 않음), `KAKAO_ADMIN_KEY`(처리방침에 "탈퇴 시 카카오 연결 해제"를 적었으니 운영에 꼭 넣기). 운영 `.env` 에 옛 `CRAWLER_USER_AGENT` 가 있으면 지우기 |
+| 10 | #14 | 관리자 알림(새 제보·문의·자동 숨김, `[관리]` 제목, Android `admin` 채널) | `db/alter_user_notification_settings_add_admin_alerts.sql` | main 기준. #9 와 `ReportService.java` 충돌 2곳 — 양쪽 필드 유지, `create()` 에서 `publishEvent(...)` 를 #9 의 `return` 앞에 |
+| 11 | #15 | 공개 회원 번호(영문·숫자 10자리) | `db/alter_users_add_member_code.sql` | base #13 (#13 머지 후 base 를 main 으로). **RDS 스냅샷 → SQL → 머지 → 배포**, SQL 직후 바로 배포(그 사이 새 가입만 실패). SQL 이 기존 회원(#1·#2 포함) 번호를 채우고 검증 SELECT 포함 |
 
 ### PR별 메모
 
