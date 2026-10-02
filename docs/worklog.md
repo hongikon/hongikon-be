@@ -463,15 +463,15 @@
 ## 2026-10-02 (밤) — 제보 댓글 (`feat/report-comments`, base main)
 - 왜: 지도 제보에 "지금도 줄 있어요?" 같은 짧은 후속 정보를 남길 곳이 없었음. 사용자 생성 콘텐츠라 App Store 1.2(신고·차단·운영자 조치)와 약관 게시물 규정을 처음부터 맞춤
 - 변경 (새 패키지 `comment/`에 거의 전부, 기존 파일은 3곳만)
-  - API: `GET /reports/{id}/comments?page=&size=&order=`(게스트 가능, ACTIVE 제보의 VISIBLE 댓글만, 기본 오래된 순·`order=latest`), `POST /reports/{id}/comments`(로그인, 공백 제거 후 1~200자, 끝난 제보 409, 1분 5개·하루 50개 429), `DELETE /reports/{id}/comments/{commentId}`(본인, DELETED 로), `POST .../{commentId}/flags`(사유는 제보와 같음 + PRIVACY, 본인 400·중복 409, 3개면 자동 숨김)
+  - API: `GET /reports/{id}/comments?page=&size=&order=`(게스트 가능, ACTIVE 제보만, 최상위 댓글 페이지 + 답글 앞 3개·`replyCount`, `commentCount`=답글 포함 수, 기본 오래된 순·`order=latest`), `GET .../{commentId}/replies`(답글 더 보기), `POST /reports/{id}/comments`(로그인, `parentId` 주면 답글 — 한 단계만, 답글에 답하면 같은 최상위 댓글로, 공백 제거 후 1~200자, 끝난 제보 409, 1분 5개·하루 50개 429), `DELETE /reports/{id}/comments/{commentId}`(본인, DELETED 로 — 공개 답글이 남은 최상위 댓글은 `placeholder: "DELETED"` 자리로 남음), `POST .../{commentId}/flags`(사유는 제보와 같음 + PRIVACY, 본인 400·중복 409, 3개면 자동 숨김)
   - 관리자: `GET /admin/reports/{id}/comments`(숨김·삭제 포함, 작성자 id·원래 닉네임·사유별 신고 수), `PATCH /admin/comments/{id}` `{status: VISIBLE|HIDDEN|DELETED}`. 복원 뒤에는 복원 이후 신고만 센다
   - 작성자 표시는 `authorDisplayName`(#11 규칙) + `authorKey`(#13 `AuthorKeys`와 같은 HMAC 값 — `CommentAuthorKeys`, #13 머지 뒤 교체 가능). users.id 는 공개 응답에 없음
   - 정지 회원: #13 `SuspendedUserInterceptor` 빈이 있으면 댓글 쓰기·신고 경로에 자동 등록(`ReportCommentWebConfig`). #13 과 합쳐 403 확인
   - 지도 목록 `GET /reports` 항목에 `commentCount`(IN + GROUP BY 1쿼리). `ReportSummaryResponse` 끝에 필드 + `@Builder(toBuilder = true)`
-  - 푸시 `REPORT_COMMENT` "내 제보에 댓글이 달렸어요": 제보 작성자만, 본인 댓글 제외, "내 제보 결과 알림"(report_status_enabled) 설정 따름, 같은 제보 10분에 1번(메모리)
+  - 푸시 `REPORT_COMMENT`: 제보 작성자 "내 제보에 댓글이 달렸어요"(제보별 10분 1번), 답글이면 부모 댓글 작성자 "내 댓글에 답글이 달렸어요"(부모 댓글별 10분 1번, `commentId` 포함). 본인 제외, 두 사람이 같으면 1번, "내 제보 결과 알림"(report_status_enabled) 설정 따름(메모리 묶음)
   - 삭제: FK ON DELETE CASCADE — 제보 삭제·탈퇴 시 DB 가 댓글·신고를 지움(`UserService` 수정 없음, 테스트로 확인)
-- SQL: `db/create_report_comments_table.sql`(report_comments, report_comment_flags, IF NOT EXISTS). 로컬 MySQL 26.7 에서 두 번 실행·`ddl-auto=validate` 기동·CASCADE 확인
+- SQL: `db/create_report_comments_table.sql`(report_comments(`parent_id` 자기 참조 FK 포함), report_comment_flags, IF NOT EXISTS). 로컬 MySQL 26.7 에서 두 번 실행·`ddl-auto=validate` 기동·CASCADE(탈퇴→댓글→답글→신고) 확인
 - 환경변수: 없음(선택 `report.comment.flag-threshold`=3, `report.comment.rate-per-minute`=5, `rate-per-day`=50, `push.report-comment-coalesce-minutes`=10 — 기본값이 코드에 있어 properties 미수정)
-- 테스트: +21 → 191개. #13→#14→#15→#16→#17→#18 + 이 PR 을 합친 상태 274개 통과(가이드의 #14/#17 수정 + 아래 1곳)
+- 테스트: +27 → 197개. #13→#14→#15→#16→#17→#18 + 이 PR 을 합친 상태 280개 통과(가이드의 #14/#17 수정 + 아래 1곳, 정지 회원 403 통합 테스트 포함)
 - 머지 충돌: 텍스트 충돌은 `docs/worklog.md`만. **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 의 쿼리 수 상한 `isLessThanOrEqualTo(3)` → 댓글 수 쿼리 때문에 `4`. #17·이 PR 중 나중에 머지하는 쪽에서 고친다
 - 남은 일: #14 머지 뒤 댓글 자동 숨김도 관리자 알림(AdminAlertEvent), #13 머지 뒤 `CommentAuthorKeys` → `AuthorKeys.of`
