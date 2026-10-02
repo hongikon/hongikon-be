@@ -3,6 +3,8 @@ package com.hongmap.hongmapbackend.user;
 import com.hongmap.hongmapbackend.auth.token.RefreshTokenRepository;
 import com.hongmap.hongmapbackend.bookmark.BookmarkRepository;
 import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
+import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
+import com.hongmap.hongmapbackend.notification.NotificationCategoryRepository;
 import com.hongmap.hongmapbackend.notification.KeywordSubscriptionRepository;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportRepository;
@@ -24,6 +26,9 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final BookmarkRepository bookmarkRepository;
+    // users를 참조하는 테이블을 새로 만들면 withdraw에 정리 코드를 추가하고 UserWithdrawIntegrationTest에 데이터를 넣을 것.
+    private final NotificationCategoryRepository notificationCategoryRepository;
+    private final FeedbackRepository feedbackRepository;
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final KeywordSubscriptionRepository keywordSubscriptionRepository;
@@ -46,7 +51,11 @@ public class UserService {
         keywordSubscriptionRepository.deleteByUser_Id(userId);
         userDepartmentRepository.deleteByUser_Id(userId);
         userDeviceRepository.deleteByUserId(userId);
+        // 분야 알림 설정(user_id NOT NULL FK). 빠뜨리면 알림 설정을 한 번이라도 바꾼 유저의 탈퇴가 FK 위반으로 실패한다.
+        notificationCategoryRepository.deleteByUser_Id(userId);
         refreshTokenRepository.deleteByUser_Id(userId);
+        // 문의(feedback)는 지우지 않고 작성자·연락처(contact)만 NULL로 비운다(처리방침: 내용만 남음).
+        feedbackRepository.detachUser(userId);
 
         userRepository.delete(user);
     }

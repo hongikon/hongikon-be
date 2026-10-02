@@ -11,4 +11,6 @@ public interface NotificationCategoryRepository
     List<NotificationCategory> findByUser_Id(Long userId);
 
     Optional<NotificationCategory> findByUser_IdAndCategory(Long userId, String category);
+
+    void deleteByUser_Id(Long userId);
 }
