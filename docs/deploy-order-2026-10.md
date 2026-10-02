@@ -1,4 +1,4 @@
-# 홍익온 백엔드 PR #4–#15 배포 가이드
+# 홍익온 백엔드 PR 배포 가이드 (10-02 저녁 기준)
 
 열려 있는 PR 8개를 아래 순서로 머지하면 손으로 풀어야 할 충돌은 두 군데뿐이에요. 이 순서로 8개를 한꺼번에 합쳐 본 결과 테스트 163개가 모두 통과했어요.
 
@@ -12,7 +12,13 @@
 
 ## 머지·배포 순서
 
-> **10-02 현재 머지됨**: #4, #5, #6, #8 (백엔드 main). 남은 순서: #7 → #10 → #9 → #11 → #13 → #14 → #15. #12·#14·#15 는 `docs/worklog.md` 끝에 각자 섹션을 붙여 그 파일만 충돌 — 양쪽 다 남기면 돼요.
+> **10-02 저녁 기준 머지됨**: #4–#11 (백엔드 main). **남은 순서: #13 → #14 → #15 → #16 → #17** (#12 는 문서라 아무 때나).
+> - #13: `db/alter_users_add_status.sql`. env `AUTHOR_KEY_SECRET`, `KAKAO_ADMIN_KEY`.
+> - #14: SQL 2개 — `db/alter_user_notification_settings_add_admin_alerts.sql`, `db/alter_reports_add_admin_reminder.sql`(검토 리마인더). 리마인더 설정은 선택 env(`PUSH_ADMIN_REMINDER_*`).
+> - #15: base 가 #13 이라 #13 머지 후 base 를 main 으로. `db/alter_users_add_member_code.sql` — **RDS 스냅샷 → SQL → 머지 → 바로 배포**.
+> - #16 (내 제보 내역): SQL·env 없음.
+> - #17 (예정 제보): SQL 없음. #14 와 `ReportService.java` 충돌 2곳(양쪽 필드 유지, `publishEvent(...)` 다음 #9 의 `return`). **#14·#17 중 나중에 머지하는 쪽에서 `AdminAlertDispatcherTest` 167행의 고정 과거 `startsAt` 을 `Instant.now().toString()` 으로** 바꿔야 테스트가 통과. 앱의 예정 제보 화면은 #17 배포 뒤에 OTA 로 낸다.
+> - #12·#14·#15·#16·#17 은 `docs/worklog.md` 끝에 각자 섹션을 붙여 그 파일만 충돌 — 양쪽 다 남기기.
 
 | 순서 | PR | 내용 | 먼저 실행할 SQL | 비고 |
 |---|---|---|---|---|
