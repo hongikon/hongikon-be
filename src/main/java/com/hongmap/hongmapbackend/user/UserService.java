@@ -6,6 +6,7 @@ import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
 import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
 import com.hongmap.hongmapbackend.notification.NotificationCategoryRepository;
 import com.hongmap.hongmapbackend.notification.KeywordSubscriptionRepository;
+import com.hongmap.hongmapbackend.notification.UserBoardSubscriptionRepository;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class UserService {
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final KeywordSubscriptionRepository keywordSubscriptionRepository;
+    private final UserBoardSubscriptionRepository userBoardSubscriptionRepository;
     private final UserDepartmentRepository userDepartmentRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -49,6 +51,7 @@ public class UserService {
 
         bookmarkRepository.deleteByUser_Id(userId);
         keywordSubscriptionRepository.deleteByUser_Id(userId);
+        userBoardSubscriptionRepository.deleteByUser_Id(userId);
         userDepartmentRepository.deleteByUser_Id(userId);
         userDeviceRepository.deleteByUserId(userId);
         // 분야 알림 설정(user_id NOT NULL FK). 빠뜨리면 알림 설정을 한 번이라도 바꾼 유저의 탈퇴가 FK 위반으로 실패한다.
