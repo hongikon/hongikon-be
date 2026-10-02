@@ -83,8 +83,10 @@ class CrawlerBoardsTest {
     void 푸시할_때는_상위_게시판_구독자와_별칭_구독자를_함께_찾는다() {
         assertThat(CrawlerBoards.subscriberSourceIds("디자인예술경영학부"))
                 .containsExactlyInAnyOrder("디자인예술경영학부", "디자인경영전공", "예술경영전공");
-        assertThat(CrawlerBoards.subscriberSourceIds("전자전기공학부"))
-                .containsExactlyInAnyOrder("전자전기공학부", "사물인터넷공학전공");
+        // 사물인터넷공학전공·지능로봇공학전공은 연결하지 않는다(상위 학부 공지를 받지 않음).
+        assertThat(CrawlerBoards.subscriberSourceIds("전자전기공학부")).containsExactly("전자전기공학부");
+        assertThat(CrawlerBoards.subscriberSourceIds("기계시스템디자인공학과")).containsExactly("기계시스템디자인공학과");
+        assertThat(CrawlerBoards.UNLINKED_APP_SOURCE_IDS).allMatch(CrawlerBoards.KNOWN_SOURCE_IDS::contains);
         assertThat(CrawlerBoards.subscriberSourceIds("컴퓨터공학과")).containsExactly("컴퓨터공학과");
     }
 

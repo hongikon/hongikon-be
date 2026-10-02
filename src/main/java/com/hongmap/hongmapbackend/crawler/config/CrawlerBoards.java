@@ -102,10 +102,14 @@ public final class CrawlerBoards {
             "디자인경영전공", "디자인예술경영학부",
             "예술경영전공", "디자인예술경영학부",
             // 융합전공 — 자체 사이트가 없고 주관 학과 게시판에 공지한다(학교 융합전공 안내의 주관학과 기준).
-            "데이터사이언스전공", "산업데이터공학과",
-            "사물인터넷공학전공", "전자전기공학부",
-            "지능로봇공학전공", "기계시스템디자인공학과"
+            "데이터사이언스전공", "산업데이터공학과"
     );
+
+    /**
+     * 앱 목록에는 있지만 아직 수집할 게시판이 없는 id. 상위 학부 게시판을 통째로 빌려 오면 관계없는 공지까지
+     * 받게 돼 연결하지 않기로 했다(10-02 결정). 구독은 받아 두고(앱이 400 을 받지 않게), 자체 게시판이 생기면 보드를 추가한다.
+     */
+    public static final Set<String> UNLINKED_APP_SOURCE_IDS = Set.of("사물인터넷공학전공", "지능로봇공학전공");
 
     /**
      * 대학공지는 분류(srCategoryId)마다 따로 받는다. boardKey는 여섯 개 모두 'univ'로 같다 —
@@ -137,10 +141,12 @@ public final class CrawlerBoards {
     public static final List<BoardConfig> ALL =
             Stream.concat(DEPARTMENT_BOARDS.stream(), UNIVERSITY_BOARDS.stream()).toList();
 
-    /** 구독할 수 있는 게시판 id 전체: 크롤러 게시판의 sourceId + 상위 게시판을 빌려 쓰는 별칭. */
-    public static final Set<String> KNOWN_SOURCE_IDS = Stream.concat(
+    /** 구독할 수 있는 게시판 id 전체: 크롤러 게시판의 sourceId + 상위 게시판을 빌려 쓰는 별칭 + 아직 게시판이 없는 앱 id. */
+    public static final Set<String> KNOWN_SOURCE_IDS = Stream.of(
                     ALL.stream().map(BoardConfig::sourceId),
-                    SOURCE_ALIASES.keySet().stream())
+                    SOURCE_ALIASES.keySet().stream(),
+                    UNLINKED_APP_SOURCE_IDS.stream())
+            .flatMap(s -> s)
             .collect(Collectors.toUnmodifiableSet());
 
     /**
