@@ -81,7 +81,7 @@ public class AdminReportService {
         eventPublisher.publishEvent(new ReportModeratedEvent(
                 report.getId(), report.getUser().getId(), report.getTitle(),
                 report.getBuilding().getName(), report.getFloor(),
-                previous, target, note, report.getEndsAt()));
+                previous, target, note, report.getEndsAt(), report.getStartsAt()));
         // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
         if (target == ReportStatus.REJECTED || target == ReportStatus.DELETED) {
             reportImageService.deleteAfterCommit(report.clearImages());

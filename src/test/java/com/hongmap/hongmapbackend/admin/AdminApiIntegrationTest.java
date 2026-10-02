@@ -214,8 +214,10 @@ class AdminApiIntegrationTest {
         String body = """
                 {"buildingId": %d, "floor": 1, "lat": 37.55, "lng": 126.925, "category": "ETC",
                  "customCategoryLabel": "플리마켓", "title": "학관 앞 플리마켓", "content": "3시까지",
-                 "startsAt": "2026-10-01T08:00:00.000Z", "endsAt": "%s"}
+                 "startsAt": "%s", "endsAt": "%s"}
                 """.formatted(building.getId(),
+                // 시작은 "지금"(서버는 10분 전까지 받는다). 예전엔 고정 날짜였는데 예정 제보 검증이 생겨 지난 시각은 400 이다.
+                java.time.Instant.now().minusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.MILLIS).toString(),
                 java.time.Instant.now().plus(java.time.Duration.ofHours(2)).toString());
         mockMvc.perform(post("/reports").header("Authorization", bearer(normal))
                         .contentType(MediaType.APPLICATION_JSON).content(body))

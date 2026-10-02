@@ -127,6 +127,39 @@ class ReportPushDispatcherTest {
         assertThat(mine()).isEmpty();
     }
 
+    @Test
+    void 시작_전에_승인되면_시작_시각을_알려주고_새_제보_알림은_미룬다() {
+        User author = user();
+        String authorToken = device(author, TokenType.EXPO, true);
+        User optedIn = user();
+        String optedInToken = device(optedIn, TokenType.EXPO, true);
+        optInNewReports(optedIn);
+
+        // 내일 02:00 UTC(= 11:00 KST). 승인 시점에 아직 시작 전이어야 해서 고정 날짜 대신 now 기준으로 만든다.
+        LocalDateTime startsAt = LocalDateTime.now().plusDays(1).withHour(2).withMinute(0).withSecond(0).withNano(0);
+        ReportModeratedEvent event = new ReportModeratedEvent(REPORT_IDS.incrementAndGet(), author.getId(), "붕어빵 트럭",
+                "홍문관", -1, ReportStatus.PENDING, ReportStatus.ACTIVE, null, startsAt.plusHours(4), startsAt);
+        dispatcher.dispatch(event);
+
+        assertThat(mine()).singleElement().satisfies(m -> {
+            assertThat(m.to()).isEqualTo(authorToken);
+            assertThat(m.title()).isEqualTo("제보가 승인됐어요");
+            assertThat(m.body()).isEqualTo("붕어빵 트럭\n" + ReportPushDispatcher.formatKst(startsAt) + "부터 지도에 보여요");
+            assertThat(m.data()).containsEntry("status", "ACTIVE");
+        });
+        assertThat(newReportsTo(optedInToken)).isZero();
+
+        // 시작 시각이 되면 스케줄러가 dispatchStarted 로 보낸다.
+        dispatcher.dispatchStarted(event);
+        assertThat(newReportsTo(optedInToken)).isEqualTo(1);
+    }
+
+    @Test
+    void 시작_시각은_KST_월_일_요일_시각으로_적는다() {
+        assertThat(ReportPushDispatcher.formatKst(LocalDateTime.of(2026, 10, 3, 2, 0))).isEqualTo("10/3(토) 11:00");
+        assertThat(ReportPushDispatcher.formatKst(LocalDateTime.of(2026, 10, 2, 15, 30))).isEqualTo("10/3(토) 00:30");
+    }
+
     // ---------- 캠퍼스 새 제보 ----------
 
     @Test

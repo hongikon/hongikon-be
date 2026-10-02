@@ -21,6 +21,35 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findLiveReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
                                   @Param("buildingId") Long buildingId);
 
+    /** 아직 시작 전이고 to 안에 시작할 제보(예정). 시작 시각이 이른 순. */
+    @Query("""
+            SELECT r FROM Report r
+            WHERE r.status = :status
+              AND r.startsAt > :now AND r.startsAt <= :to
+              AND (:buildingId IS NULL OR r.building.id = :buildingId)
+            ORDER BY r.startsAt ASC, r.id ASC
+            """)
+    List<Report> findUpcomingReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
+                                     @Param("to") LocalDateTime to, @Param("buildingId") Long buildingId);
+
+    /**
+     * (from, to] 사이에 시작한 ACTIVE 제보 중 시작 전에 승인된 것(reviewedAt &lt; startsAt) — 승인 때 새 제보 알림을
+     * 미뤄 둔 제보들이다(ReportStartPushScheduler). 시작 뒤에 승인된 제보는 승인 때 이미 보냈으니 빠진다.
+     * 작성자·건물을 함께 읽는다(트랜잭션 밖 푸시용 값 복사).
+     */
+    @Query("""
+            SELECT r FROM Report r
+            JOIN FETCH r.user
+            JOIN FETCH r.building
+            WHERE r.status = :status
+              AND r.startsAt > :from AND r.startsAt <= :to
+              AND r.endsAt > :to
+              AND r.reviewedAt IS NOT NULL AND r.reviewedAt < r.startsAt
+            ORDER BY r.startsAt ASC, r.id ASC
+            """)
+    List<Report> findStartedAfterEarlyApproval(@Param("status") ReportStatus status,
+                                               @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
     @Query("""
             SELECT r FROM Report r
             WHERE (:buildingId IS NULL OR r.building.id = :buildingId)

@@ -46,11 +46,13 @@ public record ReportCreateRequest(
         @Size(max = 200)
         String imageKey,
 
+        /** 시작 시각(UTC). 지금(10분 여유)부터 report.startsAt.maxDays(기본 14)일 이내 — 미리 올리는 예정 제보도 된다. */
         @NotNull
         LocalDateTime startsAt,
 
+        /** 종료 시각(UTC). startsAt 보다 뒤, 진행 시간은 report.maxDurationHours(기본 12)시간 이내. */
         @NotNull
-        @Future
+        @Future(message = "종료 시각이 이미 지났어요. 시간을 다시 골라 주세요.")
         LocalDateTime endsAt
 ) {
     /** 붙일 사진 키(순서대로). imageKeys 가 있으면 그것, 없으면 imageKey 1장, 둘 다 없으면 빈 목록. */
