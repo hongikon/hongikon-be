@@ -1,13 +1,12 @@
 package com.hongmap.hongmapbackend.user;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 
 /**
- * 새 회원 번호를 만든다. 숫자 6자리는 SecureRandom 으로 뽑아 순서·가입자 수를 추측할 수 없게 하고,
+ * 새 회원 번호를 만든다. 36자(A–Z, 0–9)에서 SecureRandom 으로 10자를 고르게 뽑아 순서·가입자 수를 추측할 수 없게 하고,
  * 이미 쓰인 번호면 다시 뽑는다(최대 {@link #MAX_ATTEMPTS}번).
  *
  * <p>중복 확인은 JPA 가 아니라 JdbcTemplate 으로 한다 — 엔티티 저장 콜백(@PrePersist) 안에서 불리므로
@@ -17,28 +16,25 @@ import java.security.SecureRandom;
 @Component
 public class MemberCodeGenerator {
 
-    static final int MAX_ATTEMPTS = 10;
+    static final int MAX_ATTEMPTS = 5;
 
-    private final String prefix;
     private final JdbcTemplate jdbcTemplate;
     private final SecureRandom random = new SecureRandom();
 
-    public MemberCodeGenerator(@Value("${app.member-code.school-prefix:HIU}") String prefix, JdbcTemplate jdbcTemplate) {
-        this.prefix = MemberCodes.requireValidPrefix(prefix == null ? null : prefix.trim());
+    public MemberCodeGenerator(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-    }
-
-    public String prefix() {
-        return prefix;
     }
 
     /** 중복 확인 없이 형식만 맞춘 번호 하나. */
     String randomCode() {
-        int number = MemberCodes.MIN_NUMBER + random.nextInt(MemberCodes.MAX_NUMBER - MemberCodes.MIN_NUMBER + 1);
-        return MemberCodes.format(prefix, number);
+        char[] code = new char[MemberCodes.LENGTH];
+        for (int i = 0; i < code.length; i++) {
+            code[i] = MemberCodes.ALPHABET.charAt(random.nextInt(MemberCodes.ALPHABET.length()));
+        }
+        return new String(code);
     }
 
-    /** 아직 아무도 쓰지 않은 번호. {@link #MAX_ATTEMPTS}번 모두 겹치면 IllegalStateException(번호 공간이 거의 찼다는 뜻). */
+    /** 아직 아무도 쓰지 않은 번호. {@link #MAX_ATTEMPTS}번 모두 겹치면 IllegalStateException(사실상 일어나지 않는다). */
     public String nextAvailable() {
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
             String candidate = randomCode();
@@ -46,7 +42,7 @@ public class MemberCodeGenerator {
                 return candidate;
             }
         }
-        throw new IllegalStateException("회원 번호를 " + MAX_ATTEMPTS + "번 뽑았지만 모두 사용 중입니다. 접두사·자릿수를 늘려야 합니다.");
+        throw new IllegalStateException("회원 번호를 " + MAX_ATTEMPTS + "번 뽑았지만 모두 사용 중입니다.");
     }
 
     boolean exists(String memberCode) {

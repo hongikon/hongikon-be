@@ -20,7 +20,7 @@ public class MemberCodeController {
     private final UserRepository userRepository;
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
-    @Operation(summary = "내 회원 번호", description = "공개용 회원 번호(예: HIU-482913)를 조회합니다. 내부 id 대신 화면·문의에 씁니다.")
+    @Operation(summary = "내 회원 번호", description = "공개용 회원 번호(영문 대문자·숫자 10자리, 예: K7Q2M9XA4D)를 조회합니다. 내부 id 대신 화면·문의에 씁니다.")
     @GetMapping("/users/me/member-code")
     @Transactional(readOnly = true)
     public MemberCodeResponse memberCode(@AuthenticationPrincipal Long userId) {

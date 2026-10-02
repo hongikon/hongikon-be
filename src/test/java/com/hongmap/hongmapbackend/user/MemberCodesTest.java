@@ -4,7 +4,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,41 +17,46 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MemberCodesTest {
 
     @Test
-    void 형식은_접두사_하이픈_6자리() {
-        assertThat(MemberCodes.format("HIU", 482913)).isEqualTo("HIU-482913");
-        assertThatThrownBy(() -> MemberCodes.format("HIU", 99_999)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> MemberCodes.format("hiu", 482913)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> MemberCodes.format("H", 482913)).isInstanceOf(IllegalArgumentException.class);
+    void 형식은_영문_대문자와_숫자_10자리() {
+        assertThat(MemberCodes.isValid("K7Q2M9XA4D")).isTrue();
+        assertThat(MemberCodes.isValid("0000000005")).isTrue();
+        assertThat(MemberCodes.isValid("k7q2m9xa4d")).isFalse();
+        assertThat(MemberCodes.isValid("K7Q2M9XA4")).isFalse();
+        assertThat(MemberCodes.isValid("K7Q2M-XA4D")).isFalse();
+        assertThat(MemberCodes.isValid(null)).isFalse();
     }
 
     @Test
-    void 검색어는_대소문자_무시하고_접두사_있거나_없거나() {
-        assertThat(MemberCodes.parseFull(" hiu-482913 ")).contains("HIU-482913");
-        assertThat(MemberCodes.parseFull("HIU-482913")).contains("HIU-482913");
-        assertThat(MemberCodes.parseFull("HIU-48291")).isEmpty();
-        assertThat(MemberCodes.parseFull("482913")).isEmpty();
-        assertThat(MemberCodes.isNumberPart("482913")).isTrue();
-        assertThat(MemberCodes.isNumberPart("82913")).isFalse();
-        assertThat(MemberCodes.isNumberPart("082913")).isFalse();
+    void 검색어는_대소문자_무시하고_앞뒤_공백을_지운다() {
+        assertThat(MemberCodes.parse(" k7q2m9xa4d ")).contains("K7Q2M9XA4D");
+        assertThat(MemberCodes.parse("K7Q2M9XA4D")).contains("K7Q2M9XA4D");
+        assertThat(MemberCodes.parse("K7Q2M9XA4")).isEmpty();
+        assertThat(MemberCodes.parse("HIU-482913")).isEmpty();
+        assertThat(MemberCodes.parse(null)).isEmpty();
     }
 
     @Test
-    void 무작위_번호는_범위_안이고_고르게_흩어진다() {
+    void 무작위_번호는_형식에_맞고_36글자를_고르게_쓴다() {
         MemberCodeGenerator generator = new FixedGenerator(new ArrayDeque<>());
         Set<String> seen = new HashSet<>();
-        for (int i = 0; i < 2000; i++) {
+        Map<Character, Integer> counts = new HashMap<>();
+        for (int i = 0; i < 3600; i++) {
             String code = generator.randomCode();
-            assertThat(code).matches("HIU-[1-9]\\d{5}");
+            assertThat(MemberCodes.isValid(code)).as(code).isTrue();
             seen.add(code);
+            for (char c : code.toCharArray()) {
+                counts.merge(c, 1, Integer::sum);
+            }
         }
-        assertThat(seen.size()).isGreaterThan(1990); // 90만 칸에 2000개 — 거의 겹치지 않는다
+        assertThat(seen).hasSize(3600);
+        assertThat(counts).hasSize(36); // 36000글자 중 글자마다 기대값 1000
+        assertThat(counts.values()).allSatisfy(n -> assertThat(n).isBetween(800, 1200));
     }
 
     @Test
     void 이미_쓰인_번호면_다시_뽑는다() {
-        Deque<Boolean> taken = new ArrayDeque<>(java.util.List.of(true, true, false));
-        FixedGenerator generator = new FixedGenerator(taken);
-        assertThat(generator.nextAvailable()).matches("HIU-[1-9]\\d{5}");
+        FixedGenerator generator = new FixedGenerator(new ArrayDeque<>(List.of(true, true, false)));
+        assertThat(MemberCodes.isValid(generator.nextAvailable())).isTrue();
         assertThat(generator.checks.get()).isEqualTo(3);
     }
 
@@ -59,19 +67,13 @@ class MemberCodesTest {
         assertThat(generator.checks.get()).isEqualTo(MemberCodeGenerator.MAX_ATTEMPTS);
     }
 
-    @Test
-    void 접두사_설정이_잘못되면_시작하지_않는다() {
-        assertThatThrownBy(() -> new MemberCodeGenerator("hongik-univ", null)).isInstanceOf(IllegalArgumentException.class);
-        assertThat(new MemberCodeGenerator(" ABC ", null).prefix()).isEqualTo("ABC");
-    }
-
     /** DB 대신 정해 둔 순서대로 "사용 중" 여부를 돌려준다. null 이면 늘 사용 중. */
     private static final class FixedGenerator extends MemberCodeGenerator {
         private final Deque<Boolean> taken;
         final AtomicInteger checks = new AtomicInteger();
 
         FixedGenerator(Deque<Boolean> taken) {
-            super("HIU", null);
+            super(null);
             this.taken = taken;
         }
 

@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 공개 회원 번호(HIU-482913): 가입 시 발급, 내 번호 조회, 관리자 검색, 공개 응답에는 싣지 않기. */
+/** 공개 회원 번호(K7Q2M9XA4D): 가입 시 발급, 내 번호 조회, 관리자 검색, 공개 응답에는 싣지 않기. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -66,16 +66,12 @@ class MemberCodeIntegrationTest {
         return "Bearer " + jwtTokenProvider.generateAccessToken(user.getId());
     }
 
-    private String digits(User user) {
-        return user.getMemberCode().substring(user.getMemberCode().indexOf('-') + 1);
-    }
-
     @Test
     void 가입하면_무작위_회원_번호가_붙고_서로_다르다() {
         Set<String> codes = new HashSet<>();
         for (int i = 0; i < 30; i++) {
             User user = newUser("학생" + i);
-            assertThat(user.getMemberCode()).matches("HIU-[1-9]\\d{5}");
+            assertThat(user.getMemberCode()).matches("[A-Z0-9]{10}");
             codes.add(user.getMemberCode());
         }
         assertThat(codes).hasSize(30);
@@ -100,9 +96,9 @@ class MemberCodeIntegrationTest {
     }
 
     @Test
-    void 관리자는_회원_번호로_찾는다_대소문자_접두사_무관() throws Exception {
+    void 관리자는_회원_번호로_찾는다_대소문자_무관() throws Exception {
         String code = member.getMemberCode();
-        for (String q : new String[]{code, code.toLowerCase(Locale.ROOT), " " + digits(member) + " "}) {
+        for (String q : new String[]{code, code.toLowerCase(Locale.ROOT), " " + code.toLowerCase(Locale.ROOT) + " "}) {
             mockMvc.perform(get("/admin/users").param("q", q).header("Authorization", bearer(admin)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.users[*].id", hasItem(member.getId().intValue())))
@@ -117,7 +113,7 @@ class MemberCodeIntegrationTest {
         mockMvc.perform(get("/admin/users/" + member.getId()).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.memberCode").value(code));
         // 없는 번호
-        mockMvc.perform(get("/admin/users").param("q", "XYZ-100000").header("Authorization", bearer(admin)))
+        mockMvc.perform(get("/admin/users").param("q", "ZZZZZZZZZZ").header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.users").isEmpty());
     }
 
