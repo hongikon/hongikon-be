@@ -149,9 +149,11 @@ public class ReportService {
         reportFlagRepository.save(flag);
 
         long flagCount = reportFlagRepository.countByReportId(reportId);
-        // 관리자가 이미 검토해 공개를 유지한 제보는 신고가 더 쌓여도 자동으로 숨기지 않는다.
-        if (flagCount >= flagThreshold && report.getStatus() == ReportStatus.ACTIVE
-                && report.getReviewedAt() == null
+        // 신고 누적 자동 숨김(이용약관 제8조 4항 — 운영진 확인 전까지 숨김). 마지막 관리자 검토(승인·복원, reviewedAt)
+        // 뒤에 들어온 신고만 센다 — 승인된 제보도 새 신고가 임계치에 닿으면 숨기고, 운영진이 신고를 보고 다시 공개한
+        // 제보는 그 전 신고로 다시 숨기지 않는다. 검토 전(reviewedAt null)이면 전부 센다.
+        if (report.getStatus() == ReportStatus.ACTIVE
+                && reportFlagRepository.countByReportIdSince(reportId, report.getReviewedAt()) >= flagThreshold
                 && reportRepository.updateStatusIf(reportId, ReportStatus.ACTIVE, ReportStatus.HIDDEN) == 1) {
             // 자동 숨김을 관리자에게 알린다(커밋 뒤 비동기). 조건부 UPDATE라 동시 신고에도 한 번만.
             eventPublisher.publishEvent(AdminAlertEvent.reportFlagged(

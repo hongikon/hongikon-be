@@ -218,6 +218,38 @@ class AdminAlertDispatcherTest {
     }
 
     @Test
+    void 승인된_제보에_새_신고가_쌓이면_숨기고_관리자에게_한_번_알린다() throws Exception {
+        User admin = admin();
+        device(admin, TokenType.EXPO, true);
+        Report report = activeReport(user());
+        // 운영진 승인(reviewedAt) — 운영의 모든 공개 제보는 이 상태다. 승인 전 신고 1건은 이미 본 것이라 세지 않는다.
+        mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(user()))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                .andExpect(status().isCreated());
+        jdbcTemplate.update("UPDATE reports SET reviewed_at = ? WHERE id = ?",
+                java.sql.Timestamp.valueOf(LocalDateTime.now()), report.getId());
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(user()))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                    .andExpect(status().isCreated());
+        }
+        assertThat(reportRepository.findById(report.getId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.ACTIVE);
+
+        mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(user()))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                .andExpect(status().isCreated());
+
+        awaitMine(m -> true);
+        Thread.sleep(1500); // 묶음 간격(1초)이 지나도 더 오지 않는지
+        assertThat(reportRepository.findById(report.getId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.HIDDEN);
+        assertThat(mine()).singleElement().satisfies(m -> {
+            assertThat(m.title()).isEqualTo("[관리] 신고 누적으로 자동 숨김");
+            assertThat(m.data()).containsEntry("type", "ADMIN_REPORT_FLAGGED").containsEntry("reportId", report.getId());
+        });
+    }
+
+    @Test
     void 설정_API로_관리자_알림을_끄고_켤_수_있다() throws Exception {
         User admin = admin();
         device(admin, TokenType.EXPO, true);
