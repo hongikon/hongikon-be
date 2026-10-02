@@ -21,6 +21,7 @@
 | 5 | #17 | 예정 제보(시작 14일 전까지, 진행 최대 7일), `include=upcoming`, 시작 시각 새 제보 알림 | 없음 | 선택: `REPORT_STARTS_AT_MAX_DAYS`(14), `REPORT_MAX_DURATION_DAYS`(7), `PUSH_REPORT_START_CRON` | 운영 `.env`의 `REPORT_ENDS_AT_MAX_DAYS`는 안 쓰임 |
 | (독립) | #18 | 크롤러 누락 게시판 10개 — 새 보드 4개(기초과학과·자율전공·디자인엔지니어링전공·바이오헬스융합학부) + 전공 5개를 상위 학부 게시판으로 연결(`SOURCE_ALIASES`), 구독 400 해소 | 없음 | 없음 | `docs/worklog.md` 끝만 충돌(양쪽 유지). 배포 후 `POST /crawler/trigger`(ADMIN)로 바로 수집. 조소과·기초과학과 게시판은 지금 글이 0건 |
 | (독립) | #19 | 제보 댓글·답글(1단계), 댓글 신고·자동 숨김, 관리자 댓글 관리, 댓글 알림 | `db/create_report_comments_table.sql` | 없음 | `docs/worklog.md` 끝만 충돌. **#17·#19 중 나중 머지 쪽에서 `ReportScheduleIntegrationTest` 쿼리 수 상한 3→4**. 정지 회원 차단은 #13 인터셉터에 자동 연결 |
+| #19 다음 | #20 | 🔥 공감·HOT(`sort=hot`), 관심 제보(시작·종료 30분 전·댓글 알림), 작성자별 제보 알림 끄기, 조회수(익명 HMAC, 2일 뒤 삭제), 댓글 👍·인기순, 🔥 10/50/100 알림 | `db/create_report_community_tables.sql` (#19 SQL 뒤) | 선택: `REPORT_HOT_THRESHOLD`(5)·`REPORT_HOT_WINDOW_MINUTES`(60)·`REPORT_REACTION_RATE_PER_MINUTE`(20)·`REPORT_FOLLOW_MAX_PER_USER`(100)·`PUSH_REPORT_FOLLOW_*`·`REPORT_VIEW_KEY_SECRET` | base 가 #19 → #19 머지 후 main 으로 바꾸기. **#17 의 `ReportScheduleIntegrationTest` 쿼리 상한은 #19·#20 까지 들어가면 5** (나중 머지 쪽에서). 정지 회원 🔥 집계 제외는 #13 뒤 한 줄 |
 
 ## 배포 전에 꼭 확인할 것
 
