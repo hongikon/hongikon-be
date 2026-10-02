@@ -43,6 +43,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> {
+                    // 처리 중 예외는 /error 로 포워드된다. 여기가 인증을 요구하면 400·404·500 이 전부 빈 401 로
+                    // 바뀌어, 앱이 "로그인 만료"로 오인하고 토큰 재발급 후 요청을 다시 보낸다.
+                    auth.requestMatchers("/error").permitAll();
                     auth.requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange",
                             "/auth/reissue", "/auth/logout").permitAll();
                     // AuthTestController와 동일하게 local 프로필에서만 인증 없이 열어준다.

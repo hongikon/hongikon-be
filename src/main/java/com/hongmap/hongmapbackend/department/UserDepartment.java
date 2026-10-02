@@ -17,7 +17,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 유저-학과 구독. is_primary로 주/부학과 구분.
+ * 유저-학과(소속) 정보. is_primary로 주/부학과 구분.
+ * 새 소식 푸시 대상에는 더 이상 쓰지 않는다 — 푸시는 게시판 구독(notification.UserBoardSubscription) 기준.
  * 여러 개가 동시에 primary=true인 것을 DB가 막지 못하므로, 서비스 레이어에서
  * "새 primary 지정 시 기존 것 해제"를 같은 트랜잭션에서 처리해야 함.
  */
