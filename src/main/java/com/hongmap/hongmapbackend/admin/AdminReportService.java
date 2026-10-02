@@ -6,9 +6,11 @@ import com.hongmap.hongmapbackend.admin.dto.AdminReportResponse;
 import com.hongmap.hongmapbackend.admin.dto.ReportModerationRequest;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
+import com.hongmap.hongmapbackend.report.ReportModeratedEvent;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.ReportStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class AdminReportService {
 
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public AdminReportListResponse list(String status) {
@@ -69,7 +72,13 @@ public class AdminReportService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "반려할 때는 사유를 적어주세요.");
         }
 
+        ReportStatus previous = report.getStatus();
         report.moderate(target, note, LocalDateTime.now());
+        // 승인·반려 푸시(ReportPushDispatcher)는 커밋 뒤 비동기로 나간다 — 이 응답을 늦추지 않고, 롤백되면 보내지 않는다.
+        eventPublisher.publishEvent(new ReportModeratedEvent(
+                report.getId(), report.getUser().getId(), report.getTitle(),
+                report.getBuilding().getName(), report.getFloor(),
+                previous, target, note, report.getEndsAt()));
         long flagCount = reportFlagRepository.countByReportId(reportId);
         return AdminReportResponse.of(report, flagCount);
     }

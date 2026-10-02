@@ -1,14 +1,13 @@
 package com.hongmap.hongmapbackend.push;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * application.properties의 push.* 값 바인딩.
  */
 @Getter
-@RequiredArgsConstructor
 @ConfigurationProperties(prefix = "push")
 public class PushProperties {
 
@@ -32,4 +31,20 @@ public class PushProperties {
      * 과거 글이 한꺼번에 "신규"로 저장되면서 수십 건의 푸시가 쏟아지는 것을 막는다.
      */
     private final int newsMaxAgeDays;
+
+    /**
+     * 캠퍼스 새 제보 알림 빈도 제한(분). 한 유저는 이 시간 안에 새 제보 푸시를 한 번만 받는다 — 축제처럼 제보 승인이 몰릴 때 스팸 방지.
+     */
+    private final int reportNewThrottleMinutes;
+
+    public PushProperties(boolean enabled, String expoUrl, String expoAccessToken, int connectTimeoutMs, int readTimeoutMs,
+                          int newsMaxAgeDays, @DefaultValue("30") int reportNewThrottleMinutes) {
+        this.enabled = enabled;
+        this.expoUrl = expoUrl;
+        this.expoAccessToken = expoAccessToken;
+        this.connectTimeoutMs = connectTimeoutMs;
+        this.readTimeoutMs = readTimeoutMs;
+        this.newsMaxAgeDays = newsMaxAgeDays;
+        this.reportNewThrottleMinutes = reportNewThrottleMinutes;
+    }
 }
