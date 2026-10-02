@@ -11,8 +11,10 @@ import java.util.List;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
 
+    /** 지도용. 응답에 작성자 이름(displayName)을 싣기 때문에 작성자를 함께 읽어 작성자 수만큼의 추가 쿼리(N+1)를 막는다. */
     @Query("""
             SELECT r FROM Report r
+            JOIN FETCH r.user
             WHERE r.status = :status
               AND :now BETWEEN r.startsAt AND r.endsAt
               AND (:buildingId IS NULL OR r.building.id = :buildingId)
@@ -21,9 +23,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findLiveReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
                                   @Param("buildingId") Long buildingId);
 
-    /** 아직 시작 전이고 to 안에 시작할 제보(예정). 시작 시각이 이른 순. */
+    /** 아직 시작 전이고 to 안에 시작할 제보(예정). 시작 시각이 이른 순. 작성자를 함께 읽는다(N+1 방지). */
     @Query("""
             SELECT r FROM Report r
+            JOIN FETCH r.user
             WHERE r.status = :status
               AND r.startsAt > :now AND r.startsAt <= :to
               AND (:buildingId IS NULL OR r.building.id = :buildingId)

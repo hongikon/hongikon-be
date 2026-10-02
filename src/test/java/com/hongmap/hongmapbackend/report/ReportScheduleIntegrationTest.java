@@ -7,6 +7,9 @@ import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import com.jayway.jsonpath.JsonPath;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +47,7 @@ class ReportScheduleIntegrationTest {
     @Autowired UserRepository userRepository;
     @Autowired BuildingRepository buildingRepository;
     @Autowired ReportRepository reportRepository;
+    @Autowired EntityManagerFactory entityManagerFactory;
 
     User author;
     Building building;
@@ -140,6 +144,29 @@ class ReportScheduleIntegrationTest {
         // 알 수 없는 include 값은 무시(기본 목록).
         assertThat(ids("/reports?buildingId=" + building.getId() + "&include=all"))
                 .containsExactlyInAnyOrder(live.getId(), multiDay.getId());
+    }
+
+    @Test
+    void 지도_목록은_작성자를_제보마다_따로_읽지_않는다() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 0; i < 3; i++) {
+            User other = userRepository.save(User.builder()
+                    .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("작성자" + i).build());
+            reportRepository.save(builder(now.minusHours(1), now.plusHours(2), "진행 " + i)
+                    .user(other).status(ReportStatus.ACTIVE).build());
+            reportRepository.save(builder(now.plusHours(2 + i), now.plusHours(5 + i), "예정 " + i)
+                    .user(other).status(ReportStatus.ACTIVE).build());
+        }
+        Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        stats.setStatisticsEnabled(true);
+        try {
+            stats.clear();
+            assertThat(ids("/reports?buildingId=" + building.getId() + "&include=upcoming")).hasSize(6);
+            // 진행 중 1번 + 예정 1번 + 사진 묶음 1번. 작성자(닉네임) 지연 로딩이 제보·작성자 수만큼 늘지 않아야 한다.
+            assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(3);
+        } finally {
+            stats.setStatisticsEnabled(false);
+        }
     }
 
     // ---------- 픽스처 ----------
