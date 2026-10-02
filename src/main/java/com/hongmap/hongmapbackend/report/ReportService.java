@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report;
 
+import com.hongmap.hongmapbackend.admin.AdminAlertEvent;
 import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.report.dto.ReportCreateRequest;
@@ -12,6 +13,7 @@ import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ public class ReportService {
     private final ReportFlagRepository reportFlagRepository;
     private final UserRepository userRepository;
     private final BuildingRepository buildingRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${report.endsAt.maxDays}")
     private long endsAtMaxDays;
@@ -86,6 +89,9 @@ public class ReportService {
                 .build();
 
         Report saved = reportRepository.save(report);
+        // 관리자 "승인 대기" 알림(AdminAlertDispatcher)은 커밋 뒤 비동기로 나간다.
+        eventPublisher.publishEvent(AdminAlertEvent.reportPending(
+                saved.getId(), userId, saved.getTitle(), building.getName(), saved.getFloor()));
         return ReportResponse.of(saved, userId);
     }
 
@@ -136,8 +142,11 @@ public class ReportService {
         long flagCount = reportFlagRepository.countByReportId(reportId);
         // 관리자가 이미 검토해 공개를 유지한 제보는 신고가 더 쌓여도 자동으로 숨기지 않는다.
         if (flagCount >= flagThreshold && report.getStatus() == ReportStatus.ACTIVE
-                && report.getReviewedAt() == null) {
-            reportRepository.updateStatus(reportId, ReportStatus.HIDDEN);
+                && report.getReviewedAt() == null
+                && reportRepository.updateStatusIf(reportId, ReportStatus.ACTIVE, ReportStatus.HIDDEN) == 1) {
+            // 자동 숨김을 관리자에게 알린다(커밋 뒤 비동기). 조건부 UPDATE라 동시 신고에도 한 번만.
+            eventPublisher.publishEvent(AdminAlertEvent.reportFlagged(
+                    reportId, userId, report.getTitle(), report.getBuilding().getName(), report.getFloor()));
         }
 
         return new ReportFlagResponse(flagCount);

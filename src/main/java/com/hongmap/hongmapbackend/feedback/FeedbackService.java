@@ -1,11 +1,13 @@
 package com.hongmap.hongmapbackend.feedback;
 
+import com.hongmap.hongmapbackend.admin.AdminAlertEvent;
 import com.hongmap.hongmapbackend.feedback.dto.FeedbackCreateRequest;
 import com.hongmap.hongmapbackend.feedback.dto.FeedbackListResponse;
 import com.hongmap.hongmapbackend.feedback.dto.FeedbackResponse;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,13 +24,16 @@ public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** userId 가 null 이면(게스트) 작성자 없이 저장한다. 탈퇴 직후의 오래된 토큰이어도 문의는 받는다. */
     @Transactional
     public void create(Long userId, FeedbackCreateRequest request) {
         User user = userId == null ? null : userRepository.findById(userId).orElse(null);
         String contact = request.contact() == null || request.contact().isBlank() ? null : request.contact().trim();
-        feedbackRepository.save(new Feedback(user, request.content().trim(), contact));
+        Feedback saved = feedbackRepository.save(new Feedback(user, request.content().trim(), contact));
+        // 관리자 "새 문의" 알림 — 내용·연락처는 푸시에 싣지 않는다(AdminAlertDispatcher).
+        eventPublisher.publishEvent(AdminAlertEvent.feedback(saved.getId(), user == null ? null : user.getId()));
     }
 
     @Transactional(readOnly = true)

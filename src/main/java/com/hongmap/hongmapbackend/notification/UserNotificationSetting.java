@@ -16,7 +16,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 유저별 알림 설정(게시판·카테고리·키워드 외의 알림). 지금은 제보 관련 두 가지.
+ * 유저별 알림 설정(게시판·카테고리·키워드 외의 알림). 제보 관련 두 가지 + 관리자 알림.
  * 행이 없으면 기본값으로 본다 — 내 제보 결과 알림 켜짐, 캠퍼스 새 제보 알림 꺼짐(스팸 방지). 값을 처음 바꿀 때 행을 만든다.
  *
  * new_report_last_sent_at: 새 제보 푸시 빈도 제한용. 마지막으로 새 제보 푸시를 보낸 시각이며,
@@ -36,6 +36,7 @@ public class UserNotificationSetting {
 
     public static final boolean DEFAULT_REPORT_STATUS_ENABLED = true;
     public static final boolean DEFAULT_NEW_REPORTS_ENABLED = false;
+    public static final boolean DEFAULT_ADMIN_ALERTS_ENABLED = true;
 
     /** users.id. 유저당 한 행이라 PK로 쓴다(회원탈퇴 시 UserService에서 지우고, DB에도 ON DELETE CASCADE). */
     @Id
@@ -53,6 +54,13 @@ public class UserNotificationSetting {
     @Enumerated(EnumType.STRING)
     @Column(name = "new_reports_scope", nullable = false, length = 20)
     private NewReportScope newReportsScope = NewReportScope.CAMPUS;
+
+    /**
+     * 관리자 알림(새 제보 승인 대기·새 문의·신고 자동 숨김, AdminAlertDispatcher). role=ADMIN일 때만 의미가 있다.
+     * db/alter_user_notification_settings_add_admin_alerts.sql
+     */
+    @Column(name = "admin_alerts_enabled", nullable = false)
+    private boolean adminAlertsEnabled = DEFAULT_ADMIN_ALERTS_ENABLED;
 
     @Column(name = "new_report_last_sent_at")
     private LocalDateTime newReportLastSentAt;
@@ -75,6 +83,10 @@ public class UserNotificationSetting {
 
     public void changeNewReportsEnabled(boolean enabled) {
         this.newReportsEnabled = enabled;
+    }
+
+    public void changeAdminAlertsEnabled(boolean enabled) {
+        this.adminAlertsEnabled = enabled;
     }
 
     public void changeNewReportsScope(NewReportScope scope) {

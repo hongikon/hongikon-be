@@ -32,6 +32,11 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("UPDATE Report r SET r.status = :status WHERE r.id = :id")
     void updateStatus(@Param("id") Long id, @Param("status") ReportStatus status);
 
+    /** 상태가 from일 때만 to로 바꾼다. 바뀐 행 수(0 또는 1) — 동시에 신고가 들어와도 자동 숨김을 한 번만 처리한다. */
+    @Modifying
+    @Query("UPDATE Report r SET r.status = :to WHERE r.id = :id AND r.status = :from")
+    int updateStatusIf(@Param("id") Long id, @Param("from") ReportStatus from, @Param("to") ReportStatus to);
+
     void deleteByUser_Id(Long userId);
 
     /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */

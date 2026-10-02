@@ -42,6 +42,9 @@ public class NotificationSettingService {
         if (request.newReports() != null) {
             setting.changeNewReportsEnabled(request.newReports());
         }
+        if (request.adminAlerts() != null) {
+            setting.changeAdminAlertsEnabled(request.adminAlerts());
+        }
         if (scope != null) {
             setting.changeNewReportsScope(scope);
         }

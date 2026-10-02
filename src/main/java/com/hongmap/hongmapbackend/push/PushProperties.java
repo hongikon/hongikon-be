@@ -37,8 +37,14 @@ public class PushProperties {
      */
     private final int reportNewThrottleMinutes;
 
+    /**
+     * 관리자 알림 묶음 간격(초). 종류(새 제보·새 문의·자동 숨김)마다 이 시간에 푸시 한 번까지 — 사이에 들어온 건은 끝날 때 "N건"으로 묶는다.
+     */
+    private final int adminAlertWindowSeconds;
+
     public PushProperties(boolean enabled, String expoUrl, String expoAccessToken, int connectTimeoutMs, int readTimeoutMs,
-                          int newsMaxAgeDays, @DefaultValue("30") int reportNewThrottleMinutes) {
+                          int newsMaxAgeDays, @DefaultValue("30") int reportNewThrottleMinutes,
+                          @DefaultValue("120") int adminAlertWindowSeconds) {
         this.enabled = enabled;
         this.expoUrl = expoUrl;
         this.expoAccessToken = expoAccessToken;
@@ -46,5 +52,6 @@ public class PushProperties {
         this.readTimeoutMs = readTimeoutMs;
         this.newsMaxAgeDays = newsMaxAgeDays;
         this.reportNewThrottleMinutes = reportNewThrottleMinutes;
+        this.adminAlertWindowSeconds = adminAlertWindowSeconds;
     }
 }

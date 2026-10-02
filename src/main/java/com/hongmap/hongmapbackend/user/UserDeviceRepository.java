@@ -71,6 +71,25 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
             @Param("claimedAt") java.time.LocalDateTime claimedAt
     );
 
+    /**
+     * 관리자 알림 대상 기기(AdminAlertDispatcher) — role이 관리자인 유저의 활성 기기. excludeUserId(그 일을 만든 본인)는 빼고,
+     * 관리자 알림을 끈 유저(user_notification_settings.admin_alerts_enabled = false)도 뺀다. 설정 행이 없으면 켜짐.
+     */
+    @Query("""
+            SELECT d FROM UserDevice d
+            WHERE d.active = true
+              AND d.tokenType = :tokenType
+              AND d.user.role = :role
+              AND (:excludeUserId IS NULL OR d.user.id <> :excludeUserId)
+              AND d.user.id NOT IN (
+                  SELECT s.userId FROM UserNotificationSetting s WHERE s.adminAlertsEnabled = false)
+            """)
+    List<UserDevice> findAdminAlertTargets(
+            @Param("tokenType") TokenType tokenType,
+            @Param("role") UserRole role,
+            @Param("excludeUserId") Long excludeUserId
+    );
+
     /** Expo가 DeviceNotRegistered로 알려준 토큰(앱 삭제 등)의 기기를 비활성화한다. */
     @Transactional
     @Modifying(clearAutomatically = true)
