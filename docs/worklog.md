@@ -443,3 +443,18 @@
 - 프론트 쪽 필요 작업 전체(buildingId/floor, Alert.alert 웹 미작동 5곳, 북마크 미연동,
   401 재발급 미구현 등)를 정리해 Notion으로 석훈에게 전달 완료
 - 다음 단계: 제보 사진 업로드 API 설계/구현 (백엔드), 픽토그램 라우팅(PM 데이터 대기)
+
+## 2026-10-02 — 공개 회원 번호 `HIU-482913` (`feat/member-code`, #13 위에 쌓음)
+
+- 왜: 설정 화면 "회원 번호"와 관리자 지정에 `users.id`(순번)를 보여 주면 가입자 수가 드러나고 남의 번호를 추측하기 쉬움. 내부 `users.id`는 그대로 PK·JWT sub
+- 변경
+  - `users.member_code` varchar(16) UNIQUE NOT NULL. 형식 `<학교 접두사>-<6자리>`(100000~999999), 접두사는 `app.member-code.school-prefix=${MEMBER_CODE_PREFIX:HIU}`(영문 대문자 2~8자, 틀리면 기동 실패)
+  - 발급: `MemberCodeAssigner`(User 엔티티 리스너 `@PrePersist`)가 저장 직전에 채움 → 카카오·테스트 토큰·(#7 머지 후) Apple 가입 모두 코드 수정 없이 적용. 숫자는 `SecureRandom`, 이미 쓰인 번호면 최대 10번 다시 뽑음(중복 확인은 JdbcTemplate — 콜백 안에서 영속성 컨텍스트를 건드리지 않게). 확인~INSERT 사이 경합은 유니크 인덱스가 막음(그 가입 1건 실패, 재로그인 시 새 번호)
+  - API `GET /users/me/member-code` → `{"memberCode":"HIU-482913"}` (#11의 `GET /users/me`와 독립 — #11 없이도 머지 가능)
+  - 관리자 `AdminUserResponse`에 `memberCode`. `GET /admin/users?q=`가 회원 번호도 찾음: `HIU-482913`/`hiu-482913`(대소문자 무시), 접두사 없이 `482913`(6자리면 id와 함께 찾음), 그 밖은 기존대로 id·닉네임
+  - 공개 제보 응답에는 싣지 않음(작성자 숨기기는 계속 `authorKey`)
+- SQL: `db/alter_users_add_member_code.sql` — **배포 전** 1단계(NULL 허용 컬럼+유니크 인덱스)·2단계(`UPDATE IGNORE ... RANDOM_BYTES` 5줄 = 충돌 재시도, 확인 SELECT 0), **배포 직후** 2단계 한 번 더 + 3단계(NOT NULL). validate는 NULL 허용 여부를 안 봐서 3단계 전에도 새 서버 정상. 로컬 MySQL로 5,000행 백필(중복 0)·충돌 시 건너뛰기·NULL 남으면 3단계 실패(안전장치) 확인
+- 환경변수: `MEMBER_CODE_PREFIX`(선택, 기본 `HIU`, SQL의 `'HIU'`와 같게)
+- 테스트: +11 → 57개 (`MemberCodesTest` 6, `MemberCodeIntegrationTest` 5)
+- 배포 메모: 가이드 표 10번째(#13 다음). 운영 관리자 지정 안내("회원번호(users.id) 기준")는 이제 회원 번호로 찾아서(`q=HIU-…`) 지정하면 됨 — API 경로는 그대로 id
+- 리스크: 6자리라 번호 공간 90만 개 — 수만 명 규모까지는 충분, 그 이상이면 자릿수 확장 필요. #11 머지 후 `GET /users/me` 응답에도 `memberCode`를 넣을지는 후속(앱은 `/users/me/member-code`를 씀)

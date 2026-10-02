@@ -2,6 +2,7 @@ package com.hongmap.hongmapbackend.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -19,6 +20,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(MemberCodeAssigner.class)
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(
@@ -72,6 +74,14 @@ public class User {
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
 
+    /**
+     * 공개용 회원 번호(예: HIU-482913). 앱 설정 화면·관리자 콘솔에 보여 주는 값으로, 순번인 id 대신 쓴다
+     * (id 는 가입자 수가 드러나고 추측하기 쉽다). id 는 그대로 PK·JWT sub 로 쓴다.
+     * 가입할 때 MemberCodeAssigner 가 채운다. 유니크 인덱스 uq_users_member_code (db/alter_users_add_member_code.sql).
+     */
+    @Column(name = "member_code", nullable = false, unique = true, length = 16)
+    private String memberCode;
+
     @Builder
     public User(String socialId, SocialType socialType, String email, String nickname) {
         this.socialId = socialId;
@@ -99,6 +109,13 @@ public class User {
         this.status = UserStatus.ACTIVE;
         this.suspendedReason = null;
         this.suspendedAt = null;
+    }
+
+    /** 가입 시 한 번만 정한다(MemberCodeAssigner). 이미 있으면 바꾸지 않는다. */
+    void assignMemberCode(String memberCode) {
+        if (this.memberCode == null) {
+            this.memberCode = memberCode;
+        }
     }
 
     public void changeNickname(String nickname) {

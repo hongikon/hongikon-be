@@ -4,9 +4,10 @@ import com.hongmap.hongmapbackend.user.User;
 
 import java.time.LocalDateTime;
 
-/** 관리자 회원 조회·정지 화면의 한 줄. 연락처(email)는 싣지 않는다. */
+/** 관리자 회원 조회·정지 화면의 한 줄. 연락처(email)는 싣지 않는다. memberCode 는 공개 회원 번호(HIU-482913). */
 public record AdminUserResponse(
         Long id,
+        String memberCode,
         String nickname,
         String socialType,
         String role,
@@ -18,6 +19,7 @@ public record AdminUserResponse(
     public static AdminUserResponse of(User user) {
         return new AdminUserResponse(
                 user.getId(),
+                user.getMemberCode(),
                 user.getNickname(),
                 user.getSocialType().name(),
                 user.getRole().name(),
