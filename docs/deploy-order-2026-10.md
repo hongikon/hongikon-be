@@ -37,6 +37,21 @@
    - `.authorNickname(report.getUser().getDisplayName())`로 바꿔요.
    - #9가 넣은 `.imageUrl(imageUrl)` 줄은 그대로 둬요.
 
+## Apple 키 준비 (#7 전에)
+
+앱 ID는 출시 전에 `com.hongikon.app`(테스트 `.preview`, 개발 `.dev`)으로 바뀌었어요. PR #7의 `APPLE_CLIENT_IDS` 기본값도 이 세 개예요.
+
+1. Apple Developer → Identifiers에 `com.hongikon.app` 등록 (Sign In with Apple, Push Notifications 체크).
+2. `com.hongikon.app.preview` 등록. Sign In with Apple은 "Group with an existing primary App ID" → `com.hongikon.app`.
+3. Keys → "+" → Sign in with Apple → Primary App ID `com.hongikon.app` → 등록. .p8은 한 번만 받을 수 있어요.
+4. Key ID(10자리), Team ID(10자리, Membership)를 확인해요.
+5. 서버 env
+   - `APPLE_TEAM_ID`, `APPLE_KEY_ID`
+   - `APPLE_PRIVATE_KEY`: .p8 내용의 줄바꿈을 `\n` 글자로 바꾼 한 줄 (`-----BEGIN PRIVATE KEY-----\nMIGT...\n-----END PRIVATE KEY-----`)
+   - `APPLE_TOKEN_ENC_KEY`: `openssl rand -base64 32`. **한 번 정하면 바꾸지 않아요.**
+
+키는 전달할 때 메신저 평문 대신 직접 전달이나 비밀번호 관리자 공유를 써요.
+
 ## 새 환경변수
 
 | 변수 | PR | 설명 |
