@@ -21,21 +21,25 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
     /**
      * 새 소식 하나의 푸시 대상 기기(활성, 지정 토큰 종류). 아래 중 하나라도 해당하는 유저의 기기:
      * <ul>
-     *   <li>학과 게시판 글(departmentId 있음) → 그 학과를 구독한 유저(user_departments)</li>
-     *   <li>대학공지(departmentId 없음) → 그 category를 끄지 않은 유저(notification_categories에 enabled = false 행이 없음).
+     *   <li>게시판 구독: 그 소식의 게시판(news.source_id)을 구독했고(user_board_subscriptions) 그 구독의 alert_enabled = true이며,
+     *       그 소식의 category를 끄지 않은 유저(notification_categories에 enabled = false 행이 없음).
+     *       학과 게시판·대학공지(학사·장학 등 6개 분류) 모두 같은 기준이다. source_id가 null인 소식은 이 기준에 걸리지 않는다.
      *       한 번도 저장하지 않은 카테고리는 켜짐으로 본다 — NotificationCategoryService.getUserCategories()가 화면에 보여주는 값과 같은 기준.</li>
      *   <li>위와 무관하게 제목에 구독 키워드가 들어간 유저(keyword_subscriptions, 대소문자 무시)</li>
      * </ul>
-     * 세 기준을 한 쿼리의 OR로 묶어 기기 행이 한 번씩만 나온다 — 여러 기준에 걸린 유저도 같은 기기로 중복 발송되지 않는다.
+     * 두 기준을 한 쿼리의 OR로 묶어 기기 행이 한 번씩만 나온다 — 두 기준에 다 걸린 유저도 같은 기기로 중복 발송되지 않는다.
+     * 학과 구독(user_departments)은 더 이상 푸시 대상에 쓰지 않는다.
      */
     @Query("""
             SELECT d FROM UserDevice d
             WHERE d.active = true
               AND d.tokenType = :tokenType
               AND (
-                   (:departmentId IS NOT NULL AND d.user.id IN (
-                        SELECT ud.user.id FROM UserDepartment ud WHERE ud.department.id = :departmentId))
-                OR (:departmentId IS NULL AND d.user.id NOT IN (
+                   (:sourceId IS NOT NULL
+                    AND d.user.id IN (
+                        SELECT s.user.id FROM UserBoardSubscription s
+                        WHERE s.sourceId = :sourceId AND s.alertEnabled = true)
+                    AND d.user.id NOT IN (
                         SELECT nc.user.id FROM NotificationCategory nc
                         WHERE nc.category = :category AND nc.enabled = false))
                 OR d.user.id IN (
@@ -45,9 +49,26 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
             """)
     List<UserDevice> findPushTargets(
             @Param("tokenType") TokenType tokenType,
-            @Param("departmentId") Long departmentId,
+            @Param("sourceId") String sourceId,
             @Param("category") String category,
             @Param("title") String title
+    );
+
+    /**
+     * 새 제보 푸시 대상 기기 — UserNotificationSettingRepository.claimNewReportRecipients가 방금 선점한 유저
+     * (new_report_last_sent_at = claimedAt)의 활성 기기.
+     */
+    @Query("""
+            SELECT d FROM UserDevice d
+            WHERE d.active = true
+              AND d.tokenType = :tokenType
+              AND d.user.id IN (
+                  SELECT s.userId FROM UserNotificationSetting s
+                  WHERE s.newReportsEnabled = true AND s.newReportLastSentAt = :claimedAt)
+            """)
+    List<UserDevice> findNewReportTargets(
+            @Param("tokenType") TokenType tokenType,
+            @Param("claimedAt") java.time.LocalDateTime claimedAt
     );
 
     /** Expo가 DeviceNotRegistered로 알려준 토큰(앱 삭제 등)의 기기를 비활성화한다. */

@@ -7,7 +7,7 @@
 홍익대학교 학생들을 위한 캠퍼스 통합 앱으로, 아래 두 가지 핵심 기능을 제공합니다.
 
 - **지도/내비게이션**: 건물·시설 마커 표시, 실내 경로 안내, 자체 그래프 기반 라우팅 엔진(Dijkstra/A*)
-- **공지사항**: 학과별 구독, 키워드 알림, 크롤링 기반 데이터 수집
+- **공지사항**: 게시판(학과·대학공지) 구독, 키워드 알림, 크롤링 기반 데이터 수집
 
 지도 플랫폼은 **Naver Maps**를 사용하며, 프론트엔드(React Native + Expo)는 WebView + Naver 웹 JS API 방식으로 연동되어 있습니다.
 
@@ -81,7 +81,7 @@ Kakao OAuth2 → Spring Security → JWT(access/refresh) 발급 → 1회용 코�
 | `user` | User, UserDevice | 유저, 기기(FCM 토큰) |
 | `building` | Building, Place | 건물, 건물 내 시설(화장실·엘리베이터 등) |
 | `report` | Report, ReportFlag | 실시간 제보, 제보 신고 |
-| `notification` | NotificationCategory, KeywordSubscription | 카테고리 구독, 자유 키워드 구독 |
+| `notification` | NotificationCategory, KeywordSubscription, UserBoardSubscription | 카테고리 on/off, 자유 키워드 구독, 게시판 구독(푸시 대상) |
 
 `Building.mapCategory`(지도 필터용: 강의/식당/편의/주차)와 `Place.category`(시설 종류: 화장실/엘리베이터 등)는 값 도메인이 다른 별개 축으로, 컬럼명 분리로 네이밍 충돌을 해결했습니다.
 

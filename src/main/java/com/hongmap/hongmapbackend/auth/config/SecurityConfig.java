@@ -43,8 +43,12 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> {
+                    // 처리 중 예외는 /error 로 포워드된다. 여기가 인증을 요구하면 400·404·500 이 전부 빈 401 로
+                    // 바뀌어, 앱이 "로그인 만료"로 오인하고 토큰 재발급 후 요청을 다시 보낸다.
+                    auth.requestMatchers("/error").permitAll();
                     auth.requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange",
                             "/auth/reissue", "/auth/logout").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/auth/apple").permitAll();
                     // AuthTestController와 동일하게 local 프로필에서만 인증 없이 열어준다.
                     if (environment.acceptsProfiles(Profiles.of("local"))) {
                         auth.requestMatchers("/auth/test-token").permitAll();
@@ -73,6 +77,10 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
+                // 인증 실패(401) 때 원래 요청을 세션에 저장하지 않는다. 성공 핸들러가 저장된 요청을 쓰지 않는데도
+                // 기본값이면 401 응답마다 JSESSIONID 세션이 새로 생겨, 비로그인 요청만으로 서버 메모리를 채울 수 있었다.
+                // 세션은 카카오 로그인 진행 중(state·redirect_uri 보관)에만 생긴다.
+                .requestCache(requestCache -> requestCache.disable())
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
