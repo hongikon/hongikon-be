@@ -66,16 +66,18 @@ public class ReportController {
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
-    @Operation(summary = "실시간 제보 목록 조회", description = "live 여부와 건물 id로 필터링된 실시간 제보 목록을 조회합니다.")
+    @Operation(summary = "실시간 제보 목록 조회", description = "live 여부와 건물 id로 필터링된 실시간 제보 목록을 조회합니다. "
+            + "sort=hot 이면 🔥가 있는 제보만 최근 🔥 수 순으로 최대 20개.")
     @GetMapping("/reports")
     public ReportListResponse getLiveReports(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false, defaultValue = "false") boolean live,
-            @RequestParam(required = false) Long buildingId
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) String sort
     ) {
         // live=false 케이스(전체 조회)는 현재 스펙에 없어 live 목록으로 통일.
         // 추후 필요 시 reportService.getAllReports(...) 분기 추가.
-        return reportService.getLiveReports(userId, buildingId);
+        return reportService.getLiveReports(userId, buildingId, sort);
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)

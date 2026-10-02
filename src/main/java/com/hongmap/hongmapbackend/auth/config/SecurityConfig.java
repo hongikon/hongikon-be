@@ -58,6 +58,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/reports").permitAll();
                     // 제보 댓글 목록은 게스트도 본다(쓰기·삭제·신고는 아래 authenticated).
                     auth.requestMatchers(HttpMethod.GET, "/reports/*/comments", "/reports/*/comments/*/replies").permitAll();
+                    // 제보 조회 수 기록은 게스트도(설치 id 로 하루 한 번). 🔥·관심·👍 은 아래 authenticated.
+                    auth.requestMatchers(HttpMethod.POST, "/reports/*/views").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/buildings", "/buildings/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();
