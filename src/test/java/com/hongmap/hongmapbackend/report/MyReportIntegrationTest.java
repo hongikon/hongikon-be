@@ -190,6 +190,16 @@ class MyReportIntegrationTest {
     }
 
     @Test
+    void 신고로_숨겨진_제보는_검토_전에는_지울_수_없다() throws Exception {
+        Report hidden = saveLive(me, "숨겨진 내 것", ReportStatus.HIDDEN, null);
+
+        mockMvc.perform(delete("/reports/{id}", hidden.getId()).header("Authorization", bearer(me)))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get("/users/me/reports").header("Authorization", bearer(me)))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
     void 내역에서_본인_제보만_지울_수_있다() throws Exception {
         Report mine = saveLive(me, "반려된 내 것", ReportStatus.REJECTED, "사유");
         Report others = saveLive(other, "남의 것", ReportStatus.REJECTED, "사유");

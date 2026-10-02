@@ -113,6 +113,11 @@ public class ReportService {
         if (!report.getUser().getId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 작성한 제보만 삭제할 수 있습니다.");
         }
+        // 신고 누적 등으로 숨겨진 제보는 운영진 검토가 끝날 때까지 작성자가 지울 수 없다 — 검토 전에 지우면
+        // 신고 기록까지 사라져 악성 이용자 제재 근거가 남지 않는다(약관 제8·10조, App Store 1.2).
+        if (report.getStatus() == ReportStatus.HIDDEN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "신고로 검토 중인 제보는 운영진 검토가 끝난 뒤에 지울 수 있어요.");
+        }
 
         List<String> imageKeys = report.getImageKeys();
         reportRepository.delete(report);
