@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -38,6 +39,7 @@ class MyReportIntegrationTest {
     @Autowired UserRepository userRepository;
     @Autowired BuildingRepository buildingRepository;
     @Autowired ReportRepository reportRepository;
+    @Autowired ReportFlagRepository reportFlagRepository;
     @Autowired JdbcTemplate jdbcTemplate;
 
     User me;
@@ -63,6 +65,8 @@ class MyReportIntegrationTest {
     /** 다른 테스트 클래스가 같은 H2 DB 를 보므로 만든 제보를 남기지 않는다. */
     @AfterEach
     void tearDown() {
+        jdbcTemplate.update("DELETE FROM report_flags WHERE report_id IN (SELECT id FROM reports WHERE building_id = ?)",
+                building.getId());
         jdbcTemplate.update("DELETE FROM reports WHERE building_id = ?", building.getId());
     }
 
@@ -191,12 +195,35 @@ class MyReportIntegrationTest {
 
     @Test
     void 신고로_숨겨진_제보는_검토_전에는_지울_수_없다() throws Exception {
+        // 승인(reviewedAt) 뒤에 신고가 쌓여 자동으로 숨겨진 제보 — 운영진이 아직 보지 않았다
         Report hidden = saveLive(me, "숨겨진 내 것", ReportStatus.HIDDEN, null);
+        flag(hidden, now.plusMinutes(5));
 
         mockMvc.perform(delete("/reports/{id}", hidden.getId()).header("Authorization", bearer(me)))
                 .andExpect(status().isConflict());
         mockMvc.perform(get("/users/me/reports").header("Authorization", bearer(me)))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void 운영진이_검토해_숨긴_제보는_지울_수_있다() throws Exception {
+        // 신고를 보고(신고 뒤에 reviewedAt) 운영진이 숨김으로 결정 — 검토가 끝났다
+        Report hidden = saveLive(me, "운영진이 숨긴 내 것", ReportStatus.HIDDEN, "부적절한 내용");
+        flag(hidden, now.minusMinutes(5));
+        Report hiddenWithoutFlags = saveLive(me, "신고 없이 숨긴 내 것", ReportStatus.HIDDEN, null);
+
+        mockMvc.perform(delete("/reports/{id}", hidden.getId()).header("Authorization", bearer(me)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/reports/{id}", hiddenWithoutFlags.getId()).header("Authorization", bearer(me)))
+                .andExpect(status().isNoContent());
+    }
+
+    private void flag(Report report, LocalDateTime createdAt) {
+        User flagger = userRepository.save(User.builder()
+                .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("신고자").build());
+        ReportFlag flag = reportFlagRepository.save(ReportFlag.builder().report(report).user(flagger).reason("SPAM").build());
+        // Hibernate 와 같은 방식(Timestamp)으로 넣어야 H2 시간대 변환이 쿼리 파라미터와 맞는다.
+        jdbcTemplate.update("UPDATE report_flags SET created_at = ? WHERE id = ?", Timestamp.valueOf(createdAt), flag.getId());
     }
 
     @Test
