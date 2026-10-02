@@ -50,7 +50,7 @@ public class AdminReportService {
 
         return new AdminReportListResponse(reports.stream()
                 .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L),
-                        reportImageService.viewUrl(r.getImageKey())))
+                        reportImageService.viewUrls(r.getImageKeys())))
                 .toList());
     }
 
@@ -83,12 +83,11 @@ public class AdminReportService {
                 report.getBuilding().getName(), report.getFloor(),
                 previous, target, note, report.getEndsAt()));
         // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
-        if ((target == ReportStatus.REJECTED || target == ReportStatus.DELETED) && report.getImageKey() != null) {
-            reportImageService.deleteAfterCommit(report.getImageKey());
-            report.clearImage();
+        if (target == ReportStatus.REJECTED || target == ReportStatus.DELETED) {
+            reportImageService.deleteAfterCommit(report.clearImages());
         }
         long flagCount = reportFlagRepository.countByReportId(reportId);
-        return AdminReportResponse.of(report, flagCount, reportImageService.viewUrl(report.getImageKey()));
+        return AdminReportResponse.of(report, flagCount, reportImageService.viewUrls(report.getImageKeys()));
     }
 
     private Map<Long, Long> flagCounts(List<Report> reports) {

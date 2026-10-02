@@ -168,6 +168,49 @@ class ReportImageIntegrationTest {
         return key;
     }
 
+    /** 제보에 붙은 사진 키(sort_order 순). 지연 로딩을 피하려고 DB 에서 바로 읽는다. */
+    private List<String> imageKeys(long reportId) {
+        return jdbcTemplate.queryForList(
+                "SELECT image_key FROM report_images WHERE report_id = ? ORDER BY sort_order", String.class, reportId);
+    }
+
+    /** 새 앱 형식: imageKeys 배열(+ 선택으로 구버전 서버 대비 imageKey). */
+    private String createBodyWithKeys(List<String> imageKeys, String legacyImageKey) {
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        String keysJson = imageKeys.stream().map(k -> "\"" + k + "\"").collect(java.util.stream.Collectors.joining(","));
+        return """
+                {"buildingId":%d,"floor":1,"lat":37.55,"lng":126.925,"category":"EVENT","title":"사진 여러 장",
+                 "startsAt":"%s","endsAt":"%s","imageKeys":[%s]%s}
+                """.formatted(building.getId(), now.minusMinutes(1), now.plusHours(2), keysJson,
+                legacyImageKey == null ? "" : ",\"imageKey\":\"" + legacyImageKey + "\"");
+    }
+
+    private String uploadedJpeg() throws Exception {
+        String key = issueKey("image/jpeg");
+        storage.putObject(key, jpegWithGps(), "image/jpeg");
+        return key;
+    }
+
+    private String uploadedPng() throws Exception {
+        String key = issueKey("image/png");
+        storage.putObject(key, ImageMetadataSanitizerTest.realPng(), "image/png");
+        return key;
+    }
+
+    private long createWithKeys(List<String> keys) throws Exception {
+        String body = mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(keys, null)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
+    private long reportCount() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM reports WHERE building_id = ?", Long.class, building.getId());
+    }
+
+    /** 구버전 앱 형식: imageKey 1장. */
     private String createBody(String imageKey) {
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
         return """
@@ -213,7 +256,7 @@ class ReportImageIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(body, "$.id")).longValue();
         // 서버가 메타데이터를 지운 사본을 새 키로 저장하고, 앱이 올린 원래 키는 커밋 뒤 지운다.
-        String key = reportRepository.findById(id).orElseThrow().getImageKey();
+        String key = imageKeys(id).get(0);
         assertThat(key).matches("reports/[0-9a-f-]{36}\\.jpg").isNotEqualTo(uploadedKey);
         assertThat((String) JsonPath.read(body, "$.imageUrl"))
                 .isEqualTo("https://bucket.s3.test/" + key + "?X-Amz-Signature=get");
@@ -314,7 +357,7 @@ class ReportImageIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(createBody(uploaded)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
-        String key = reportRepository.findById(id).orElseThrow().getImageKey();
+        String key = imageKeys(id).get(0);
         assertThat(storage.objects).containsKey(key);
 
         mockMvc.perform(delete("/auth/me").header("Authorization", bearer(author)))
@@ -337,7 +380,7 @@ class ReportImageIntegrationTest {
         long idA = ((Number) JsonPath.read(mockMvc.perform(post("/reports").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content(createBody(uploadedA)))
                 .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
-        String keyA = reportRepository.findById(idA).orElseThrow().getImageKey();
+        String keyA = imageKeys(idA).get(0);
         mockMvc.perform(delete("/reports/" + idA).header("Authorization", bearer(author)))
                 .andExpect(status().isNoContent());
         assertThat(storage.deleted).contains(keyA);
@@ -347,12 +390,146 @@ class ReportImageIntegrationTest {
         long idB = ((Number) JsonPath.read(mockMvc.perform(post("/reports").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content(createBody(uploadedB)))
                 .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
-        String keyB = reportRepository.findById(idB).orElseThrow().getImageKey();
+        String keyB = imageKeys(idB).get(0);
         mockMvc.perform(patch("/admin/reports/" + idB).header("Authorization", bearer(admin))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"REJECTED\",\"note\":\"사진 부적절\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.imageUrl").doesNotExist());
         assertThat(storage.deleted).contains(keyB);
-        assertThat(reportRepository.findById(idB).orElseThrow().getImageKey()).isNull();
+        assertThat(imageKeys(idB)).isEmpty();
+    }
+
+    @Test
+    void 사진_3장을_순서대로_붙이면_imageUrls_순서가_같고_imageUrl은_첫장() throws Exception {
+        List<String> uploaded = List.of(uploadedJpeg(), uploadedPng(), uploadedJpeg());
+
+        String body = mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(uploaded, uploaded.get(0))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrls.length()").value(3))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
+
+        List<String> keys = imageKeys(id);
+        assertThat(keys).hasSize(3).doesNotContainAnyElementsOf(uploaded);
+        assertThat(keys.get(0)).endsWith(".jpg");
+        assertThat(keys.get(1)).endsWith(".png");
+        assertThat(keys.get(2)).endsWith(".jpg");
+        List<String> urls = JsonPath.read(body, "$.imageUrls");
+        assertThat(urls).containsExactly(keys.stream()
+                .map(k -> "https://bucket.s3.test/" + k + "?X-Amz-Signature=get").toArray(String[]::new));
+        assertThat((String) JsonPath.read(body, "$.imageUrl")).isEqualTo(urls.get(0));
+        // 앱이 올린 원래 키는 모두 지우고, 정리본에는 메타데이터가 없다.
+        assertThat(storage.deleted).containsAll(uploaded);
+        for (String k : keys) {
+            assertThat(new String(storage.bodies.get(k), java.nio.charset.StandardCharsets.ISO_8859_1))
+                    .doesNotContain("SECRETCAM");
+        }
+
+        mockMvc.perform(get("/admin/reports").param("status", "PENDING").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.reports[?(@.id == " + id + ")].imageUrls[2]")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString(keys.get(2)))));
+        mockMvc.perform(patch("/admin/reports/" + id).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(jsonPath("$.imageUrls.length()").value(3));
+        mockMvc.perform(get("/reports").param("live", "true").param("buildingId", String.valueOf(building.getId())))
+                .andExpect(jsonPath("$.reports[0].imageUrls.length()").value(3))
+                .andExpect(jsonPath("$.reports[0].imageUrls[1]").value(org.hamcrest.Matchers.containsString(keys.get(1))))
+                .andExpect(jsonPath("$.reports[0].imageUrl").value(org.hamcrest.Matchers.containsString(keys.get(0))));
+    }
+
+    @Test
+    void 사진이_없으면_imageUrls는_빈_배열() throws Exception {
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBody(null)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrls").isArray())
+                .andExpect(jsonPath("$.imageUrls.length()").value(0))
+                .andExpect(jsonPath("$.imageUrl").doesNotExist());
+    }
+
+    @Test
+    void 사진은_3장까지이고_같은_키를_두번_붙일_수_없다_S3작업_없이_400() throws Exception {
+        List<String> four = List.of(uploadedJpeg(), uploadedJpeg(), uploadedJpeg(), uploadedJpeg());
+        int objectsBefore = storage.objects.size();
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(four, null)))
+                .andExpect(status().isBadRequest());
+        String a = four.get(0);
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(List.of(a, a), null)))
+                .andExpect(status().isBadRequest());
+        // 두 번째 키 형식이 틀리면 첫 장도 건드리지 않는다.
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(List.of(a, "other/x.jpg"), null)))
+                .andExpect(status().isBadRequest());
+        assertThat(storage.objects).hasSize(objectsBefore);
+        assertThat(storage.deleted).isEmpty();
+        assertThat(reportCount()).isZero();
+    }
+
+    @Test
+    void 중간_사진이_실패하면_롤백되고_앞_사진의_원래_키로_다시_시도할_수_있다() throws Exception {
+        String good = uploadedJpeg();
+        String fake = issueKey("image/jpeg");
+        storage.putObject(fake, "<html></html>".getBytes(), "image/jpeg");
+
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(List.of(good, fake), null)))
+                .andExpect(status().isBadRequest());
+        assertThat(reportCount()).isZero();
+        // 앞 사진의 정리본은 롤백으로 지워지고 원래 키는 남는다. 위장 파일은 지운다.
+        assertThat(storage.objects).containsOnlyKeys(good);
+        assertThat(storage.deleted).contains(fake).doesNotContain(good);
+
+        String retry = uploadedPng();
+        long id = createWithKeys(List.of(good, retry));
+        assertThat(imageKeys(id)).hasSize(2);
+        assertThat(storage.deleted).contains(good, retry);
+    }
+
+    @Test
+    void imageKeys가_있으면_구버전_imageKey는_무시한다() throws Exception {
+        String first = uploadedJpeg();
+        String second = uploadedPng();
+        String legacyOnly = uploadedJpeg();
+        String body = mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(createBodyWithKeys(List.of(first, second), legacyOnly)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrls.length()").value(2))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
+        assertThat(imageKeys(id)).hasSize(2);
+        assertThat(storage.objects).containsKey(legacyOnly); // 붙지 않은 키는 수명 주기 규칙이 정리
+    }
+
+    @Test
+    void 여러장_제보의_본인삭제_관리자반려_탈퇴는_사진을_모두_지운다() throws Exception {
+        long idA = createWithKeys(List.of(uploadedJpeg(), uploadedPng(), uploadedJpeg()));
+        List<String> keysA = imageKeys(idA);
+        mockMvc.perform(delete("/reports/" + idA).header("Authorization", bearer(author)))
+                .andExpect(status().isNoContent());
+        assertThat(storage.deleted).containsAll(keysA);
+        assertThat(imageKeys(idA)).isEmpty();
+
+        long idB = createWithKeys(List.of(uploadedPng(), uploadedJpeg()));
+        List<String> keysB = imageKeys(idB);
+        mockMvc.perform(patch("/admin/reports/" + idB).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DELETED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrls.length()").value(0))
+                .andExpect(jsonPath("$.imageUrl").doesNotExist());
+        assertThat(storage.deleted).containsAll(keysB);
+        assertThat(imageKeys(idB)).isEmpty();
+
+        long idC = createWithKeys(List.of(uploadedJpeg(), uploadedJpeg()));
+        long idD = createWithKeys(List.of(uploadedPng()));
+        List<String> keysCD = new ArrayList<>(imageKeys(idC));
+        keysCD.addAll(imageKeys(idD));
+        mockMvc.perform(delete("/auth/me").header("Authorization", bearer(author)))
+                .andExpect(status().isNoContent());
+        assertThat(storage.deleted).containsAll(keysCD);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM report_images WHERE report_id IN (?, ?)", Long.class, idC, idD)).isZero();
     }
 }

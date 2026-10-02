@@ -80,4 +80,38 @@ class ReportImageServiceTest {
 
         @Override public Instant instant() { return now; }
     }
+
+    @Test
+    void 여러장_검증은_장수_빈값_중복_형식을_S3_호출_전에_거른다() {
+        java.util.List<String> calls = new java.util.ArrayList<>();
+        ReportImageStorage recording = new ReportImageStorage() {
+            @Override public boolean isEnabled() { return true; }
+            @Override public PresignedUpload presignUpload(String key, String type, Long len, Duration ttl) { throw new AssertionError(); }
+            @Override public java.util.Optional<StoredObject> head(String key) { calls.add("head " + key); return java.util.Optional.empty(); }
+            @Override public java.util.Optional<byte[]> get(String key, long maxBytes) { calls.add("get " + key); return java.util.Optional.empty(); }
+            @Override public void put(String key, String type, byte[] bytes) { calls.add("put " + key); }
+            @Override public String presignView(String key, Duration ttl) { return "https://view/" + key; }
+            @Override public void delete(String key) { calls.add("delete " + key); }
+        };
+        ReportImageService service = new ReportImageService(recording, null, 5_242_880,
+                Duration.ofMinutes(5), Duration.ofHours(1), 30, Clock.systemUTC());
+        String k1 = "reports/" + java.util.UUID.randomUUID() + ".jpg";
+        String k2 = "reports/" + java.util.UUID.randomUUID() + ".png";
+
+        assertThat(service.validateForAttach((java.util.List<String>) null)).isEmpty();
+        assertThat(service.validateForAttach(java.util.List.of())).isEmpty();
+        for (java.util.List<String> bad : java.util.List.of(
+                java.util.List.of(k1, k2, k1 + "x", k2 + "y"),          // 4장
+                java.util.List.of(k1, " " + k1),                          // 앞뒤 공백만 다른 중복
+                java.util.Arrays.asList(k1, null),                        // 빈 값
+                java.util.List.of(k1, ""),
+                java.util.List.of(k1, "reports/../secret.jpg"))) {        // 형식
+            assertThatThrownBy(() -> service.validateForAttach(bad))
+                    .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+        }
+        assertThat(calls).isEmpty();
+
+        assertThat(service.viewUrls(java.util.List.of(k2, k1))).containsExactly("https://view/" + k2, "https://view/" + k1);
+        assertThat(service.viewUrls(null)).isEmpty();
+    }
 }

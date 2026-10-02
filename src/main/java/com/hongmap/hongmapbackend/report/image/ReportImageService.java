@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report.image;
 
+import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.dto.ReportImageUploadResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -15,9 +16,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -27,8 +32,9 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li>앱이 {@code POST /reports/images} 로 업로드 URL 을 받는다 — 키는 서버가 {@code reports/{uuid}.jpg|png} 로 정한다.</li>
  *   <li>앱이 그 URL 로 S3 에 직접 PUT 한다(EC2 를 거치지 않음).</li>
- *   <li>{@code POST /reports} 에 {@code imageKey} 를 실어 보내면, 서버가 키 형식·실제 업로드 여부·크기·형식을 확인하고,
- *       본문을 받아 매직 바이트 확인과 메타데이터 제거를 한 뒤 새 키로 저장한다({@link #validateForAttach}).</li>
+ *   <li>{@code POST /reports} 에 {@code imageKeys}(최대 {@link Report#MAX_IMAGES}장, 구버전 앱은 {@code imageKey} 1장)를
+ *       실어 보내면, 서버가 키마다 형식·실제 업로드 여부·크기·형식을 확인하고, 본문을 받아 매직 바이트 확인과
+ *       메타데이터 제거를 한 뒤 새 키로 저장한다({@link #validateForAttach(List)}).</li>
  * </ol>
  * 보기 URL 은 응답할 때마다 presigned GET 으로 새로 만든다(버킷 비공개).
  */
@@ -62,7 +68,7 @@ public class ReportImageService {
             @Value("${app.report-image.max-bytes:5242880}") long maxBytes,
             @Value("${app.report-image.upload-url-ttl-seconds:300}") long uploadUrlTtlSeconds,
             @Value("${app.report-image.view-url-ttl-seconds:3600}") long viewUrlTtlSeconds,
-            @Value("${app.report-image.upload-limit-per-hour:20}") int uploadLimitPerHour
+            @Value("${app.report-image.upload-limit-per-hour:30}") int uploadLimitPerHour
     ) {
         this(storage, reportRepository, maxBytes, Duration.ofSeconds(uploadUrlTtlSeconds),
                 Duration.ofSeconds(viewUrlTtlSeconds), uploadLimitPerHour, Clock.systemUTC());
@@ -106,7 +112,50 @@ public class ReportImageService {
     }
 
     /**
-     * 제보 등록 직전에 부른다(트랜잭션 안). 키가 서버 발급 형식인지, 실제로 올라갔는지, 크기·형식이 맞는지 확인한 뒤
+     * 제보 등록 직전에 부른다(트랜잭션 안). 사진 여러 장(최대 {@link Report#MAX_IMAGES}장)을 순서대로 검증·정리해
+     * 새 키 목록을 돌려준다. 사진이 없으면 빈 목록.
+     * <ul>
+     *   <li>장수·빈 값·중복·키 형식처럼 S3 를 부르지 않고 알 수 있는 오류는 먼저 모두 확인한다(하나라도 틀리면 S3 작업 없이 400).</li>
+     *   <li>그다음 한 장씩 {@link #validateForAttach(String)}. 중간에 한 장이 실패하면 400 으로 트랜잭션이 롤백되고,
+     *       앞서 만든 정리본은 지워지며 앞 사진들의 원래 키는 남는다(앱이 같은 키로 다시 시도 가능).
+     *       실패한 그 사진만 형식·크기 문제면 원래 키도 지워진다.</li>
+     * </ul>
+     */
+    public List<String> validateForAttach(List<String> rawKeys) {
+        if (rawKeys == null || rawKeys.isEmpty()) {
+            return List.of();
+        }
+        if (rawKeys.size() > Report.MAX_IMAGES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "사진은 최대 " + Report.MAX_IMAGES + "장까지 붙일 수 있어요.");
+        }
+        List<String> keys = new ArrayList<>(rawKeys.size());
+        for (String raw : rawKeys) {
+            if (raw == null || raw.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 사진 정보예요.");
+            }
+            keys.add(raw.trim());
+        }
+        if (new HashSet<>(keys).size() != keys.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "같은 사진을 두 번 붙일 수 없어요.");
+        }
+        if (!storage.isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진 첨부를 아직 사용할 수 없어요.");
+        }
+        for (String key : keys) {
+            if (!KEY_PATTERN.matcher(key).matches()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 사진 정보예요.");
+            }
+        }
+        List<String> sanitizedKeys = new ArrayList<>(keys.size());
+        for (String key : keys) {
+            sanitizedKeys.add(validateForAttach(key));
+        }
+        return List.copyOf(sanitizedKeys);
+    }
+
+    /**
+     * 사진 1장. 키가 서버 발급 형식인지, 실제로 올라갔는지, 크기·형식이 맞는지 확인한 뒤
      * <b>서버에서 메타데이터를 지운 사본을 새 키로 저장하고 그 키를 돌려준다.</b>
      * <ul>
      *   <li>앱이 GPS 를 지워 보내지만 믿지 않는다. 본문을 받아(≤ maxBytes) 매직 바이트(JPEG FFD8FF / PNG 89504E47)를
@@ -188,6 +237,14 @@ public class ReportImageService {
         }
     }
 
+    /** 여러 장의 보기 URL(순서 유지). 서명에 실패한 장은 빠진다. 사진이 없거나 기능이 꺼져 있으면 빈 목록. */
+    public List<String> viewUrls(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        return keys.stream().map(this::viewUrl).filter(Objects::nonNull).toList();
+    }
+
     /** DB 커밋이 끝난 뒤 S3 객체를 지운다(롤백되면 지우지 않음). 실패는 로그만 — S3 수명 주기 규칙이 마저 정리한다. */
     public void deleteAfterCommit(String key) {
         if (key == null || !storage.isEnabled()) {
@@ -202,6 +259,13 @@ public class ReportImageService {
             });
         } else {
             deleteQuietly(key);
+        }
+    }
+
+    /** 여러 장을 커밋 뒤에 지운다. */
+    public void deleteAfterCommit(List<String> keys) {
+        if (keys != null) {
+            keys.forEach(this::deleteAfterCommit);
         }
     }
 

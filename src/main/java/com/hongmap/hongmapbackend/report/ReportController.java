@@ -36,7 +36,9 @@ public class ReportController {
     private final ReportImageService reportImageService;
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
-    @Operation(summary = "실시간 제보 등록", description = "특정 건물/위치에 대한 실시간 제보(혼잡도, 공사 등)를 등록합니다.")
+    @Operation(summary = "실시간 제보 등록", description = "특정 건물/위치에 대한 실시간 제보(혼잡도, 공사 등)를 등록합니다. "
+            + "사진은 POST /reports/images 로 올린 key 를 imageKeys 에 최대 3장(중복 불가) 넣습니다. "
+            + "응답의 imageUrls 는 같은 순서의 보기 URL, imageUrl 은 첫 장입니다.")
     @PostMapping("/reports")
     public ResponseEntity<ReportResponse> create(
             @AuthenticationPrincipal Long userId,
@@ -48,8 +50,9 @@ public class ReportController {
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
     @Operation(summary = "제보 사진 업로드 URL 발급",
-            description = "S3 presigned PUT URL 을 발급합니다(5분 유효, 최대 5MB, image/jpeg·image/png). "
-                    + "응답의 headers 를 그대로 실어 uploadUrl 로 PUT 한 뒤, POST /reports 의 imageKey 에 key 를 넣습니다. "
+            description = "S3 presigned PUT URL 을 사진 1장마다 발급합니다(5분 유효, 최대 5MB, image/jpeg·image/png). "
+                    + "응답의 headers 를 그대로 실어 uploadUrl 로 PUT 한 뒤, POST /reports 의 imageKeys(최대 3장) 에 key 들을 순서대로 넣습니다. "
+                    + "구버전 앱의 imageKey(1장)도 계속 받습니다. "
                     + "contentLength(바이트 수)를 함께 보내면 Content-Length 가 서명되어 그 크기로만 올릴 수 있습니다. "
                     + "등록 시 서버가 사진 메타데이터(위치 등)를 지운 사본을 새 키로 저장합니다. "
                     + "저장소가 설정되지 않은 서버는 503 을 돌려줍니다.")
