@@ -16,7 +16,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<UserStatus> findStatusById(@Param("id") Long id);
 
     /** 관리자 회원 조회: 닉네임 일부로 찾기(최신 가입순 50명). */
-    List<User> findTop50ByNicknameContainingOrderByIdDesc(String nickname);
+    /**
+     * 관리자 회원 조회: 로그인 닉네임 또는 앱 닉네임(appNickname — 앱 사용자에게 보이는 이름) 일부로 찾기(최신 가입순 50명).
+     * 신고·문의에서는 앱에 보이는 이름으로 회원을 가리키므로 둘 다 본다.
+     */
+    List<User> findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(String nickname, String appNickname);
 
     List<User> findTop200ByStatusOrderBySuspendedAtDesc(UserStatus status);
 

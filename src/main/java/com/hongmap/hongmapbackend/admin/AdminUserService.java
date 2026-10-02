@@ -22,7 +22,7 @@ public class AdminUserService {
     private final UserRepository userRepository;
 
     /**
-     * q 가 숫자면 회원 id 로, 아니면 닉네임 일부로 찾는다. q 가 비어 있으면 정지된 회원 목록.
+     * q 가 숫자면 회원 id 로, 아니면 닉네임·앱 닉네임 일부로 찾는다. q 가 비어 있으면 정지된 회원 목록.
      */
     @Transactional(readOnly = true)
     public AdminUserListResponse search(String q) {
@@ -32,7 +32,7 @@ public class AdminUserService {
         } else if (q.trim().matches("\\d{1,18}")) {
             users = userRepository.findById(Long.parseLong(q.trim())).map(List::of).orElse(List.of());
         } else {
-            users = userRepository.findTop50ByNicknameContainingOrderByIdDesc(q.trim());
+            users = userRepository.findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(q.trim(), q.trim());
         }
         return new AdminUserListResponse(users.stream().map(AdminUserResponse::of).toList());
     }
