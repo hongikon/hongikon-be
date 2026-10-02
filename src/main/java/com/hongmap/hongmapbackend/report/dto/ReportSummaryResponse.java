@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report.dto;
 
+import com.hongmap.hongmapbackend.report.AuthorKeys;
 import com.hongmap.hongmapbackend.report.Report;
 import lombok.Builder;
 
@@ -21,6 +22,8 @@ public record ReportSummaryResponse(
         String title,
         String authorNickname,
         boolean isMine,
+        /** 작성자 식별값(불투명, 사용자 id 가 아님). 앱의 "이 사용자의 제보 숨기기"용. AuthorKeys 참고 */
+        String authorKey,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         LocalDateTime createdAt
@@ -37,6 +40,7 @@ public record ReportSummaryResponse(
                 .title(report.getTitle())
                 .authorNickname(report.getUser().getNickname())
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
+                .authorKey(AuthorKeys.of(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
                 .createdAt(report.getCreatedAt())

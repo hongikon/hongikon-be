@@ -45,7 +45,7 @@ public class ReportFlag {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** FALSE_INFO / SPAM / INAPPROPRIATE / ETC */
+    /** FALSE_INFO / SPAM / INAPPROPRIATE / PRIVACY / ETC */
     @Column(name = "reason", nullable = false, length = 30)
     private String reason;
 
