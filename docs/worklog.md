@@ -443,3 +443,20 @@
 - 프론트 쪽 필요 작업 전체(buildingId/floor, Alert.alert 웹 미작동 5곳, 북마크 미연동,
   401 재발급 미구현 등)를 정리해 Notion으로 석훈에게 전달 완료
 - 다음 단계: 제보 사진 업로드 API 설계/구현 (백엔드), 픽토그램 라우팅(PM 데이터 대기)
+
+## 2026-10-02 — PR #14 관리자 알림 (`feat/admin-alerts`, base main)
+- 왜: 새 제보 승인 대기·새 문의·신고 누적 자동 숨김이 생겨도 관리 탭을 열기 전엔 알 수 없었음
+- 변경
+  - `AdminAlertEvent`를 제보 등록(PENDING)·문의 등록·자동 숨김에서 발행 → `AdminAlertDispatcher`가 커밋 후 비동기로 ADMIN 유저의 활성 Expo 기기에 발송(`ExpoPushSender` 재사용, 토큰 마스킹 유지)
+  - 본인(actor) 제외, `user_notification_settings.admin_alerts_enabled=false`인 관리자 제외(기본 켜짐)
+  - 묶음: 종류마다 `push.admin-alert-window-seconds`(기본 120초)에 한 번, 첫 건 즉시·나머지는 "새 제보 N건 승인 대기"로. 서버 메모리 기준
+  - 구분: 제목 `[관리]`, Android `channelId`/`categoryId` `admin`, data.type `ADMIN_REPORT_PENDING`·`ADMIN_FEEDBACK`·`ADMIN_REPORT_FLAGGED`(+ `reportId`/`feedbackId`, `count`)
+  - 본문은 제보 제목·건물·층만. 문의는 "새 문의가 도착했어요"(내용·연락처 없음)
+  - 자동 숨김을 조건부 UPDATE(`updateStatusIf` ACTIVE→HIDDEN)로 바꿔 동시 신고에도 한 번만
+  - `GET/PATCH /users/me/notification-settings`에 `adminAlerts` 추가
+- SQL: `db/alter_user_notification_settings_add_admin_alerts.sql` (`admin_alerts_enabled boolean NOT NULL DEFAULT TRUE`)
+- 환경변수: `PUSH_ADMIN_ALERT_WINDOW_SECONDS` (선택, 기본 120)
+- 테스트: +12 → 82개 (`AdminAlertThrottleTest` 5, `AdminAlertDispatcherTest` 7)
+- 배포 메모: #6 이후 아무 때나, 가이드 표 기준 10번째(#13 다음) 권장. #9와 `ReportService.java` 충돌 2곳(필드·`create()` 끝, 둘 다 유지)
+- 리스크: 재시작하면 묶음 상태 초기화, 서버 여러 대면 인스턴스별로 셈. 발송 실패 재시도 없음
+- 프론트: `feat/admin-alerts` — "관리자 알림" Android 채널, ADMIN_* 알림 → 관리 탭 해당 섹션, 관리자 전용 토글, 앱이 열려 있어도 표시
