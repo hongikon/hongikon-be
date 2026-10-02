@@ -9,6 +9,7 @@ import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportModeratedEvent;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.ReportStatus;
+import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +40,7 @@ public class AdminReportService {
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReportImageService reportImageService;
 
     @Transactional(readOnly = true)
     public AdminReportListResponse list(String status) {
@@ -47,7 +49,8 @@ public class AdminReportService {
         Map<Long, Long> flagCounts = flagCounts(reports);
 
         return new AdminReportListResponse(reports.stream()
-                .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L)))
+                .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L),
+                        reportImageService.viewUrls(r.getImageKeys())))
                 .toList());
     }
 
@@ -79,8 +82,12 @@ public class AdminReportService {
                 report.getId(), report.getUser().getId(), report.getTitle(),
                 report.getBuilding().getName(), report.getFloor(),
                 previous, target, note, report.getEndsAt()));
+        // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
+        if (target == ReportStatus.REJECTED || target == ReportStatus.DELETED) {
+            reportImageService.deleteAfterCommit(report.clearImages());
+        }
         long flagCount = reportFlagRepository.countByReportId(reportId);
-        return AdminReportResponse.of(report, flagCount);
+        return AdminReportResponse.of(report, flagCount, reportImageService.viewUrls(report.getImageKeys()));
     }
 
     private Map<Long, Long> flagCounts(List<Report> reports) {
