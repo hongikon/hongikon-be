@@ -19,7 +19,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class ReportCommentWebConfig implements WebMvcConfigurer {
 
     static final String SUSPENDED_INTERCEPTOR_BEAN = "suspendedUserInterceptor";
-    static final String[] WRITE_PATHS = {"/reports/*/comments", "/reports/*/comments/*/flags"};
+    /** 댓글·신고 쓰기와 🔥·관심·👍 누르기(PUT). 끄기(DELETE)는 정지 중에도 된다. */
+    static final String[] WRITE_PATHS = {"/reports/*/comments", "/reports/*/comments/*/flags",
+            "/reports/*/fire", "/reports/*/follow", "/reports/*/comments/*/like"};
 
     private final ApplicationContext context;
 

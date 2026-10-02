@@ -35,6 +35,25 @@ public interface ReportCommentRepository extends JpaRepository<ReportComment, Lo
             """)
     Page<ReportComment> findThreadRoots(@Param("reportId") Long reportId, Pageable pageable);
 
+    /** findThreadRoots 와 같은 대상을 👍 많은 순(같으면 최신 순)으로. */
+    @EntityGraph(attributePaths = "user")
+    @Query(value = """
+            SELECT c FROM ReportComment c
+            WHERE c.report.id = :reportId AND c.parent IS NULL
+              AND (c.status = com.hongmap.hongmapbackend.comment.ReportCommentStatus.VISIBLE
+                   OR EXISTS (SELECT 1 FROM ReportComment r WHERE r.parent = c
+                              AND r.status = com.hongmap.hongmapbackend.comment.ReportCommentStatus.VISIBLE))
+            ORDER BY (SELECT COUNT(l) FROM ReportCommentLike l WHERE l.comment = c) DESC, c.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(c) FROM ReportComment c
+            WHERE c.report.id = :reportId AND c.parent IS NULL
+              AND (c.status = com.hongmap.hongmapbackend.comment.ReportCommentStatus.VISIBLE
+                   OR EXISTS (SELECT 1 FROM ReportComment r WHERE r.parent = c
+                              AND r.status = com.hongmap.hongmapbackend.comment.ReportCommentStatus.VISIBLE))
+            """)
+    Page<ReportComment> findThreadRootsByLikes(@Param("reportId") Long reportId, Pageable pageable);
+
     /** 여러 최상위 댓글의 공개 답글 전부(오래된 순, 작성자 함께). 목록 한 페이지에 쿼리 한 번. */
     @Query("""
             SELECT c FROM ReportComment c JOIN FETCH c.user

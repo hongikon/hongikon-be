@@ -16,6 +16,8 @@ import java.util.List;
  * @param isMine      요청한 사람이 쓴 댓글인지(삭제 버튼 표시용). 비로그인이면 항상 false
  * @param replies     최상위 댓글에만: 공개 답글 앞쪽 최대 3개(오래된 순). 답글 항목에서는 null
  * @param replyCount  최상위 댓글에만: 공개 답글 수. 답글 항목에서는 0
+ * @param likeCount   👍 수(자리 표시는 0)
+ * @param likedByMe   요청한 사람이 👍를 눌렀는지(비로그인이면 false)
  */
 public record CommentResponse(
         Long id,
@@ -28,14 +30,16 @@ public record CommentResponse(
         boolean isMine,
         LocalDateTime createdAt,
         List<CommentResponse> replies,
-        long replyCount
+        long replyCount,
+        long likeCount,
+        boolean likedByMe
 ) {
     public static CommentResponse of(ReportComment comment, Long requesterId, String authorKey,
                                      List<CommentResponse> replies, long replyCount) {
         if (comment.getStatus() != ReportCommentStatus.VISIBLE) {
             // 자리 표시: 내용·작성자를 싣지 않는다.
             return new CommentResponse(comment.getId(), comment.getReport().getId(), comment.getParentId(), null,
-                    comment.getStatus().name(), null, null, false, comment.getCreatedAt(), replies, replyCount);
+                    comment.getStatus().name(), null, null, false, comment.getCreatedAt(), replies, replyCount, 0, false);
         }
         Long authorId = comment.getUser().getId();
         return new CommentResponse(
@@ -49,6 +53,15 @@ public record CommentResponse(
                 requesterId != null && requesterId.equals(authorId),
                 comment.getCreatedAt(),
                 replies,
-                replyCount);
+                replyCount,
+                0,
+                false);
+    }
+
+    /** 같은 내용에 👍 값과 답글 목록을 바꾼 사본. 자리 표시는 늘 0·false. */
+    public CommentResponse withLikes(long likeCount, boolean likedByMe, List<CommentResponse> replies) {
+        boolean placeholderRow = placeholder != null;
+        return new CommentResponse(id, reportId, parentId, content, placeholder, authorDisplayName, authorKey, isMine,
+                createdAt, replies, replyCount, placeholderRow ? 0 : likeCount, !placeholderRow && likedByMe);
     }
 }
