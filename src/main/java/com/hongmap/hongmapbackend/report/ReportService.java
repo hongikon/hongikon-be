@@ -100,17 +100,11 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public ReportListResponse getLiveReports(Long requesterId, Long buildingId) {
-        return getLiveReports(requesterId, buildingId, null);
-    }
-
-    /** sort=hot 이면 🔥가 있는 제보만 최근 🔥 순(ReportCommunityStats). 그 밖에는 최신 순. */
-    @Transactional(readOnly = true)
-    public ReportListResponse getLiveReports(Long requesterId, Long buildingId, String sort) {
         List<Report> reports = reportRepository.findLiveReports(ReportStatus.ACTIVE, LocalDateTime.now(), buildingId);
         List<ReportSummaryResponse> body = reports.stream()
                 .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
                 .toList();
-        return new ReportListResponse(reportCommunityStats.attach(reportCommentCounts.attach(body), requesterId, sort));
+        return new ReportListResponse(reportCommunityStats.attach(reportCommentCounts.attach(body), requesterId, null));
     }
 
     @Transactional

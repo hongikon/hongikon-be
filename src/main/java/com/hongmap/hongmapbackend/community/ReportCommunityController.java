@@ -6,12 +6,14 @@ import com.hongmap.hongmapbackend.community.dto.AuthorNotifyResponse;
 import com.hongmap.hongmapbackend.community.dto.FireResponse;
 import com.hongmap.hongmapbackend.community.dto.FollowResponse;
 import com.hongmap.hongmapbackend.community.dto.ViewResponse;
+import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -28,6 +30,15 @@ public class ReportCommunityController {
     public static final String INSTALL_ID_HEADER = "X-Install-Id";
 
     private final ReportCommunityService communityService;
+    private final ReportHotService hotService;
+
+    /** GET /reports 중 sort=hot 만 여기로 온다(params 조건이 더 구체적). 나머지 GET /reports 는 ReportController. */
+    @Operation(summary = "HOT 제보 목록", description = "지금 진행 중인 공개 제보 중 🔥가 있는 것만 최근 60분 🔥 수 → 전체 🔥 수 → 최신 순으로 "
+            + "최대 20개. 항목 모양은 GET /reports 와 같다(hot 이 true 면 HOT 배지).")
+    @GetMapping(value = "/reports", params = "sort=hot")
+    public ReportListResponse hot(@AuthenticationPrincipal Long userId) {
+        return hotService.hotReports(userId);
+    }
 
     @Operation(summary = "🔥 누르기", description = "남의 공개 제보에 🔥(한 사람 한 번, 다시 눌러도 그대로). 내 제보 400, 끝난 제보 409, "
             + "🔥·관심·👍 합쳐 1분 20번 넘으면 429. 응답의 hot 은 최근 60분 🔥 5개 이상.")
