@@ -1,4 +1,4 @@
-# 홍익온 백엔드 PR #4–#11 배포 가이드
+# 홍익온 백엔드 PR #4–#13 배포 가이드
 
 열려 있는 PR 8개를 아래 순서로 머지하면 손으로 풀어야 할 충돌은 두 군데뿐이에요. 이 순서로 8개를 한꺼번에 합쳐 본 결과 테스트 163개가 모두 통과했어요.
 
@@ -22,6 +22,7 @@
 | 6 | #10 | 보안 점검 반영 (PKCE, 세션·JWT, 관리자 접속기록, nginx) | 없음 | 배포 후 nginx 설정 적용 |
 | 7 | #9 | 제보 사진 S3 업로드 | `db/alter_add_report_image_key.sql` | 충돌 1곳 |
 | 8 | #11 | 앱 닉네임, 공개 작성자 이름 가리기 | `db/alter_users_add_app_nickname.sql` | 충돌 2곳 |
+| 9 | #13 | 신고 사유·작성자 숨기기 키(authorKey)·회원 정지·카카오 연결 끊기·크롤러 이름 | `db/alter_users_add_status.sql` | env `AUTHOR_KEY_SECRET`(한 번 정하면 바꾸지 않음), `KAKAO_ADMIN_KEY`(처리방침에 "탈퇴 시 카카오 연결 해제"를 적었으니 운영에 꼭 넣기). 운영 `.env` 에 옛 `CRAWLER_USER_AGENT` 가 있으면 지우기 |
 
 ### PR별 메모
 
