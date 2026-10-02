@@ -49,6 +49,22 @@ public class AdminUserController {
         return response;
     }
 
+    @Operation(summary = "관리자 지정", description = "정지된 회원은 지정할 수 없습니다.")
+    @PostMapping("/{id}/grant-admin")
+    public AdminUserResponse grantAdmin(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
+        AdminUserResponse response = adminUserService.grantAdmin(id);
+        log.info("관리자 지정: adminId={}, userId={}", adminId, id);
+        return response;
+    }
+
+    @Operation(summary = "관리자 해제", description = "자기 자신은 해제할 수 없습니다(관리자가 0명이 되지 않게).")
+    @PostMapping("/{id}/revoke-admin")
+    public AdminUserResponse revokeAdmin(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
+        AdminUserResponse response = adminUserService.revokeAdmin(adminId, id);
+        log.info("관리자 해제: adminId={}, userId={}", adminId, id);
+        return response;
+    }
+
     @Operation(summary = "이용 정지 해제")
     @PostMapping("/{id}/unsuspend")
     public AdminUserResponse unsuspend(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {

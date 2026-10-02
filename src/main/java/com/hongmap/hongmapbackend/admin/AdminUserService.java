@@ -60,6 +60,34 @@ public class AdminUserService {
         return AdminUserResponse.of(user);
     }
 
+    /** 관리자로 지정한다. 정지된 회원은 먼저 해제해야 한다. 이미 관리자면 그대로 돌려준다. */
+    @Transactional
+    public AdminUserResponse grantAdmin(Long userId) {
+        User user = find(userId);
+        if (user.isSuspended()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "정지된 회원은 관리자로 지정할 수 없어요. 먼저 정지를 해제해 주세요.");
+        }
+        user.changeRole(UserRole.ADMIN);
+        return AdminUserResponse.of(user);
+    }
+
+    /**
+     * 관리자 권한을 해제한다. 자기 자신은 해제할 수 없다 — 실수로 콘솔에서 쫓겨나지 않게, 그리고 요청한 관리자가 남으니
+     * 관리자가 0명이 되는 일도 없다(0명이면 다시 지정할 방법이 SQL 뿐이다).
+     */
+    @Transactional
+    public AdminUserResponse revokeAdmin(Long adminId, Long userId) {
+        if (userId.equals(adminId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "자기 자신의 관리자 권한은 해제할 수 없어요.");
+        }
+        User user = find(userId);
+        if (user.getRole() != UserRole.ADMIN) {
+            return AdminUserResponse.of(user);
+        }
+        user.changeRole(UserRole.USER);
+        return AdminUserResponse.of(user);
+    }
+
     private User find(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."));

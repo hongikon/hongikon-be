@@ -90,6 +90,11 @@ public class User {
         this.suspendedAt = LocalDateTime.now();
     }
 
+    /** 관리자 지정·해제. 관리자 콘솔(AdminUserService)에서만 부른다. */
+    public void changeRole(UserRole role) {
+        this.role = role;
+    }
+
     public void unsuspend() {
         this.status = UserStatus.ACTIVE;
         this.suspendedReason = null;

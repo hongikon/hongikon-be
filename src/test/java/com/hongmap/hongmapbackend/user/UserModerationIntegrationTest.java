@@ -182,6 +182,36 @@ class UserModerationIntegrationTest {
     }
 
     @Test
+    void 관리자는_다른_회원을_관리자로_지정하고_해제할_수_있다() throws Exception {
+        mockMvc.perform(post("/admin/users/" + other.getId() + "/grant-admin").header("Authorization", bearer(author)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/admin/users/" + other.getId() + "/grant-admin").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+        // 새 관리자는 바로 관리자 API 를 쓸 수 있다(역할은 요청마다 DB 에서 읽는다).
+        mockMvc.perform(get("/admin/users").header("Authorization", bearer(other)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/admin/users/" + other.getId() + "/revoke-admin").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("USER"));
+        mockMvc.perform(get("/admin/users").header("Authorization", bearer(other)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 자기_자신은_해제할_수_없고_정지된_회원은_지정할_수_없다() throws Exception {
+        mockMvc.perform(post("/admin/users/" + admin.getId() + "/revoke-admin").header("Authorization", bearer(admin)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/admin/users/" + author.getId() + "/suspend").header("Authorization", bearer(admin))
+                        .contentType("application/json").content("{\"reason\":\"스팸\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/admin/users/" + author.getId() + "/grant-admin").header("Authorization", bearer(admin)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 회원_조회는_id나_닉네임으로_찾는다() throws Exception {
         mockMvc.perform(get("/admin/users").param("q", String.valueOf(author.getId())).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.users.length()").value(1))
