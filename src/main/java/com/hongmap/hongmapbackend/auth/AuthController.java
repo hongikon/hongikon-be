@@ -37,7 +37,7 @@ public class AuthController {
     @Operation(summary = "토큰 교환", description = "OAuth 로그인 성공 후 발급된 일회성 code를 access/refresh 토큰으로 교환합니다.")
     @PostMapping("/token/exchange")
     public TokenResponse exchange(@Valid @RequestBody TokenExchangeRequest request) {
-        Long userId = authorizationCodeStore.consume(request.code())
+        Long userId = authorizationCodeStore.consume(request.code(), request.codeVerifier())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 code입니다."));
 
         return refreshTokenService.issueTokenPair(userId);
