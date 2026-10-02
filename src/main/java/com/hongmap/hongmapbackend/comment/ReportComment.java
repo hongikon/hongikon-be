@@ -33,7 +33,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "report_comments", indexes = {
-        @Index(name = "ix_report_comments_report", columnList = "report_id, status, id"),
+        @Index(name = "ix_report_comments_report", columnList = "report_id, parent_id, status, id"),
+        @Index(name = "ix_report_comments_parent", columnList = "parent_id, status, id"),
         @Index(name = "ix_report_comments_user_created", columnList = "user_id, created_at")
 })
 @Getter
@@ -57,6 +58,15 @@ public class ReportComment {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
+    /**
+     * 답글이면 그 댓글(항상 최상위 댓글 — 답글은 한 단계만). 최상위 댓글이면 null.
+     * 부모가 DB 에서 지워지면 답글도 함께 지워진다(ON DELETE CASCADE).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private ReportComment parent;
+
     @Column(name = "content", nullable = false, length = MAX_LENGTH)
     private String content;
 
@@ -73,9 +83,23 @@ public class ReportComment {
     private LocalDateTime createdAt;
 
     public ReportComment(Report report, User user, String content) {
+        this(report, user, content, null);
+    }
+
+    public ReportComment(Report report, User user, String content, ReportComment parent) {
         this.report = report;
         this.user = user;
         this.content = content;
+        this.parent = parent;
+    }
+
+    public boolean isReply() {
+        return parent != null;
+    }
+
+    /** 부모 id(지연 로딩 없이 FK 값만). */
+    public Long getParentId() {
+        return parent == null ? null : parent.getId();
     }
 
     public void deleteByAuthor() {

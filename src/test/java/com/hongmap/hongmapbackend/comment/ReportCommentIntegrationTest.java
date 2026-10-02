@@ -324,6 +324,89 @@ class ReportCommentIntegrationTest {
                 .containsExactly(0);
     }
 
+    // ---------- 답글 ----------
+
+    @Test
+    void 답글은_한_단계만_답글에_답하면_같은_최상위_댓글에_붙는다() throws Exception {
+        Report report = report(ReportStatus.ACTIVE);
+        Long root = commentId(write(commenter, report, "줄 길어요?"));
+        Long reply = commentId(reply(author, report, root, "지금 5명이요"));
+        // 답글에 답하면 최상위 댓글로 다시 연결
+        reply(commenter, report, reply, "감사합니다").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.parentId").value(root));
+        // 다른 제보의 댓글을 부모로 주면 404
+        Report other = report(ReportStatus.ACTIVE);
+        reply(commenter, other, root, "엉뚱한 제보").andExpect(status().isNotFound());
+
+        mockMvc.perform(get(comments(report)))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.commentCount").value(3))
+                .andExpect(jsonPath("$.content[0].id").value(root))
+                .andExpect(jsonPath("$.content[0].replyCount").value(2))
+                .andExpect(jsonPath("$.content[0].replies.length()").value(2))
+                .andExpect(jsonPath("$.content[0].replies[0].id").value(reply))
+                .andExpect(jsonPath("$.content[0].replies[0].parentId").value(root))
+                .andExpect(jsonPath("$.content[0].replies[1].content").value("감사합니다"));
+    }
+
+    @Test
+    void 목록엔_답글_3개까지_나머지는_replies_로_본다() throws Exception {
+        Report report = report(ReportStatus.ACTIVE);
+        Long root = commentId(write(commenter, report, "질문"));
+        for (int i = 1; i <= 5; i++) {
+            commentRepository.save(new ReportComment(report, author, "답" + i, commentRepository.findById(root).orElseThrow()));
+        }
+        mockMvc.perform(get(comments(report)))
+                .andExpect(jsonPath("$.content[0].replyCount").value(5))
+                .andExpect(jsonPath("$.content[0].replies.length()").value(3))
+                .andExpect(jsonPath("$.content[0].replies[2].content").value("답3"));
+        mockMvc.perform(get(comments(report) + "/" + root + "/replies").param("page", "1").param("size", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].content").value("답4"))
+                .andExpect(jsonPath("$.totalElements").value(5));
+    }
+
+    @Test
+    void 답글이_있는_댓글을_지우면_자리만_남고_답글이_없으면_사라진다() throws Exception {
+        Report report = report(ReportStatus.ACTIVE);
+        Long withReply = commentId(write(commenter, report, "지울 질문"));
+        Long reply = commentId(reply(author, report, withReply, "답변"));
+        Long lonely = commentId(write(commenter, report, "혼자 댓글"));
+
+        mockMvc.perform(delete(comments(report) + "/" + withReply).header("Authorization", bearer(commenter)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete(comments(report) + "/" + lonely).header("Authorization", bearer(commenter)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(comments(report)).header("Authorization", bearer(commenter)))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.commentCount").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(withReply))
+                .andExpect(jsonPath("$.content[0].placeholder").value("DELETED"))
+                .andExpect(jsonPath("$.content[0].content").doesNotExist())
+                .andExpect(jsonPath("$.content[0].authorDisplayName").doesNotExist())
+                .andExpect(jsonPath("$.content[0].authorKey").doesNotExist())
+                .andExpect(jsonPath("$.content[0].replies[0].id").value(reply));
+        // 지워진 댓글에는 답글을 달 수 없다
+        reply(author, report, withReply, "늦은 답").andExpect(status().isNotFound());
+
+        // 마지막 답글까지 지우면 자리도 사라진다
+        mockMvc.perform(delete(comments(report) + "/" + reply).header("Authorization", bearer(author)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(comments(report))).andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void 제보가_지워지면_답글도_지워진다() throws Exception {
+        Report report = report(ReportStatus.ACTIVE);
+        Long root = commentId(write(commenter, report, "질문"));
+        Long reply = commentId(reply(author, report, root, "답"));
+        mockMvc.perform(delete("/reports/" + report.getId()).header("Authorization", bearer(author)))
+                .andExpect(status().isNoContent());
+        assertThat(commentRepository.findById(reply)).isEmpty();
+    }
+
     // ---------- helpers ----------
 
     private User user(String nickname) {
@@ -356,6 +439,12 @@ class ReportCommentIntegrationTest {
     private ResultActions write(User user, Report report, String content) throws Exception {
         return mockMvc.perform(post(comments(report)).header("Authorization", bearer(user))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"" + escape(content) + "\"}"));
+    }
+
+    private ResultActions reply(User user, Report report, Long parentId, String content) throws Exception {
+        return mockMvc.perform(post(comments(report)).header("Authorization", bearer(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"" + escape(content) + "\",\"parentId\":" + parentId + "}"));
     }
 
     private static String escape(String s) {

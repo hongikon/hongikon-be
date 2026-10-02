@@ -130,6 +130,49 @@ class ReportCommentPushDispatcherTest {
     }
 
     @Test
+    void 답글은_부모_댓글_작성자와_제보_작성자에게_각각_한_번() {
+        User reportAuthor = user();
+        String reportToken = device(reportAuthor);
+        User parentAuthor = user();
+        String parentToken = device(parentAuthor);
+        User replier = user();
+        long reportId = REPORT_IDS.incrementAndGet();
+
+        int accepted = dispatcher.dispatch(new ReportCommentCreatedEvent(reportId, reportAuthor.getId(), replier.getId(),
+                "붕어빵 트럭", "저도 궁금해요", 77L, parentAuthor.getId()));
+
+        assertThat(accepted).isEqualTo(2);
+        assertThat(sent).anySatisfy(m -> {
+            assertThat(m.to()).isEqualTo(parentToken);
+            assertThat(m.title()).isEqualTo("내 댓글에 답글이 달렸어요");
+            assertThat(m.data()).containsEntry("commentId", 77L).containsEntry("type", "REPORT_COMMENT");
+        });
+        assertThat(sent).anySatisfy(m -> {
+            assertThat(m.to()).isEqualTo(reportToken);
+            assertThat(m.title()).isEqualTo("내 제보에 댓글이 달렸어요");
+        });
+    }
+
+    @Test
+    void 제보_작성자가_부모_댓글_작성자면_답글_알림_한_번만_자기_답글은_없음() {
+        User author = user();
+        device(author);
+        long reportId = REPORT_IDS.incrementAndGet();
+        assertThat(dispatcher.dispatch(new ReportCommentCreatedEvent(reportId, author.getId(), user().getId(),
+                "붕어빵 트럭", "답글", 78L, author.getId()))).isEqualTo(1);
+        assertThat(sent).singleElement().satisfies(m -> assertThat(m.title()).isEqualTo("내 댓글에 답글이 달렸어요"));
+
+        User parentAuthor = user();
+        device(parentAuthor);
+        sent.clear();
+        // 부모 작성자가 자기 댓글에 답글 → 부모 알림 없음, 제보 작성자는 이미 이 제보로 10분 안에 받지 않았으므로 받음
+        long other = REPORT_IDS.incrementAndGet();
+        assertThat(dispatcher.dispatch(new ReportCommentCreatedEvent(other, author.getId(), parentAuthor.getId(),
+                "다른 제보", "셀프 답글", 79L, parentAuthor.getId()))).isEqualTo(1);
+        assertThat(sent).singleElement().satisfies(m -> assertThat(m.title()).isEqualTo("내 제보에 댓글이 달렸어요"));
+    }
+
+    @Test
     void 긴_본문은_줄인다() {
         assertThat(ReportCommentPushDispatcher.excerpt("가".repeat(100), 60)).hasSize(60).endsWith("…");
         assertThat(ReportCommentPushDispatcher.excerpt(null, 60)).isEmpty();

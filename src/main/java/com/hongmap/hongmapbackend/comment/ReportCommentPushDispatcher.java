@@ -27,12 +27,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * "내 제보에 댓글이 달렸어요" 푸시(Expo, data.type = REPORT_COMMENT). 댓글이 커밋된 뒤 별도 스레드에서 돈다.
+ * 댓글 푸시(Expo, data.type = REPORT_COMMENT, data.reportId, 답글이면 data.commentId). 댓글이 커밋된 뒤 별도 스레드에서 돈다.
  *
  * <ul>
- *   <li>받는 사람: 제보 작성자 한 명뿐. 본인이 단 댓글은 알리지 않는다.</li>
+ *   <li>받는 사람: 제보 작성자("내 제보에 댓글이 달렸어요"), 답글이면 부모 댓글 작성자("내 댓글에 답글이 달렸어요").
+ *       본인이 쓴 것은 알리지 않고, 두 사람이 같으면 답글 알림 한 번만 보낸다.</li>
  *   <li>설정: 기존 "내 제보 결과 알림"(report_status_enabled)을 따른다 — 끈 사람은 받지 않는다(행이 없으면 켜짐).</li>
- *   <li>묶음: 같은 제보에는 push.report-comment-coalesce-minutes(기본 10분)에 한 번만. 그 사이 댓글은 앱에서 보면 된다.
+ *   <li>묶음: 같은 제보(제보 작성자 알림)·같은 부모 댓글(답글 알림)에는 push.report-comment-coalesce-minutes(기본 10분)에 한 번만. 그 사이 댓글은 앱에서 보면 된다.
  *       서버 한 대(EC2) 기준 메모리 기록이라 재시작하면 초기화된다(최악이 알림 한 번 더).</li>
  * </ul>
  */
@@ -42,6 +43,7 @@ public class ReportCommentPushDispatcher {
 
     static final String DATA_TYPE = "REPORT_COMMENT";
     static final String TITLE = "내 제보에 댓글이 달렸어요";
+    static final String TITLE_REPLY = "내 댓글에 답글이 달렸어요";
     private static final int MAX_EXCERPT = 60;
     private static final int MAX_TRACKED_REPORTS = 10_000;
 
@@ -50,7 +52,7 @@ public class ReportCommentPushDispatcher {
     private final ExpoPushSender expoPushSender;
     private final PushProperties properties;
     private final Duration coalesceWindow;
-    private final Map<Long, Instant> lastSentByReport = new ConcurrentHashMap<>();
+    private final Map<String, Instant> lastSentByReport = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
 
     public ReportCommentPushDispatcher(UserDeviceRepository userDeviceRepository,
@@ -77,41 +79,61 @@ public class ReportCommentPushDispatcher {
 
     /** 동기 실행 — 리스너와 테스트가 쓴다. Expo 가 받아들인 메시지 수. */
     public int dispatch(ReportCommentCreatedEvent event) {
-        if (!properties.isEnabled() || event.reportAuthorId() == null
-                || event.reportAuthorId().equals(event.commenterId())) {
+        if (!properties.isEnabled()) {
             return 0;
         }
-        boolean enabled = settingRepository.findById(event.reportAuthorId())
+        int accepted = 0;
+        Long parentAuthor = event.parentAuthorId();
+        boolean reply = event.parentCommentId() != null;
+        // 1) 답글이면 부모 댓글 작성자에게 "내 댓글에 답글이 달렸어요"(부모 댓글마다 묶음).
+        if (reply && parentAuthor != null && !parentAuthor.equals(event.commenterId())) {
+            accepted += send(parentAuthor, "comment:" + event.parentCommentId(), TITLE_REPLY, event, true);
+        }
+        // 2) 제보 작성자에게 "내 제보에 댓글이 달렸어요"(제보마다 묶음). 방금 답글 알림을 받은 사람이면 한 번만.
+        Long reportAuthor = event.reportAuthorId();
+        boolean alreadyNotified = reply && reportAuthor != null && reportAuthor.equals(parentAuthor);
+        if (reportAuthor != null && !reportAuthor.equals(event.commenterId()) && !alreadyNotified) {
+            accepted += send(reportAuthor, "report:" + event.reportId(), TITLE, event, false);
+        }
+        return accepted;
+    }
+
+    private int send(Long recipientId, String coalesceKey, String title, ReportCommentCreatedEvent event, boolean reply) {
+        boolean enabled = settingRepository.findById(recipientId)
                 .map(UserNotificationSetting::isReportStatusEnabled)
                 .orElse(UserNotificationSetting.DEFAULT_REPORT_STATUS_ENABLED);
         if (!enabled) {
             return 0;
         }
-        Set<String> tokens = expoTokens(userDeviceRepository.findByUserIdAndActiveTrue(event.reportAuthorId()));
-        if (tokens.isEmpty() || !claim(event.reportId())) {
+        Set<String> tokens = expoTokens(userDeviceRepository.findByUserIdAndActiveTrue(recipientId));
+        if (tokens.isEmpty() || !claim(coalesceKey)) {
             return 0;
         }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", DATA_TYPE);
         data.put("reportId", event.reportId());
+        if (reply) {
+            data.put("commentId", event.parentCommentId());
+        }
         String body = excerpt(event.reportTitle(), 30) + " · " + excerpt(event.content(), MAX_EXCERPT);
         List<ExpoPushMessage> messages = new ArrayList<>();
         for (String token : tokens) {
-            messages.add(ExpoPushMessage.of(token, TITLE, body, data));
+            messages.add(ExpoPushMessage.of(token, title, body, data));
         }
         ExpoPushSender.Result result = expoPushSender.sendAll(messages);
-        log.info("댓글 푸시: reportId={}, 메시지 {}건 중 {}건 접수", event.reportId(), messages.size(), result.accepted());
+        log.info("댓글 푸시({}): reportId={}, 메시지 {}건 중 {}건 접수", reply ? "답글" : "제보", event.reportId(),
+                messages.size(), result.accepted());
         return result.accepted();
     }
 
-    /** 이 제보에 창 안에서 처음이면 true(그리고 기록). 동시에 두 댓글이 와도 한 번만 true. */
-    boolean claim(Long reportId) {
+    /** 이 키(제보·부모 댓글)에 창 안에서 처음이면 true(그리고 기록). 동시에 두 댓글이 와도 한 번만 true. */
+    boolean claim(String key) {
         Instant now = clock.instant();
         if (lastSentByReport.size() > MAX_TRACKED_REPORTS) {
             lastSentByReport.values().removeIf(t -> t.isBefore(now.minus(coalesceWindow)));
         }
         boolean[] claimed = {false};
-        lastSentByReport.compute(reportId, (id, last) -> {
+        lastSentByReport.compute(key, (id, last) -> {
             if (last == null || !last.isAfter(now.minus(coalesceWindow))) {
                 claimed[0] = true;
                 return now;

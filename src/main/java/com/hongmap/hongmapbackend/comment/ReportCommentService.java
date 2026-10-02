@@ -3,6 +3,7 @@ package com.hongmap.hongmapbackend.comment;
 import com.hongmap.hongmapbackend.comment.dto.AdminCommentListResponse;
 import com.hongmap.hongmapbackend.comment.dto.AdminCommentResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentFlagResponse;
+import com.hongmap.hongmapbackend.comment.dto.CommentListResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentResponse;
 import com.hongmap.hongmapbackend.common.dto.PageResponse;
 import com.hongmap.hongmapbackend.report.Report;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -39,7 +42,9 @@ import java.util.Set;
  *       정지 회원은 #13 의 SuspendedUserInterceptor 가 403 으로 막는다(ReportCommentWebConfig).</li>
  *   <li>사후 검토: 바로 공개, 신고가 report.comment.flag-threshold(기본 3)개 쌓이면 자동 숨김.
  *       관리자 검토(reviewedAt) 뒤의 신고만 센다 — 복원한 댓글을 옛 신고로 다시 숨기지 않는다.</li>
- *   <li>삭제: 작성자 본인은 DELETED 로 바꾼다(행은 신고 검토·빈도 제한 근거로 남고 제보·탈퇴와 함께 DB 에서 지워진다).</li>
+ *   <li>답글: 한 단계만. 답글에 답하면 같은 최상위 댓글에 붙는다. 목록은 최상위 댓글 단위 페이지 + 답글 앞쪽 3개·답글 수.</li>
+ *   <li>삭제: 작성자 본인은 DELETED 로 바꾼다(행은 신고 검토·빈도 제한 근거로 남고 제보·탈퇴와 함께 DB 에서 지워진다).
+ *       공개 답글이 남은 최상위 댓글은 목록에 "삭제된 댓글"(placeholder) 자리로 남고, 없으면 목록에서 빠진다.</li>
  * </ul>
  */
 @Slf4j
@@ -51,6 +56,8 @@ public class ReportCommentService {
     static final List<String> FLAG_REASONS = List.of("FALSE_INFO", "SPAM", "INAPPROPRIATE", "PRIVACY", "ETC");
     static final int DEFAULT_PAGE_SIZE = 20;
     static final int MAX_PAGE_SIZE = 50;
+    /** 목록에서 최상위 댓글마다 바로 붙여 주는 답글 수. 나머지는 GET .../replies. */
+    static final int INLINE_REPLIES = 3;
     private static final Set<ReportCommentStatus> ADMIN_TARGETS = EnumSet.allOf(ReportCommentStatus.class);
 
     private final ReportCommentRepository commentRepository;
@@ -71,19 +78,50 @@ public class ReportCommentService {
 
     // ---------- 공개 ----------
 
-    /** order: "oldest"(기본, 오래된 순) / "latest"(최신 순 — 시트 미리보기용). */
+    /**
+     * 최상위 댓글 한 페이지 + 각 댓글의 공개 답글 앞쪽 {@value #INLINE_REPLIES}개와 답글 수.
+     * order: "oldest"(기본, 오래된 순) / "latest"(최신 순 — 시트 미리보기용). 답글은 늘 오래된 순.
+     * 쿼리: 최상위 1 + count 1 + 답글 묶음 1 + 전체 댓글 수 1(제보 확인 1 별도).
+     */
     @Transactional(readOnly = true)
-    public PageResponse<CommentResponse> list(Long requesterId, Long reportId, int page, int size, String order) {
+    public CommentListResponse list(Long requesterId, Long reportId, int page, int size, String order) {
         requireVisibleReport(reportId);
-        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
         Sort sort = "latest".equalsIgnoreCase(order) ? Sort.by(Sort.Direction.DESC, "id") : Sort.by("id");
-        var result = commentRepository.findByReport_IdAndStatus(
-                reportId, ReportCommentStatus.VISIBLE, PageRequest.of(Math.max(page, 0), safeSize, sort));
+        Page<ReportComment> roots = commentRepository.findThreadRoots(
+                reportId, PageRequest.of(Math.max(page, 0), pageSize(size), sort));
+
+        Map<Long, List<ReportComment>> repliesByParent = new HashMap<>();
+        if (!roots.isEmpty()) {
+            List<Long> ids = roots.getContent().stream().map(ReportComment::getId).toList();
+            for (ReportComment reply : commentRepository.findVisibleRepliesByParentIds(ids)) {
+                repliesByParent.computeIfAbsent(reply.getParentId(), k -> new ArrayList<>()).add(reply);
+            }
+        }
+        List<CommentResponse> content = roots.getContent().stream().map(root -> {
+            List<ReportComment> replies = repliesByParent.getOrDefault(root.getId(), List.of());
+            List<CommentResponse> inline = replies.stream().limit(INLINE_REPLIES)
+                    .map(reply -> toResponse(reply, requesterId)).toList();
+            return CommentResponse.of(root, requesterId, authorKeys.of(root.getUser().getId()), inline, replies.size());
+        }).toList();
+        long commentCount = commentRepository.countByReport_IdAndStatus(reportId, ReportCommentStatus.VISIBLE);
+        return CommentListResponse.of(roots, content, commentCount);
+    }
+
+    /** 한 최상위 댓글의 공개 답글(오래된 순). "답글 N개 더 보기"용. */
+    @Transactional(readOnly = true)
+    public PageResponse<CommentResponse> replies(Long requesterId, Long reportId, Long commentId, int page, int size) {
+        requireVisibleReport(reportId);
+        ReportComment parent = requireComment(reportId, commentId);
+        if (parent.isReply()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "답글에는 답글 목록이 없어요.");
+        }
+        var result = commentRepository.findByParent_IdAndStatus(commentId, ReportCommentStatus.VISIBLE,
+                PageRequest.of(Math.max(page, 0), pageSize(size), Sort.by("id")));
         return PageResponse.of(result.map(c -> toResponse(c, requesterId)));
     }
 
     @Transactional
-    public CommentResponse create(Long userId, Long reportId, String rawContent) {
+    public CommentResponse create(Long userId, Long reportId, String rawContent, Long parentId) {
         String content = rawContent == null ? "" : rawContent.strip();
         if (content.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "댓글 내용을 입력해 주세요.");
@@ -97,6 +135,15 @@ public class ReportCommentService {
         if (report.getEndsAt() != null && report.getEndsAt().isBefore(now)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "끝난 제보에는 댓글을 달 수 없어요.");
         }
+        // 답글은 한 단계만: 답글에 답하면 그 답글의 최상위 댓글에 붙인다. 공개 중인 댓글에만 답할 수 있다.
+        ReportComment parent = null;
+        if (parentId != null) {
+            ReportComment target = requireComment(reportId, parentId);
+            if (target.getStatus() != ReportCommentStatus.VISIBLE) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "답글을 달 댓글이 없어요.");
+            }
+            parent = target.isReply() ? target.getParent() : target;
+        }
         if (commentRepository.countByUser_IdAndCreatedAtAfter(userId, now.minusMinutes(1)) >= ratePerMinute
                 || commentRepository.countByUser_IdAndCreatedAtAfter(userId, now.minusDays(1)) >= ratePerDay) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "댓글을 너무 자주 달고 있어요. 잠시 뒤에 다시 시도해 주세요.");
@@ -104,10 +151,12 @@ public class ReportCommentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다."));
 
-        ReportComment saved = commentRepository.save(new ReportComment(report, user, content));
-        // 제보 작성자에게 "내 제보에 댓글이 달렸어요"(커밋 뒤 비동기, 본인 댓글·설정 끔·10분 묶음은 디스패처가 거른다).
+        ReportComment saved = commentRepository.save(new ReportComment(report, user, content, parent));
+        // 제보 작성자("내 제보에 댓글")·부모 댓글 작성자("내 댓글에 답글")에게 커밋 뒤 비동기 푸시.
+        // 본인·설정 끔·10분 묶음은 디스패처가 거른다.
         eventPublisher.publishEvent(new ReportCommentCreatedEvent(
-                reportId, report.getUser().getId(), userId, report.getTitle(), content));
+                reportId, report.getUser().getId(), userId, report.getTitle(), content,
+                parent == null ? null : parent.getId(), parent == null ? null : parent.getUser().getId()));
         return toResponse(saved, userId);
     }
 
@@ -181,8 +230,14 @@ public class ReportCommentService {
 
     // ---------- 내부 ----------
 
+    /** 답글·새 댓글 응답(답글 목록 없이). */
     private CommentResponse toResponse(ReportComment comment, Long requesterId) {
-        return CommentResponse.of(comment, requesterId, authorKeys.of(comment.getUser().getId()));
+        return CommentResponse.of(comment, requesterId, authorKeys.of(comment.getUser().getId()),
+                comment.isReply() ? null : List.of(), 0);
+    }
+
+    private static int pageSize(int size) {
+        return size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
     }
 
     /** 지도에 공개된 제보만. PENDING·REJECTED·HIDDEN·DELETED 는 존재를 드러내지 않게 404. */

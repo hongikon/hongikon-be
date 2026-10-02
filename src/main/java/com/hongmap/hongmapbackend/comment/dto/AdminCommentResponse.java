@@ -11,6 +11,8 @@ import java.util.Map;
 public record AdminCommentResponse(
         Long id,
         Long reportId,
+        /** 답글이면 최상위 댓글 id */
+        Long parentId,
         String content,
         String status,
         Long authorId,
@@ -26,6 +28,7 @@ public record AdminCommentResponse(
         return new AdminCommentResponse(
                 comment.getId(),
                 comment.getReport().getId(),
+                comment.getParentId(),
                 comment.getContent(),
                 comment.getStatus().name(),
                 comment.getUser().getId(),
