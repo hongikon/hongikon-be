@@ -70,6 +70,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
      *   <li>2단계: 한 번 들어갔고 created_at ≤ secondCutoff(지금 − 2시간), 직전 리마인드가 repeatCutoff(지금 − 90분) 이전 —
      *       방해 금지 시간 뒤 08:00 요약에 처음 들어간 제보가 바로 다음 회차에 또 오지 않게 간격을 둔다.</li>
      * </ul>
+     * 이미 끝난(ends_at ≤ now) 제보는 승인해도 지도에 뜨지 않으니 리마인드하지 않는다.
      * 행 잠금으로 직렬화되므로 동시에 돈 두 서버 중 하나만 1 이상을 받는다. @UpdateTimestamp(updated_at)는 건드리지 않는다.
      */
     @Transactional
@@ -78,6 +79,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             UPDATE Report r
             SET r.adminReminderCount = r.adminReminderCount + 1, r.adminRemindedAt = :now
             WHERE r.status = com.hongmap.hongmapbackend.report.ReportStatus.PENDING
+              AND r.endsAt > :now
               AND ((r.adminReminderCount = 0 AND r.createdAt <= :firstCutoff)
                 OR (r.adminReminderCount = 1 AND r.createdAt <= :secondCutoff AND r.adminRemindedAt <= :repeatCutoff))
             """)
@@ -85,9 +87,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
                             @Param("secondCutoff") LocalDateTime secondCutoff,
                             @Param("repeatCutoff") LocalDateTime repeatCutoff);
 
-    /** 리마인드 본문용 — created_at ≤ cutoff 인 PENDING 제보 수. */
-    long countByStatusAndCreatedAtLessThanEqual(ReportStatus status, LocalDateTime cutoff);
+    /** 리마인드 본문용 — created_at ≤ cutoff 이고 아직 끝나지 않은(ends_at &gt; now) PENDING 제보 수. */
+    long countByStatusAndCreatedAtLessThanEqualAndEndsAtAfter(ReportStatus status, LocalDateTime cutoff,
+                                                              LocalDateTime now);
 
-    /** 리마인드 본문용 — 가장 오래된 PENDING 제보. */
-    Optional<Report> findFirstByStatusOrderByCreatedAtAscIdAsc(ReportStatus status);
+    /** 리마인드 본문용 — 아직 끝나지 않은 PENDING 제보 중 가장 오래된 것. */
+    Optional<Report> findFirstByStatusAndEndsAtAfterOrderByCreatedAtAscIdAsc(ReportStatus status, LocalDateTime now);
 }

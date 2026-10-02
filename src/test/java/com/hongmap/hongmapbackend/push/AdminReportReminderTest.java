@@ -215,6 +215,24 @@ class AdminReportReminderTest {
     }
 
     @Test
+    void 이미_끝난_승인_대기_제보는_리마인드하지_않고_개수에서도_뺀다() {
+        device(admin());
+        // 30분 안에 끝나 버린 제보 — 승인해도 지도에 뜨지 않는다
+        Report expired = report(ReportStatus.PENDING, BASE, BASE.plusMinutes(20));
+        Report live = report(ReportStatus.PENDING, BASE.plusMinutes(5), BASE.plusDays(1));
+
+        runAt(BASE.plusMinutes(60));
+
+        assertThat(mine()).singleElement().satisfies(m -> {
+            assertThat(m.title()).isEqualTo("[관리] 검토 대기 중인 제보가 1건 있어요");
+            assertThat(m.body()).isEqualTo("가장 오래된 것 55분 전");
+            assertThat(m.data()).containsEntry("count", 1L).containsEntry("oldestReportId", live.getId());
+        });
+        assertThat(reminderCount(expired)).isZero();
+        assertThat(reminderCount(live)).isEqualTo(1);
+    }
+
+    @Test
     void 승인_대기가_아닌_제보는_빠진다() {
         device(admin());
         Report active = report(ReportStatus.ACTIVE, BASE);
@@ -301,6 +319,10 @@ class AdminReportReminderTest {
     }
 
     private Report report(ReportStatus status, LocalDateTime createdAt) {
+        return report(status, createdAt, createdAt.plus(Duration.ofDays(1)));
+    }
+
+    private Report report(ReportStatus status, LocalDateTime createdAt, LocalDateTime endsAt) {
         Building building = buildingRepository.save(Building.builder()
                 .name("리마인드관-" + run + "-" + UUID.randomUUID().toString().substring(0, 4))
                 .latitude(new BigDecimal("37.5500000")).longitude(new BigDecimal("126.9250000"))
@@ -309,7 +331,7 @@ class AdminReportReminderTest {
                 .user(user()).building(building).floor(1)
                 .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
                 .category(ReportCategory.FOOD_TRUCK).title("붕어빵 트럭").status(status)
-                .startsAt(createdAt).endsAt(createdAt.plus(Duration.ofDays(1)))
+                .startsAt(createdAt).endsAt(endsAt)
                 .build());
         // Hibernate 와 같은 방식(Timestamp)으로 넣어야 H2 시간대 변환이 claim 쿼리 파라미터와 맞는다.
         jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", Timestamp.valueOf(createdAt), report.getId());

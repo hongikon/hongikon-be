@@ -33,7 +33,7 @@ import java.util.Set;
  *
  * <ul>
  *   <li>주기: push.admin-reminder-cron(기본 10분마다). 한 회차에 푸시는 관리자 기기마다 한 번(제보마다가 아니라 묶어서).</li>
- *   <li>대상 제보: PENDING 이 30분(push.admin-reminder-after-minutes) 넘은 제보 → 1회, 2시간(push.admin-reminder-repeat-after-minutes)
+ *   <li>대상 제보: 아직 끝나지 않은(ends_at &gt; 지금) PENDING 이 30분(push.admin-reminder-after-minutes) 넘은 제보 → 1회, 2시간(push.admin-reminder-repeat-after-minutes)
  *       넘으면 2회째. 제보 하나는 최대 2번까지만 리마인드에 들어간다(reports.admin_reminder_count).
  *       선점은 DB 조건부 UPDATE(ReportRepository.claimAdminReminders) — 서버가 여러 대이거나 재시작해도 두 번 보내지 않는다.</li>
  *   <li>방해 금지: KST 00:00–08:00(push.admin-reminder-quiet-start-hour/end-hour)에는 선점도 발송도 하지 않는다.
@@ -116,8 +116,11 @@ public class AdminReportReminder {
         if (claimed == 0) {
             return 0;
         }
-        long count = reportRepository.countByStatusAndCreatedAtLessThanEqual(ReportStatus.PENDING, firstCutoff);
-        Optional<Report> oldest = reportRepository.findFirstByStatusOrderByCreatedAtAscIdAsc(ReportStatus.PENDING);
+        // 이미 끝난 PENDING 제보는 승인해도 지도에 뜨지 않으니 개수·"가장 오래된 것"에서 뺀다(선점 쿼리도 같은 조건).
+        long count = reportRepository.countByStatusAndCreatedAtLessThanEqualAndEndsAtAfter(
+                ReportStatus.PENDING, firstCutoff, now);
+        Optional<Report> oldest = reportRepository.findFirstByStatusAndEndsAtAfterOrderByCreatedAtAscIdAsc(
+                ReportStatus.PENDING, now);
         if (count == 0 || oldest.isEmpty()) {
             return 0; // 선점과 조회 사이에 모두 처리됨
         }
