@@ -200,4 +200,27 @@ class AdminApiIntegrationTest {
                 .andExpect(jsonPath("$.flags.length()").value(3))
                 .andExpect(jsonPath("$.flags[0].reason").value("SPAM"));
     }
+
+    @Test
+    void 처리_중_오류는_401로_위장되지_않는다() throws Exception {
+        mockMvc.perform(get("/news/abc")).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON).content("{bad"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 앱이_보내는_형식_그대로_제보를_만들_수_있다() throws Exception {
+        // 앱(ReportComposerModal)은 시각을 toISOString()(끝에 Z)으로, buildingId·floor 를 함께 보낸다.
+        String body = """
+                {"buildingId": %d, "floor": 1, "lat": 37.55, "lng": 126.925, "category": "ETC",
+                 "customCategoryLabel": "플리마켓", "title": "학관 앞 플리마켓", "content": "3시까지",
+                 "startsAt": "2026-10-01T08:00:00.000Z", "endsAt": "%s"}
+                """.formatted(building.getId(),
+                java.time.Instant.now().plus(java.time.Duration.ofHours(2)).toString());
+        mockMvc.perform(post("/reports").header("Authorization", bearer(normal))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.customCategoryLabel").value("플리마켓"));
+    }
 }

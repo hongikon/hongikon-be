@@ -80,7 +80,7 @@ public class NewsCrawlStorageService {
                 .images(detail != null && detail.images() != null ? detail.images() : List.of())
                 .attachments(toNewsAttachments(detail))
                 .views(detail != null ? detail.views() : null)
-                .category(NewsCategoryClassifier.classify(summary.title()))
+                .category(NewsCategoryClassifier.classify(summary.title(), content, board.sourceId()))
                 .sourceUrl(summary.link())
                 .sourceId(board.sourceId())
                 .department(department)
