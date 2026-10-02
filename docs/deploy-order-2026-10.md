@@ -22,10 +22,10 @@
 | 4 | #6 | 제보 승인·반려 알림, 캠퍼스 새 제보 알림 | `db/create_user_notification_settings.sql` | #5 위에 쌓인 PR이라 #5 다음 |
 | 5 | #7 | Sign in with Apple | `db/alter_users_add_apple_columns.sql`, `db/create_apple_pending_revocations.sql` | env 필요. `tmp` 커밋(4d5c312)이 있으니 squash merge 권장 |
 | 6 | #10 | 보안 점검 반영 (PKCE, 세션·JWT, 관리자 접속기록, nginx) | 없음 | 배포 후 nginx 설정 적용 |
-| 7 | #9 | 제보 사진 S3 업로드 | `db/alter_add_report_image_key.sql` | 충돌 1곳 |
+| 7 | #9 | 제보 사진 S3 업로드(최대 3장) | `db/create_report_images_table.sql` | main 과 충돌 없음(10-02 main 병합). 옛 `alter_add_report_image_key.sql` 은 삭제됨 — 이미 실행했다면 `reports.image_key` 는 남겨도 동작 |
 | 8 | #11 | 앱 닉네임, 공개 작성자 이름 가리기 | `db/alter_users_add_app_nickname.sql` | 충돌 2곳 |
 | 9 | #13 | 신고 사유·작성자 숨기기 키(authorKey)·회원 정지·카카오 연결 끊기·크롤러 이름 | `db/alter_users_add_status.sql` | env `AUTHOR_KEY_SECRET`(한 번 정하면 바꾸지 않음), `KAKAO_ADMIN_KEY`(처리방침에 "탈퇴 시 카카오 연결 해제"를 적었으니 운영에 꼭 넣기). 운영 `.env` 에 옛 `CRAWLER_USER_AGENT` 가 있으면 지우기 |
-| 10 | #14 | 관리자 알림(새 제보·문의·자동 숨김, `[관리]` 제목, Android `admin` 채널) | `db/alter_user_notification_settings_add_admin_alerts.sql` | main 기준. #9 와 `ReportService.java` 충돌 2곳 — 양쪽 필드 유지, `create()` 에서 `publishEvent(...)` 를 #9 의 `return` 앞에 |
+| 10 | #14 | 관리자 알림(새 제보·문의·자동 숨김, `[관리]` 제목, Android `admin` 채널) | `db/alter_user_notification_settings_add_admin_alerts.sql` | main 기준. #9 와 `ReportService.java` 충돌 2곳 — 양쪽 필드 유지, `create()` 에서 `publishEvent(...)` 다음에 #9 의 `return` |
 | 11 | #15 | 공개 회원 번호(영문·숫자 10자리) | `db/alter_users_add_member_code.sql` | base #13 (#13 머지 후 base 를 main 으로). **RDS 스냅샷 → SQL → 머지 → 배포**, SQL 직후 바로 배포(그 사이 새 가입만 실패). SQL 이 기존 회원(#1·#2 포함) 번호를 채우고 검증 SELECT 포함 |
 
 ### PR별 메모
@@ -33,14 +33,14 @@
 - **#8**: 배포 후 `SHOW CREATE TABLE notification_categories;`로 FK 동작을 한 번 확인해 주세요.
 - **#10**: `deploy/nginx/hongikon-api.conf`를 적용한 뒤 `nginx -t && systemctl reload nginx`를 실행해요. IP로 직접 들어오는 HTTPS를 막는 블록은 주석 처리돼 있어요. nginx 1.18에서는 동작하지 않으니 버전을 확인한 뒤 풀어 주세요.
 
-### 손으로 풀어야 하는 충돌
+### 손으로 풀어야 하는 충돌 (10-02 기준)
 
-1. **#9 머지 시 `AdminReportService.java`**: 양쪽을 다 남겨요.
-   - 필드 `eventPublisher`와 `reportImageService`를 둘 다 둬요.
-   - `ReportModeratedEvent` 발행과 REJECTED·DELETED 때 사진 삭제도 둘 다 남겨요.
+1. **#9 의 `AdminReportService.java` 충돌은 없어졌어요** — #9 에 main 을 병합해 해결해 뒀어요.
 2. **#11 머지 시 `ReportResponse.java`, `ReportSummaryResponse.java`**:
    - `.authorNickname(report.getUser().getDisplayName())`로 바꿔요.
-   - #9가 넣은 `.imageUrl(imageUrl)` 줄은 그대로 둬요.
+   - #9가 넣은 `.imageUrl(...)`·`.imageUrls(...)` 두 줄은 그대로 둬요.
+3. **#14 머지 시 `ReportService.java` 2곳**: 필드 두 개(`eventPublisher`, `reportImageService`)를 모두 두고, `create()` 에서 `publishEvent(...)` 다음에 #9 의 `return` 을 둬요.
+4. **`docs/worklog.md`**: #9·#12·#14·#15 가 파일 끝에 각자 섹션을 붙여요. 양쪽 다 남기면 돼요.
 
 ## Apple 키 준비 (#7 전에)
 
