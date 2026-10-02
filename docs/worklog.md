@@ -443,3 +443,184 @@
 - 프론트 쪽 필요 작업 전체(buildingId/floor, Alert.alert 웹 미작동 5곳, 북마크 미연동,
   401 재발급 미구현 등)를 정리해 Notion으로 석훈에게 전달 완료
 - 다음 단계: 제보 사진 업로드 API 설계/구현 (백엔드), 픽토그램 라우팅(PM 데이터 대기)
+
+## 2026-09-30 ~ 10-02 — 출시 준비 PR #4~#13 (미머지, 배포 대기)
+
+> 아래 PR은 모두 OPEN 상태(10/2 기준). 운영은 아직 10/1 빌드. 머지·배포 순서와 충돌 해결법은 `docs/deploy-order-2026-10.md`(PR #12) 참고.
+> 테스트 수는 각 브랜치의 `@Test` 메서드 수(main 31개 기준 증감) + PR 본문의 `./gradlew test` 결과. 가이드 순서대로 #4~#11을 합친 상태에서 163개, #13까지 합쳐 176개 통과 확인(1611b59 이전 기준).
+
+### PR #4 — 소식 장학 분류 개선, `/error` permitAll, JVM UTC 고정 (`fix/news-category-and-error-401`)
+- 왜
+  - 장학 게시판의 "든든 학업지원금 공고문"이 제목의 '공고' 때문에 **취업**으로 분류됨 (분류기가 게시판을 안 보고 제목 키워드만 봄)
+  - 처리 중 예외가 `/error`로 포워드되는데 여기가 `anyRequest().authenticated()`에 걸려 **400·500이 전부 본문 없는 401**로 내려감 (운영 재현: `GET /news/abc`, 잘못된 JSON `POST /feedback` → 401). 앱이 "로그인 만료"로 오안내 + 토큰 재발급 후 요청 재전송 → 500 난 POST 중복 처리 위험
+  - 앱은 제보 시각을 UTC(`Z`)로 보내는데 JVM이 KST면 `LocalDateTime.now()`가 9시간 앞서 `endsAt @Future` 검증에서 모든 제보가 400 (로컬 맥에서 재현, 운영 컨테이너는 UTC라 현재는 정상)
+- 변경
+  - `NewsCategoryClassifier`: 장학 게시판(`source_id='장학'`) 글, 제목에 장학/등록금/학자금, 본문에 '장학' → 장학. 취업 키워드에서 '공고' 제거
+  - `SecurityConfig`: `/error` permitAll
+  - `HongmapBackendApplication`: 클래스 로딩 시점에 JVM 기본 시간대 UTC 고정 (커밋 `3a59cb2`)
+- SQL: `db/update_news_category_2026_10_01.sql` (기존 행 CASE 재분류, 멱등). 실행 전후 `SELECT category, COUNT(*) FROM news GROUP BY category;`로 비교
+- 환경변수: 없음
+- 테스트: +7 (분류기 5, 오류 상태 코드 회귀 1, 앱 형식 제보 생성 회귀 1) → 38개
+- 배포 메모: 배포 후 SQL 실행 (순서 무관). 401 위장 문제 때문에 가장 먼저 배포 권장
+- 리스크: 본문에 '장학'이 들어간 비장학 글이 장학으로 갈 수 있음 (오분류 방향을 장학 쪽으로 기울인 선택)
+
+### PR #5 — 게시판 구독 기반 푸시 대상 선정 (`feat/board-subscriptions`)
+- 왜: 대학공지(학사·장학 등 6개)는 카테고리를 끄지 않은 **전원**에게 발송되고 있었고, 게시판 단위 on/off 수단이 없었음
+- 변경
+  - `user_board_subscriptions` 신설, API `GET /users/me/subscriptions`, `PUT/DELETE /users/me/subscriptions/{sourceId}` (로그인 필요, `CrawlerBoards.ALL`의 sourceId만 허용, 유저당 최대 100개)
+  - 푸시 대상: (구독 + `alertEnabled` + 카테고리 안 끔) 또는 (제목 키워드 일치). `UserDeviceRepository.findPushTargets` 한 쿼리로 조회 (N+1 없음)
+  - `/users/me/departments`는 소속 정보 용도로만 남고 푸시 대상에서 제외. 탈퇴 시 구독 삭제
+- SQL: `db/create_user_board_subscriptions.sql` (테이블 생성 + 기존 `user_departments` → 학과 게시판 구독 백필, `INSERT IGNORE`로 멱등)
+- 환경변수: 없음
+- 테스트: +12 → 43개 (`BoardSubscriptionApiIntegrationTest` 10, `NewsPushDispatcherTest` 새 규칙으로 교체)
+- 배포 메모: SQL → 서버 → 프론트(게시판 구독 화면) 순
+- 리스크: **동작 변경** — 백필은 학과 구독만 옮기므로 배포 직후 대학공지 구독자 0명. 앱에서 구독을 다시 받기 전까지 대학공지 푸시는 키워드 일치분만 나감. 학과 글도 카테고리를 끈 유저에게는 더 이상 안 감
+
+### PR #6 — 제보 승인·반려 알림, 캠퍼스 새 제보 알림 (`feat/report-alerts`, #5 위에 쌓은 브랜치)
+- 왜: 작성자가 제보 승인·반려 여부를 알 방법이 없었음. "근처 제보 알림" 요구가 있었지만 앱은 GPS를 수집하지 않으므로 캠퍼스 단위 옵트인으로 대체
+- 변경
+  - 푸시 `REPORT_STATUS`(승인/반려 → 작성자, 기본 켜짐), `REPORT_NEW`(처음 ACTIVE 될 때 → 옵트인 유저, 작성자 제외, 기본 꺼짐)
+  - 새 제보 알림은 유저당 30분 1회 (`PUSH_REPORT_NEW_THROTTLE_MINUTES`). 조건부 UPDATE 한 번으로 선점해 동시 승인에도 중복 발송 없음
+  - `ReportModeratedEvent` → `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` 비동기 발송, `@EnableAsync` 추가. 배치·DeviceNotRegistered 처리는 `ExpoPushSender`로 분리
+  - API `GET/PATCH /users/me/notification-settings` (`newReportsScope`는 `CAMPUS`만)
+  - 커밋 `2e0ba13`: Expo 거부 로그에 푸시 토큰 원문 대신 끝 4자만(`PushTokenMasker`), 오류 메시지 속 토큰도 가림. PATCH 요청에 `@Valid` + `newReportsScope @Size(max=20)`
+- SQL: `db/create_user_notification_settings.sql`
+- 환경변수: `PUSH_REPORT_NEW_THROTTLE_MINUTES` (선택, 기본 30)
+- 테스트: #5 대비 +18 → 61개 (`ReportPushDispatcherTest` 8, `NotificationSettingApiIntegrationTest` 7+, `ExpoPushSenderLogTest`)
+- 배포 메모: #5 다음에 머지. 프론트는 이 API가 404여도 로컬 설정으로 동작
+- 리스크: Expo 발송이 실패해도 선점은 유지됨(30분간 재발송 안 함). 비동기 실패는 로그만 남음
+
+### PR #7 — Sign in with Apple (`feat/apple-login`)
+- 왜: iOS v1.0.0 출시에 필요(카카오 등 소셜 로그인 제공 시 Apple 로그인 필수), 계정 삭제 시 Apple 토큰 폐기(App Store 5.1.1(v))
+- 변경
+  - `POST /auth/apple` (permitAll): identity token을 JWKS(RS256)로 직접 검증, iss/aud/exp 확인. 응답은 카카오 교환과 같은 `TokenResponse`
+  - **nonce 필수**: 토큰의 nonce == `sha256hex(raw)`만 허용 (원본 일치는 거부 — 탈취 토큰 재사용 방지, 보안 점검 M4). 누락 시 400
+  - 이메일은 저장하지 않음 (앱도 EMAIL scope 미요청). 닉네임은 첫 동의 때 이름, 없으면 `Apple 사용자 XXXX`
+  - Apple refresh 토큰을 **AES-256-GCM**으로 암호화 저장 (`AppleTokenCipher`, `v1:` 접두사)
+  - 탈퇴 커밋 후 revoke 호출(best effort). 실패 시 `apple_pending_revocations`에 암호화해 넣고 매시 17분 재시도, 72회(약 3일) 실패하면 ERROR 로그 후 삭제
+  - prod에서 Apple 키가 하나라도 없으면 기동 실패 (`AppleStartupCheck`). 일부러 끄려면 `APPLE_CLIENT_IDS=`(빈 값)
+  - 커밋 `dfbf23d`/`cd4861a`: `APPLE_CLIENT_IDS` 기본값을 새 앱 ID `com.hongikon.app`, `.preview`, `.dev`로 변경 (기존 `com.hongmap.alimi*`)
+- SQL: `db/alter_users_add_apple_columns.sql`, `db/create_apple_pending_revocations.sql`
+- 환경변수: `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_TOKEN_ENC_KEY` (prod 필수), `APPLE_CLIENT_IDS`, `APPLE_REVOCATION_RETRY_CRON` (선택)
+- 테스트: +34 → 65개 (`AppleIdentityTokenVerifierTest`, `AppleTokenCipherTest`, `AppleAuthClientTest`, `AppleLoginIntegrationTest`)
+- 배포 메모: `tmp` 커밋(`4d5c312`)이 있으니 squash merge 권장. Apple 로그인은 서버 배포 + 새 iOS 네이티브 빌드가 함께 필요
+- 리스크: `APPLE_TOKEN_ENC_KEY`를 바꾸면 기존 저장 토큰을 못 읽음(다음 로그인 때 갱신). 키 없이 가입한 Apple 회원은 탈퇴 시 폐기 불가
+
+### PR #8 — 회원탈퇴 정리 (`fix/withdraw-cleanup`)
+- 왜: `withdraw`가 `notification_categories`를 안 지워서, 분야 알림을 한 번이라도 바꾼 유저가 탈퇴하면 FK 위반 500 → **탈퇴 불가** (App Store 5.1.1(v)·Play 계정 삭제 정책 위반, launch-readiness R7)
+- 변경
+  - `NotificationCategoryRepository.deleteByUser_Id`를 users 삭제 전에 호출
+  - `FeedbackRepository.detachUser`: 문의의 `user_id`를 NULL로 (스키마의 `ON DELETE SET NULL`에 기대지 않음)
+  - 커밋 `31ab5f7`: 문의 `contact`(답변용 이메일)도 NULL로 비움 — 처리방침 "작성자와의 연결을 끊은 상태로 내용만 남음"과 일치 (보안 점검 H2)
+- SQL: 없음
+- 환경변수: 없음
+- 테스트: +2 → 33개 (`UserWithdrawIntegrationTest`: 모든 연관 데이터를 만든 뒤 탈퇴 → 본인 데이터 정리, 문의는 user_id·contact NULL로 남음, 타인 데이터 유지)
+- 배포 메모: **출시 차단 이슈라 #4 바로 다음**. 배포 후 `SHOW CREATE TABLE notification_categories;`로 FK 확인
+- 리스크: #5·#6 머지 후 `UserWithdrawIntegrationTest`에 게시판 구독·알림 설정 행을 추가해 두는 것이 좋음 (아직 안 함)
+
+### PR #9 — 제보 사진 S3 업로드 (`feat/report-images`)
+- 왜: 제보 사진이 서버로 가지 않아 작성자 기기에서만 보였음 (launch-readiness R5)
+- 변경
+  - `POST /reports/images` → S3 presigned PUT URL 발급(5분 유효, jpeg/png, 1장, 5MB, 유저당 시간당 20회). 앱이 S3로 직접 업로드 후 `POST /reports`에 `imageKey` 첨부
+  - 등록 시 서버 검증: 키 형식(`^reports/{uuid}\.(jpg|png)$`), HeadObject로 실제 업로드·크기·타입 확인, 키 재사용 금지, 매직 바이트 확인
+  - **서버 측 메타데이터 재정리** (보안 점검 H4): 본문을 받아 `ImageMetadataSanitizer`로 EXIF·XMP·GPS 등 제거(재인코딩 없이 컨테이너만 재작성, 방향만 최소 EXIF로 보존)한 사본을 새 키로 저장하고 원본 키는 커밋 후 삭제
+  - 응답의 `imageUrl`은 presigned GET(1시간). 비공개 버킷 유지
+  - 삭제: 본인 삭제, 관리자 **반려·삭제** 시 S3 객체 삭제(숨김은 유지), **탈퇴** 시 커밋 후 삭제. 나머지는 수명 주기 30일로 정리
+  - AWS SDK v2 `s3` 의존성 추가 (jar 약 10MB 증가)
+- SQL: `db/alter_add_report_image_key.sql` (`reports.image_key VARCHAR(200) NULL`)
+- 환경변수: `AWS_S3_BUCKET`, `AWS_REGION`(`ap-northeast-2`), 선택 `REPORT_IMAGE_MAX_BYTES`, `REPORT_IMAGE_UPLOAD_LIMIT_PER_HOUR`
+- 테스트: +16 → 47개 (`ImageMetadataSanitizerTest`, `ReportImageIntegrationTest`, `ReportImageServiceTest`)
+- 배포 메모: `AWS_S3_BUCKET`이 비면 사진 기능만 꺼짐(`POST /reports/images` 503). S3 버킷·CORS·수명 주기·IAM 역할·IMDS hop limit 2 설정은 배포 가이드의 "S3 설정" 절차대로. #10 다음 머지 시 `AdminReportService.java` 충돌 1곳
+- 리스크: 응답마다 URL이 바뀌어 앱 이미지 캐시 효율 저하, 인스턴스 역할 자격 증명 만료가 먼저 오면 URL이 1시간보다 일찍 만료. 업로드 한도는 서버 메모리 기준(재시작 시 초기화). 처리방침의 "사진은 서버로 전송되지 않음" 문구 수정 필요(프론트)
+
+### PR #10 — 보안·개인정보 점검 반영 (`fix/security-audit`)
+- 왜: 2026-10 보안 점검에서 백엔드에서 바로 고칠 수 있는 항목 반영
+- 변경
+  - 카카오 로그인 1회용 code에 **PKCE(S256)** 적용 — 안드로이드에서 `hongikon://` 스킴을 가로챈 앱이 code를 교환하는 공격 차단. challenge 없는 구버전 앱은 기존대로 동작(하위 호환)
+  - RequestCache를 꺼서 401 응답마다 JSESSIONID 세션이 쌓이던 문제 해결. 운영 세션 쿠키 `Secure`, `SameSite=Lax`, 10분 만료
+  - `JWT_SECRET`이 비었거나 **32바이트 미만이면 기동 실패** (이전엔 기동 후 인증만 조용히 실패)
+  - `/admin/**`, `/crawler/**`, 제휴업체 쓰기 요청을 `ADMIN_AUDIT` 로거로 기록(계정·IP·메서드·경로·상태) — 안전성 확보조치 기준 제8조 대응
+  - nginx(`deploy/nginx/hongikon-api.conf`): `/actuator` 차단, IP 직접 HTTPS 거절 블록은 주석(nginx 1.19.4+ 필요). 쓰기 요청 IP 제한은 Netlify 프록시 때문에 제외
+  - 공개 제보 작성자 익명화는 #11로 이관(커밋 `8d4adba`에서 revert)
+- SQL: 없음
+- 환경변수: 신규 없음, 기존 `JWT_SECRET` 길이 확인 필수
+- 테스트: +11 → 42개 (`SecurityHardeningIntegrationTest`, `JwtTokenProviderSecretTest`, `PkceLoginCodeTest`)
+- 배포 메모: 배포 후 nginx 설정 적용 `sudo nginx -t && sudo systemctl reload nginx`
+- 리스크: `ADMIN_AUDIT`은 지금 컨테이너 stdout에만 남아 재배포 시 사라짐 → 1년 보관하려면 CloudWatch/파일 전송 인프라 작업 별도 필요. `AuthController` 교환 메서드에서 #7과 충돌 가능(`consume(request.code(), request.codeVerifier())` 유지)
+
+### PR #11 — 앱 닉네임 + 공개 작성자 이름 가리기 (`feat/app-nickname`)
+- 왜: 제보 작성자 이름으로 카카오 닉네임(대개 실명)이 그대로 공개되고 있었음
+- 변경
+  - `users.app_nickname`(선택, 유니크·대소문자 무시). API `GET /users/me`, `PUT/DELETE /users/me/nickname`
+  - 검증: 2~12자, 한글·영문·숫자·`_`, 예약어(운영·관리자·admin·홍익온 등) 금지 → 400, 중복 409, 24시간 5회 초과 429(서버 메모리 기준)
+  - 표시 이름: 앱 닉네임이 있으면 그대로, 없으면 첫 글자만 남기고 마스킹(`홍길동` → `홍**`, 빈 값 → `익명`). 서버에서 가리므로 공개 응답에 원문이 실리지 않음
+  - 공개 제보 응답의 `authorNickname`에 표시 이름을 넣고 `authorDisplayName` 신규 필드 추가(구버전 앱도 바로 가린 이름을 봄). 관리자 응답은 원문 유지
+- SQL: `db/alter_users_add_app_nickname.sql`
+- 환경변수: 없음
+- 테스트: +18 메서드 → PR 본문 기준 `./gradlew test` 63개 (`DisplayNamesTest`, `AppNicknamePolicyTest`, `AppNicknameIntegrationTest`)
+- 배포 메모: 머지 시 `ReportResponse`·`ReportSummaryResponse` 충돌 2곳 — `.authorNickname(report.getUser().getDisplayName())`로, #9의 `.imageUrl(imageUrl)`은 유지
+- 리스크: 처리방침에 "앱 닉네임(선택)" 수집 항목과 작성자 이름 공개 방식 추가 필요(프론트 쪽 정리)
+
+### PR #12 — 배포 가이드 (`docs/deploy-order-2026-10`)
+- `docs/deploy-order-2026-10.md` 신규: PR #4~#13 머지·배포 순서, PR별 선행 SQL, 손으로 풀어야 하는 충돌 2곳, 새 환경변수 표, Apple 키 준비(새 앱 ID `com.hongikon.app`), S3 설정 절차, 출시 전 운영·보안 점검 체크리스트
+- 가이드 순서대로 #4~#11 8개를 합쳐 테스트 163개 통과 확인
+- 이 worklog 섹션도 이 PR에 포함
+
+### PR #13 — UGC 관리 (`feat/ugc-moderation`)
+- 왜: App Store 가이드라인 1.2(사용자 생성 콘텐츠) 출시 차단 항목(launch-readiness R6), 탈퇴 시 카카오 연결 끊기(security-audit M7), 크롤러 UA(P7)
+- 변경
+  - 공개 제보 응답에 `authorKey`(유저 id의 HMAC-SHA256 앞 16자, base64url) 추가 — id 역추적 불가. 앱은 이 값으로 "이 사용자의 제보 숨기기"를 기기에 저장
+  - 신고 사유에 `PRIVACY`(개인정보 노출) 추가 (`report_flags.reason`이 varchar(30)이라 DB 변경 없음)
+  - `users.status`(ACTIVE/SUSPENDED) + `suspended_reason`, `suspended_at`. 정지 회원은 `/reports`, `/reports/*/flags`, `/reports/images`, `/feedback`, `/users/me/nickname` 쓰기 요청 시 403 (`SuspendedUserInterceptor`). 로그인·조회·본인 제보 삭제·탈퇴는 가능
+  - 관리자 API: `GET /admin/users?q=`(숫자면 id, 아니면 닉네임 일부, 비면 정지 회원 목록), `GET /admin/users/{id}`, `POST /admin/users/{id}/suspend`(사유 필수, 관리자 정지 불가), `POST /admin/users/{id}/unsuspend`
+  - **오늘(10/2) 추가, 커밋 `1611b59`**: `POST /admin/users/{id}/grant-admin`(정지 회원은 400), `POST /admin/users/{id}/revoke-admin`(자기 자신 해제 불가 → 관리자 0명 방지). 이미 그 상태면 그대로 반환(멱등)
+  - 카카오 회원 탈퇴 시 커밋 후 `POST https://kapi.kakao.com/v1/user/unlink`(`KakaoAK {KAKAO_ADMIN_KEY}`) 호출, best effort, 회원번호는 로그에 안 남김
+  - 크롤러 기본 UA `HongikOnBot/1.0 (+https://hongikon.com/support; hongikonsupport@gmail.com)`
+- SQL: `db/alter_users_add_status.sql`
+- 환경변수: `AUTHOR_KEY_SECRET`(권장, 비면 `JWT_SECRET`에서 파생), `KAKAO_ADMIN_KEY`(권장, 비면 연결 끊기 건너뜀), `CRAWLER_USER_AGENT`(운영 `.env`에 옛 값이 있으면 삭제)
+- 테스트: +15 → 46개 (`UserModerationIntegrationTest` 9 — 관리자 지정·해제 2개 포함, `KakaoUnlinkClientTest` 3, `AuthorKeysTest` 3). 가이드 순서로 전부 합쳐 176개 통과(1611b59 이전 기준, 합친 상태 재확인 필요)
+- 배포 메모: 가이드 표 9번째(#11 다음). #4~#11 각각과 `git merge-tree` 충돌 없음
+- 리스크: `AUTHOR_KEY_SECRET`을 바꾸면(또는 비워 둔 채 `JWT_SECRET`을 바꾸면) 사용자 기기의 숨김 목록이 풀림. 관리자 지정·해제·정지는 일반 로그로만 남고, `ADMIN_AUDIT`은 #10 머지 후에야 함께 기록됨
+
+### 배포 순서 (요약)
+- 상세는 `docs/deploy-order-2026-10.md`. 운영 DB가 `ddl-auto=validate`라 **각 PR의 SQL을 배포 전에 RDS에서 먼저 실행**
+
+| 순서 | PR | 먼저 실행할 SQL |
+|---|---|---|
+| 1 | #4 | `db/update_news_category_2026_10_01.sql` |
+| 2 | #8 | 없음 |
+| 3 | #5 | `db/create_user_board_subscriptions.sql` |
+| 4 | #6 | `db/create_user_notification_settings.sql` |
+| 5 | #7 | `db/alter_users_add_apple_columns.sql`, `db/create_apple_pending_revocations.sql` |
+| 6 | #10 | 없음 (배포 후 nginx 적용) |
+| 7 | #9 | `db/alter_add_report_image_key.sql` |
+| 8 | #11 | `db/alter_users_add_app_nickname.sql` |
+| 9 | #13 | `db/alter_users_add_status.sql` |
+
+### 운영(사람) 할 일
+- [ ] `JWT_SECRET`이 32바이트 이상인지 확인 (#10 이후 짧으면 기동 실패)
+- [ ] `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_TOKEN_ENC_KEY`(`openssl rand -base64 32`, 이후 변경 금지) — Apple Developer에서 `com.hongikon.app`(+`.preview`) 등록, Sign in with Apple 키(.p8) 발급. 준비 전이면 `APPLE_CLIENT_IDS=`(빈 값)로 Apple 로그인만 끄고 배포
+- [ ] `KAKAO_ADMIN_KEY` 운영 `.env`에 추가 (처리방침에 "탈퇴 시 카카오 연결 해제"를 적었으므로 필수)
+- [ ] `AUTHOR_KEY_SECRET` 생성·보관 (`openssl rand -base64 32`, 한 번 정하면 변경 금지)
+- [ ] 운영 `.env`의 옛 `CRAWLER_USER_AGENT` 삭제
+- [ ] S3: 버킷 생성(퍼블릭 차단 4개, SSE-S3), CORS, 수명 주기 30일(`reports/`), IAM 역할(`reports/*` Put/Get/Delete + ListBucket), EC2에 역할 연결, **IMDSv2 hop limit 2**, `.env`에 `AWS_S3_BUCKET`/`AWS_REGION`
+- [ ] `ADMIN_AUDIT` 로그를 CloudWatch 또는 마운트한 파일로 보내 1년 이상 보관, Docker 로그 크기 제한
+- [ ] 첫 관리자: 이미 운영 DB에서 id=1, id=2를 SQL(`UPDATE users SET role='ADMIN' ...`)로 지정해 둠. 이후 추가·해제는 #13 배포 후 `grant-admin`/`revoke-admin` API로 (회원번호로 지정)
+- [ ] #10 배포 후 nginx 설정 반영, #8 배포 후 `notification_categories` FK 확인
+- [ ] 네이버 지도 Client Secret 재발급, RDS 암호화·백업 보존 기간 확인, 루트 MFA·CloudTrail
+
+### 결정 사항
+- 앱 ID를 출시 전에 `com.hongikon.app`(테스트 `.preview`, 개발 `.dev`)으로 변경 — Apple `aud` 기본값도 이 세 개
+- 출시는 **한국 한정**
+- **이메일은 수집하지 않음** (Apple 로그인도 EMAIL scope 미요청). 그래서 관리자 지정은 이메일이 아니라 **회원번호(users.id)** 기준으로 함 — `GET /admin/users?q=<id>`로 찾고 `grant-admin`
+- 제보 사진은 비공개 버킷 + presigned GET (CloudFront는 트래픽이 커지면 검토)
+- 근처 제보 알림은 GPS 없이 캠퍼스 단위 옵트인으로
+
+### 다음 단계
+- PR #4~#13을 가이드 순서대로 머지 → SQL → 배포 (#4·#8 먼저)
+- 위 "운영(사람) 할 일" 처리 (특히 Apple 키, `KAKAO_ADMIN_KEY`, S3)
+- #13(1611b59 포함)까지 합친 상태에서 전체 테스트 재실행
+- #5·#6 머지 후 `UserWithdrawIntegrationTest`에 게시판 구독·알림 설정 행 추가
+- 배포 후 실기기로 푸시(새 소식·제보 승인/반려·새 제보) 수신 확인
+- 처리방침 문구 반영 (사진 전송, 앱 닉네임, 카카오 연결 해제) — 프론트와 함께
+- 이전 목록에서 남은 것: `POST /auth/test-token` 운영 노출 여부 확인·제거, 건축학부 게시글 중복 저장 버그, AWS 비용 확인
