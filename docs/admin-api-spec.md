@@ -69,11 +69,14 @@
     "startsAt": "...", "endsAt": "...", "createdAt": "...",
     "authorId": 7, "authorNickname": "...",
     "flagCount": 0,
-    "moderationNote": null, "reviewedAt": null
+    "moderationNote": null, "reviewedAt": null,
+    "authorDisplayName": "홍**"
   }]
 }
 ```
 `category`: `EVENT` / `PERFORMANCE` / `FOOD_TRUCK` / `BOOTH` / `ETC`
+
+`authorNickname` 은 검토용 로그인(카카오/Apple) 닉네임 원문, `authorDisplayName` 은 앱 사용자에게 보이는 이름(앱 닉네임, 없으면 첫 글자만 남기고 가린 이름)이다.
 
 `GET /admin/reports/{id}/flags`
 ```json

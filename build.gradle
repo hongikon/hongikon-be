@@ -26,6 +26,11 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
 	implementation 'org.jsoup:jsoup:1.21.1'
+	// 제보 사진: S3 presigned PUT/GET 발급, 업로드 확인(HeadObject), 삭제. 동기 클라이언트만 쓰므로 netty 는 뺀다.
+	implementation platform('software.amazon.awssdk:bom:2.55.9')
+	implementation('software.amazon.awssdk:s3') {
+		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+	}
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	compileOnly 'org.projectlombok:lombok'

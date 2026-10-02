@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 
 /**
  * [가정 A 확인됨] 카테고리 7종: 공지/장학/행사/수강/시설/취업/상담 — NewsCategoryClassifier 결과 값과 같아야 한다.
- * 저장된 적 없는 카테고리는 켜짐으로 본다 — 대학공지 푸시(NewsPushDispatcher)도 enabled = false 행이 없는 유저를 대상으로 해서
+ * 저장된 적 없는 카테고리는 켜짐으로 본다 — 게시판 구독 푸시(NewsPushDispatcher)도 enabled = false 행이 없는 유저를 대상으로 해서
  * 이 화면에 보이는 값과 실제 수신 여부가 항상 같다. 기본값을 바꾸면 UserDeviceRepository.findPushTargets도 같이 바꿔야 한다.
  */
 @Service
