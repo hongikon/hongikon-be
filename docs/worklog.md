@@ -459,3 +459,20 @@
 - 테스트: +7 → 93개(main 병합 기준). #7·#10·#9·#11·#13·#14·#15 순서로 합친 상태 207개 통과
 - 머지 충돌: main·#7·#10·#13·#15 없음. #11 `ReportResponse`·`ReportSummaryResponse` 각 1곳(#11의 `authorNickname(...getDisplayName())` + #9의 `imageUrl`·`imageUrls` 두 줄 유지). #14 `ReportService.java` 2곳(필드 둘 다, `create()`에서 `publishEvent(...)` 뒤 #9의 `return`). #12·#14·#15와 `docs/worklog.md`(파일 끝 덧붙임 → 양쪽 다 남기기)
 - 프론트: `feat/report-multi-photo` — 앨범 다중 선택·카메라 1장씩, 썸네일·n/3, 장마다 메타데이터 제거·순차 업로드(재시도 시 올린 키 재사용), `imageKeys`+`imageKey` 전송, 응답에 `imageUrls`가 없으면(구서버) "1장만 첨부" 안내
+
+## 2026-10-02 — 내 제보 내역 (`feat/my-reports`, base main)
+- 왜: 작성자가 승인·반려 푸시를 놓치면 자기 제보가 어떻게 됐는지(특히 지도에 안 뜨는 반려·숨김) 확인할 곳이 없었음
+- 변경
+  - **`GET /users/me/reports?page=&size=`**(로그인 필수): 본인 제보만 최신 등록순(`created_at DESC, id DESC`), `PageResponse` 형식(size 기본 20·최대 50). 관리자가 지운 `DELETED` 도 포함(행 자체를 지운 건 당연히 없음)
+    - 필드: id, title, category, customCategoryLabel, buildingId, buildingName, floor, lat, lng, startsAt, endsAt, status, **displayStatus**, moderationNote, reviewedAt, createdAt, imageUrl, imageUrls(presigned GET)
+    - `displayStatus` = 저장 상태 + 시간: PENDING / SCHEDULED(승인·시작 전) / ACTIVE(지도에 표시 중) / ENDED(기간 지남 — 승인 대기 중 끝난 것 포함) / REJECTED / HIDDEN / DELETED
+    - `moderationNote` 는 REJECTED·HIDDEN 일 때만(ACTIVE·DELETED 의 관리자 메모는 내보내지 않음). 작성자 이름·신고자 정보 없음
+  - **`GET /users/me/reports/count`** → `{ total, pending }` (설정 화면 배지용)
+  - 삭제는 기존 `DELETE /reports/{id}` 그대로(본인 것만, 아니면 403, 상태 무관 hard delete + S3 사진 삭제)
+  - 다른 PR(제보 일정 `feat/report-schedule`·#14)이 고치는 `ReportRepository`·`ReportService`·`ReportController` 를 건드리지 않으려고 `MyReportRepository`·`MyReportService`·`MyReportController` 를 새로 둠
+- SQL·환경변수: 없음
+- 테스트: `MyReportIntegrationTest` +5(본인 것만·최신순·상태별 displayStatus·사유 노출 범위, 페이지·상한 50, 개수, 비로그인 401, 남의 제보 삭제 403)
+- 프론트: `feat/my-reports` — 설정 > 계정 "내 제보 내역"(승인 대기 배지), 반려 알림을 누르면 내역으로
+
+- **10-02 추가 (#16)**: 신고 누적 등으로 숨겨진(HIDDEN) 제보는 작성자가 `DELETE /reports/{id}` 로 지울 수 없음(409 "신고로 검토 중인 제보는 운영진 검토가 끝난 뒤에 지울 수 있어요."). 검토 전에 지우면 신고 기록까지 사라져 제재 근거가 남지 않기 때문(약관 제8·10조, App Store 1.2). 반려·재공개 뒤에는 지울 수 있음. 테스트 1개 추가.
+- 10-02 버그 점검 반영: 숨김(HIDDEN) 삭제 잠금을 "마지막 검토 뒤 들어온 신고가 있을 때"로 좁힘 — 운영진이 검토해 숨긴 제보는 작성자가 지울 수 있음(전엔 영영 409). 삭제 시 신고도 명시적으로 지움. 테스트 +1, 177개 통과
