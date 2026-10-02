@@ -28,7 +28,9 @@ public record ReportSummaryResponse(
         boolean isMine,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
+        String authorDisplayName
 ) {
     public static ReportSummaryResponse of(Report report, Long requesterId, List<String> imageUrls) {
         return ReportSummaryResponse.builder()
@@ -40,13 +42,14 @@ public record ReportSummaryResponse(
                 .category(report.getCategory().name())
                 .customCategoryLabel(report.getCustomCategoryLabel())
                 .title(report.getTitle())
-                .authorNickname(report.getUser().getNickname())
+ .authorNickname(report.getUser().getDisplayName())
                 .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
                 .imageUrls(imageUrls)
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
                 .createdAt(report.getCreatedAt())
+                .authorDisplayName(report.getUser().getDisplayName())
                 .build();
     }
 }

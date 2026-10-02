@@ -30,7 +30,9 @@ public record AdminReportResponse(
         String authorNickname,
         long flagCount,
         String moderationNote,
-        LocalDateTime reviewedAt
+        LocalDateTime reviewedAt,
+        /** 앱 사용자에게 보이는 작성자 이름. authorNickname 은 검토용 로그인 닉네임 원문이다. */
+        String authorDisplayName
 ) {
     public static AdminReportResponse of(Report report, long flagCount, List<String> imageUrls) {
         return new AdminReportResponse(
@@ -54,6 +56,7 @@ public record AdminReportResponse(
                 report.getUser().getNickname(),
                 flagCount,
                 report.getModerationNote(),
-                report.getReviewedAt());
+                report.getReviewedAt(),
+                report.getUser().getDisplayName());
     }
 }
