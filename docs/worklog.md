@@ -488,3 +488,4 @@
   - 충돌(`git merge-tree`): #13 없음. #17 `application-test.properties` 끝 한 줄씩(둘 다 유지). #12·#15·#16·#17 `docs/worklog.md`(끝 덧붙임 → 둘 다 남기기)
   - 프론트: `feat/admin-reminder-route` — ADMIN_REPORT_REMINDER를 ADMIN_REPORT_PENDING처럼 라우팅(관리 탭 → 제보 검토 → 승인 대기, oldestReportId 강조)
 - 10-02 버그 점검 반영: 리마인드에서 이미 끝난(ends_at 지남) PENDING 제보 제외(개수·가장 오래된 것·선점), `@Scheduled` 스레드 1→4(`SCHEDULING_POOL_SIZE`, 정각 크롤링이 리마인드·Apple 재시도를 막던 문제). 테스트 193개 통과
+- 10-02 자동 숨김 규칙 변경(결정 반영): 승인된 제보도 **마지막 검토(reviewedAt) 뒤 신고 수 ≥ 임계치(3)**면 자동 숨김 + 관리자 알림. 검토 전이면 전부 셈, 다시 공개하면 그 전 신고는 안 셈(이용약관 제8조 4항). 전엔 `reviewedAt == null` 조건이라 승인된 제보는 절대 안 숨겨졌음. 테스트 JVM `user.timezone=UTC`(H2 시각 9시간 어긋남 방지). 테스트 194개 통과
