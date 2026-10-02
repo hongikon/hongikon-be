@@ -476,3 +476,14 @@
 - 배포 메모: #6 이후 아무 때나, 가이드 표 기준 10번째(#13 다음) 권장. #9와 `ReportService.java` 충돌 2곳(필드·`create()` 끝, 둘 다 유지)
 - 리스크: 재시작하면 묶음 상태 초기화, 서버 여러 대면 인스턴스별로 셈. 발송 실패 재시도 없음
 - 프론트: `feat/admin-alerts` — "관리자 알림" Android 채널, ADMIN_* 알림 → 관리 탭 해당 섹션, 관리자 전용 토글, 앱이 열려 있어도 표시
+- 추가(같은 PR) — 승인 대기 제보 리마인드
+  - 왜: 새 제보 알림을 놓치거나 미뤄 두면 PENDING 제보가 몇 시간씩 방치됨
+  - `AdminReportReminder`(10분마다, `PUSH_ADMIN_REMINDER_CRON`): PENDING 30분(`PUSH_ADMIN_REMINDER_AFTER_MINUTES`)·2시간(`PUSH_ADMIN_REMINDER_REPEAT_AFTER_MINUTES`) 넘은 제보를 회차당 한 번 묶어 "[관리] 검토 대기 중인 제보가 N건 있어요" / "가장 오래된 것 M분 전", data `{type: ADMIN_REPORT_REMINDER, count, oldestReportId}`, 채널 `admin`. N은 30분 넘게 대기 중인 PENDING 수
+  - 제보당 최대 2번: `reports.admin_reminder_count`/`admin_reminded_at`을 조건부 UPDATE로 선점(행 수 0이면 안 보냄) → 서버 여러 대·재시작에도 중복 없음. 2번째는 1번째에서 90분 이상 지나야(08:00 요약 직후 연달아 오지 않게)
+  - 방해 금지 KST 00–08시(`PUSH_ADMIN_REMINDER_QUIET_START_HOUR`/`_END_HOUR`) — 선점·발송 안 함, 08:00 회차에 한 번 요약. 받을 관리자 기기 없으면(모두 끔 포함) 선점 안 함
+  - 시각은 주입 Clock(UTC) — 테스트는 고정 Clock
+  - SQL: `db/alter_reports_add_admin_reminder.sql` (`admin_reminder_count TINYINT NOT NULL DEFAULT 0`, `admin_reminded_at DATETIME NULL`) — ddl-auto=validate라 배포 전 실행
+  - 테스트: `AdminReportReminderTest` 9개, 전체 191개 통과(main 병합 기준)
+  - main 병합(#9 등 22커밋): `ReportService.java` 필드·`create()` 끝(둘 다 유지), worklog 정리
+  - 충돌(`git merge-tree`): #13 없음. #17 `application-test.properties` 끝 한 줄씩(둘 다 유지). #12·#15·#16·#17 `docs/worklog.md`(끝 덧붙임 → 둘 다 남기기)
+  - 프론트: `feat/admin-reminder-route` — ADMIN_REPORT_REMINDER를 ADMIN_REPORT_PENDING처럼 라우팅(관리 탭 → 제보 검토 → 승인 대기, oldestReportId 강조)
