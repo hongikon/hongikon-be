@@ -459,3 +459,23 @@
 - 테스트: +7 → 93개(main 병합 기준). #7·#10·#9·#11·#13·#14·#15 순서로 합친 상태 207개 통과
 - 머지 충돌: main·#7·#10·#13·#15 없음. #11 `ReportResponse`·`ReportSummaryResponse` 각 1곳(#11의 `authorNickname(...getDisplayName())` + #9의 `imageUrl`·`imageUrls` 두 줄 유지). #14 `ReportService.java` 2곳(필드 둘 다, `create()`에서 `publishEvent(...)` 뒤 #9의 `return`). #12·#14·#15와 `docs/worklog.md`(파일 끝 덧붙임 → 양쪽 다 남기기)
 - 프론트: `feat/report-multi-photo` — 앨범 다중 선택·카메라 1장씩, 썸네일·n/3, 장마다 메타데이터 제거·순차 업로드(재시도 시 올린 키 재사용), `imageKeys`+`imageKey` 전송, 응답에 `imageUrls`가 없으면(구서버) "1장만 첨부" 안내
+
+## 2026-10-02 — 예정 제보: 시작 시각 미리 지정 (`feat/report-schedule`, base main)
+- 왜: "내일 11:00~15:00 붕어빵 트럭"처럼 미리 알고 있는 일을 당일에 다시 올려야 했음. 지금은 `startsAt` 검증이 사실상 없고(과거·먼 미래 모두 통과) `endsAt`만 "지금+7일"로 막고 있었음
+- 규칙(서버 UTC 기준, `ReportService.validateSchedule`)
+  - `startsAt`: 지금 − 10분(앱·서버 시계 오차 여유) ~ 지금 + **14일** (`report.startsAt.maxDays`)
+  - `endsAt`: `startsAt`보다 뒤, 진행 시간 최대 **12시간** (`report.maxDurationHours`), 이미 지났으면 400(`@Future`)
+  - 오류 문구 해요체: "시작 시각이 이미 지났어요…", "시작 시각은 오늘부터 14일 안으로 골라 주세요.", "종료 시각은 시작 시각보다 뒤여야 해요.", "진행 시간은 최대 12시간까지 정할 수 있어요.", "종료 시각이 이미 지났어요…"
+  - `report.endsAt.maxDays`(7일) 삭제 — 새 두 값이 대신함
+- 지도: `GET /reports` 기본은 그대로 진행 중(startsAt ≤ 지금 ≤ endsAt)만 → 구버전 앱엔 시작 전 제보가 안 보이고, 시작 시각이 되면 자동으로 뜸. `?include=upcoming`이면 **24시간 안에 시작할** ACTIVE 제보를 시작 순으로 뒤에 덧붙임(응답 형식 그대로, `startsAt > 지금`이면 예정)
+- 관리자: 시작 전에도 승인 가능. 응답엔 원래 `startsAt`/`endsAt`가 있어 앱 관리 화면에서 일정만 보여주면 됨
+- 푸시
+  - 시작 전 승인: 작성자에게 "제보가 승인됐어요" / "붕어빵 트럭\n10/3(토) 11:00부터 지도에 보여요"(KST)
+  - 캠퍼스 새 제보 알림(REPORT_NEW)은 **지도에 실제로 뜨는 시작 시각에** 보냄 — `ReportStartPushScheduler`(매분 30초, `push.report-start-cron`)가 "직전 확인 ~ 지금" 사이에 시작한, 시작 전에 승인된(`reviewed_at < starts_at`) ACTIVE 제보를 찾아 보냄. 승인 때 "내일 11:00 · …"로 미리 보내는 안은 알림을 눌러도 지도에 제보가 없어서 버림
+  - 상태 컬럼 없이 확인 구간만 메모리에 둠(SQL 없음). 서버 시작 시 10분 거슬러 봄 → 같은 제보를 다시 집어도 유저당 30분 빈도 제한이 중복을 막음. 10분 넘게 꺼져 있던 사이 시작한 제보는 알림 없이 지도에만 뜸. 서버 1대 기준
+  - 이미 시작한 제보 승인은 기존과 같음(바로 승인 알림 + 새 제보 알림)
+- `ReportModeratedEvent`에 `startsAt` 추가(기존 9인자 생성자 유지 → 다른 PR 호출부 그대로 컴파일)
+- SQL: 없음. 환경변수: 선택 `REPORT_STARTS_AT_MAX_DAYS`(14), `REPORT_MAX_DURATION_HOURS`(12), `PUSH_REPORT_START_CRON`. 운영 `.env`에 `REPORT_ENDS_AT_MAX_DAYS`가 있으면 지워도 됨(안 쓰임)
+- 테스트: +11 → 181개 통과(`ReportScheduleIntegrationTest` 7, `ReportStartPushSchedulerTest` 2, `ReportPushDispatcherTest` +2). `AdminApiIntegrationTest`의 고정 과거 `startsAt`(2026-10-01)을 지금으로 바꿈
+- 머지 충돌(`git merge-tree`): #13 없음. #15·#12 `docs/worklog.md`만(양쪽 유지). #14 `ReportService.java` 2곳은 #14와 main 사이에 이미 있던 충돌과 같음(필드 둘 다 유지, `publishEvent(...)` 뒤 #9의 `return ReportResponse.of(saved, userId, reportImageService.viewUrls(...))`). **#14 테스트 `AdminAlertDispatcherTest` 167행이 고정 과거 `startsAt`("2026-10-01T08:00:00.000Z")을 보내 이 PR과 합치면 400** → 뒤에 머지하는 쪽에서 `Instant.now().toString()`으로 바꿀 것. 이렇게 고쳐 main+이 PR+#13+#15+#14 합친 상태 218개 통과
+- 배포 순서: #15 다음(마지막). SQL 없음 → 머지 후 배포만. 앱(`feat/report-schedule`)은 서버 배포 뒤에 OTA — 구서버도 미래 `startsAt`을 받고 지도엔 시작 뒤에만 띄우지만, 승인 즉시 "지도에 올라갔어요"·새 제보 알림을 보내(누르면 지도에 없음) 앱이 먼저 나가면 안 됨
