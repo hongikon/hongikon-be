@@ -149,6 +149,31 @@ class ReportCommentIntegrationTest {
     }
 
     @Test
+    void 링크_연락처_욕설은_400_이고_저장하지_않는다() throws Exception {
+        Report report = report(ReportStatus.ACTIVE);
+        write(commenter, report, "여기 보세요 https://example.com").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("댓글에는 링크를 쓸 수 없어요."));
+        write(commenter, report, "naver 닷 com").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("댓글에는 링크를 쓸 수 없어요."));
+        write(commenter, report, "010 1234 5678 로 연락 주세요").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("댓글에 연락처나 오픈채팅 주소는 쓸 수 없어요."));
+        write(commenter, report, "오픈채팅 들어와요").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("댓글에 연락처나 오픈채팅 주소는 쓸 수 없어요."));
+        write(commenter, report, "아 시1발 줄 길다").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("부적절한 표현이 있어 댓글을 올릴 수 없어요. 표현을 바꿔 다시 시도해 주세요."));
+        Long root = commentId(write(commenter, report, "3시 발표 끝나고 다시 발급 받으러 가요"));
+        // 답글도 같은 필터
+        reply(author, report, root, "ㅅ ㅂ").andExpect(status().isBadRequest());
+
+        assertThat(commentRepository.findAll()).filteredOn(c -> c.getReport().getId().equals(report.getId()))
+                .extracting(ReportComment::getContent).containsExactly("3시 발표 끝나고 다시 발급 받으러 가요");
+        // 막힌 글은 저장되지 않아 빈도 제한(1분 5개)에도 세지 않는다 — 남은 4개를 쓸 수 있다
+        for (int i = 0; i < 4; i++) {
+            write(commenter, report, "정상 댓글" + i).andExpect(status().isCreated());
+        }
+    }
+
+    @Test
     void 일분에_5개를_넘으면_429_지워도_다시_쓸_수_없다() throws Exception {
         Report report = report(ReportStatus.ACTIVE);
         Long firstId = null;

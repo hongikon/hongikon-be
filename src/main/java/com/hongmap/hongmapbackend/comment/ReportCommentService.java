@@ -7,6 +7,8 @@ import com.hongmap.hongmapbackend.comment.dto.CommentLikeResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentListResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentResponse;
 import com.hongmap.hongmapbackend.common.dto.PageResponse;
+import com.hongmap.hongmapbackend.common.moderation.ContentFilter;
+import com.hongmap.hongmapbackend.common.moderation.ContentViolation;
 import com.hongmap.hongmapbackend.community.CommunityActionLimiter;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportRepository;
@@ -42,6 +44,7 @@ import java.util.Set;
  * <ul>
  *   <li>읽기: 누구나(게스트 포함). 지도에 공개된(ACTIVE) 제보의 VISIBLE 댓글만. 다른 상태의 제보는 404.</li>
  *   <li>쓰기: 로그인 필수, 앞뒤 공백 제거 후 1~200자, 끝나지 않은 ACTIVE 제보에만. 1분 5개·하루 50개(429).
+ *       링크·연락처·욕설은 {@link ContentFilter} 가 올리기 전에 400 으로 막는다(사후 검토라 올리는 순간 한 번 거른다).
  *       정지 회원은 #13 의 SuspendedUserInterceptor 가 403 으로 막는다(ReportCommentWebConfig).</li>
  *   <li>사후 검토: 바로 공개, 신고가 report.comment.flag-threshold(기본 3)개 쌓이면 자동 숨김.
  *       관리자 검토(reviewedAt) 뒤의 신고만 센다 — 복원한 댓글을 옛 신고로 다시 숨기지 않는다.</li>
@@ -70,6 +73,7 @@ public class ReportCommentService {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final CommentAuthorKeys authorKeys;
+    private final ContentFilter contentFilter;
     private final ApplicationEventPublisher eventPublisher;
     private final ReportCommentLikeRepository likeRepository;
     private final CommunityActionLimiter actionLimiter;
@@ -143,6 +147,12 @@ public class ReportCommentService {
         if (content.length() > ReportComment.MAX_LENGTH) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "댓글은 " + ReportComment.MAX_LENGTH + "자까지 쓸 수 있어요.");
+        }
+        // 내용은 로그에 남기지 않는다(개인정보) — 사유만.
+        ContentViolation violation = contentFilter.check(content).orElse(null);
+        if (violation != null) {
+            log.info("댓글 필터 차단 reason={} reportId={}", violation, reportId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, violation.message());
         }
         Report report = requireVisibleReport(reportId);
         LocalDateTime now = LocalDateTime.now();
