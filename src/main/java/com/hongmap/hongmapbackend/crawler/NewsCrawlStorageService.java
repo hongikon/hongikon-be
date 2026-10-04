@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Collection;
@@ -30,6 +31,8 @@ import java.util.Optional;
 public class NewsCrawlStorageService {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+    /** 작성일은 게시판에 적힌 한국 날짜라, 못 읽었을 때 대신 쓰는 "지금"도 한국 시각으로 맞춘다(서버 JVM 은 UTC). */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final NewsRepository newsRepository;
     private final NewsLocationMatcher locationMatcher;
@@ -103,7 +106,7 @@ public class NewsCrawlStorageService {
         String raw = !summary.date().isBlank() ? summary.date() : (detail != null ? detail.date() : "");
         LocalDateTime parsed = parseDate(raw);
         // 날짜를 못 읽은 경우까지 저장을 막을 정도는 아니라고 판단, 크롤링 시각으로 대체한다.
-        return parsed != null ? parsed : LocalDateTime.now();
+        return parsed != null ? parsed : LocalDateTime.now(KST);
     }
 
     /** "yyyy.MM.dd" → 그날 0시. 비어 있거나 형식이 다르면 null. */
