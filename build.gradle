@@ -47,6 +47,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 운영(main() 전에 HongmapBackendApplication 정적 초기화로 UTC)과 같게 테스트 JVM 도 처음부터 UTC 로 띄운다.
+	// 안 그러면 컨텍스트가 뜨기 전에 읽힌 기본 시간대(KST)가 @CreationTimestamp·H2 쪽에 남아
+	// LocalDateTime.now() 로 찍은 값(UTC)과 9시간 어긋난다(신고 created_at vs 제보 reviewed_at 비교 등).
+	systemProperty 'user.timezone', 'UTC'
 }
 
 // 프론트가 GET /status 로 백엔드 버전을 읽을 수 있도록 빌드 시점 정보를

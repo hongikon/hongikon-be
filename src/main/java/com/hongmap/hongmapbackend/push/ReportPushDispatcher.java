@@ -144,8 +144,13 @@ public class ReportPushDispatcher {
 
     /** "제2공학관 3층" / "B1층" 형태. 건물명·층이 둘 다 없으면 "캠퍼스". */
     static String place(ReportModeratedEvent event) {
-        String floor = event.floor() == null ? "" : event.floor() < 0 ? "B" + (-event.floor()) + "층" : event.floor() + "층";
-        String building = event.buildingName() == null ? "" : event.buildingName();
+        return place(event.buildingName(), event.floor());
+    }
+
+    /** 관리자 알림(AdminAlertDispatcher)도 같은 형식을 쓴다. */
+    static String place(String buildingName, Integer floorNumber) {
+        String floor = floorNumber == null ? "" : floorNumber < 0 ? "B" + (-floorNumber) + "층" : floorNumber + "층";
+        String building = buildingName == null ? "" : buildingName;
         String place = (building + " " + floor).trim();
         return place.isEmpty() ? "캠퍼스" : place;
     }

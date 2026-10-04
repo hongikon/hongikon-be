@@ -182,23 +182,45 @@ class AdminApiIntegrationTest {
     }
 
     @Test
-    void 관리자가_승인한_제보는_신고가_쌓여도_자동숨김되지_않는다() throws Exception {
+    void 승인된_제보도_새_신고가_임계치에_닿으면_자동숨김되고_다시_공개하면_그_전_신고는_세지_않는다() throws Exception {
         Report report = pendingReport();
-        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"));
+        approve(report);
 
-        for (int i = 0; i < 3; i++) {
+        flagTimes(report, 2);
+        assertThat(statusOf(report)).isEqualTo("ACTIVE");
+        flagTimes(report, 1); // 승인 뒤 신고 3건 → 운영진 확인 전까지 숨김(이용약관 제8조 4항)
+        assertThat(statusOf(report)).isEqualTo("HIDDEN");
+
+        // 운영진이 신고를 보고 다시 공개 — 그 전 신고 3건은 이미 검토한 것이라 세지 않는다
+        approve(report);
+        flagTimes(report, 2);
+        assertThat(statusOf(report)).isEqualTo("ACTIVE");
+        flagTimes(report, 1); // 다시 공개한 뒤 새 신고 3건 → 다시 숨김
+        assertThat(statusOf(report)).isEqualTo("HIDDEN");
+
+        mockMvc.perform(get("/admin/reports/" + report.getId() + "/flags").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.flags.length()").value(6))
+                .andExpect(jsonPath("$.flags[0].reason").value("SPAM"));
+    }
+
+    private void approve(Report report) throws Exception {
+        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private void flagTimes(Report report, int times) throws Exception {
+        for (int i = 0; i < times; i++) {
             User flagger = userRepository.save(User.builder()
                     .socialId(UUID.randomUUID().toString()).socialType(SocialType.KAKAO).nickname("신고자" + i).build());
             mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(flagger))
                             .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
                     .andExpect(status().isCreated());
         }
+    }
 
-        assertThat(reportRepository.findById(report.getId()).orElseThrow().getStatus().name()).isEqualTo("ACTIVE");
-        mockMvc.perform(get("/admin/reports/" + report.getId() + "/flags").header("Authorization", bearer(admin)))
-                .andExpect(jsonPath("$.flags.length()").value(3))
-                .andExpect(jsonPath("$.flags[0].reason").value("SPAM"));
+    private String statusOf(Report report) {
+        return reportRepository.findById(report.getId()).orElseThrow().getStatus().name();
     }
 
     @Test

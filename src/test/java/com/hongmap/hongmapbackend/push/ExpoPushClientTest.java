@@ -31,7 +31,7 @@ class ExpoPushClientTest {
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
     private ExpoPushClient client(String accessToken) {
-        return new ExpoPushClient(new PushProperties(true, URL, accessToken, 1000, 1000, 3, 30), builder);
+        return new ExpoPushClient(new PushProperties(true, URL, accessToken, 1000, 1000, 3, 30, 120), builder);
     }
 
     @Test

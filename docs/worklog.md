@@ -460,5 +460,35 @@
 - 머지 충돌: main·#7·#10·#13·#15 없음. #11 `ReportResponse`·`ReportSummaryResponse` 각 1곳(#11의 `authorNickname(...getDisplayName())` + #9의 `imageUrl`·`imageUrls` 두 줄 유지). #14 `ReportService.java` 2곳(필드 둘 다, `create()`에서 `publishEvent(...)` 뒤 #9의 `return`). #12·#14·#15와 `docs/worklog.md`(파일 끝 덧붙임 → 양쪽 다 남기기)
 - 프론트: `feat/report-multi-photo` — 앨범 다중 선택·카메라 1장씩, 썸네일·n/3, 장마다 메타데이터 제거·순차 업로드(재시도 시 올린 키 재사용), `imageKeys`+`imageKey` 전송, 응답에 `imageUrls`가 없으면(구서버) "1장만 첨부" 안내
 
+## 2026-10-02 — PR #14 관리자 알림 (`feat/admin-alerts`, base main)
+- 왜: 새 제보 승인 대기·새 문의·신고 누적 자동 숨김이 생겨도 관리 탭을 열기 전엔 알 수 없었음
+- 변경
+  - `AdminAlertEvent`를 제보 등록(PENDING)·문의 등록·자동 숨김에서 발행 → `AdminAlertDispatcher`가 커밋 후 비동기로 ADMIN 유저의 활성 Expo 기기에 발송(`ExpoPushSender` 재사용, 토큰 마스킹 유지)
+  - 본인(actor) 제외, `user_notification_settings.admin_alerts_enabled=false`인 관리자 제외(기본 켜짐)
+  - 묶음: 종류마다 `push.admin-alert-window-seconds`(기본 120초)에 한 번, 첫 건 즉시·나머지는 "새 제보 N건 승인 대기"로. 서버 메모리 기준
+  - 구분: 제목 `[관리]`, Android `channelId`/`categoryId` `admin`, data.type `ADMIN_REPORT_PENDING`·`ADMIN_FEEDBACK`·`ADMIN_REPORT_FLAGGED`(+ `reportId`/`feedbackId`, `count`)
+  - 본문은 제보 제목·건물·층만. 문의는 "새 문의가 도착했어요"(내용·연락처 없음)
+  - 자동 숨김을 조건부 UPDATE(`updateStatusIf` ACTIVE→HIDDEN)로 바꿔 동시 신고에도 한 번만
+  - `GET/PATCH /users/me/notification-settings`에 `adminAlerts` 추가
+- SQL: `db/alter_user_notification_settings_add_admin_alerts.sql` (`admin_alerts_enabled boolean NOT NULL DEFAULT TRUE`)
+- 환경변수: `PUSH_ADMIN_ALERT_WINDOW_SECONDS` (선택, 기본 120)
+- 테스트: +12 → 82개 (`AdminAlertThrottleTest` 5, `AdminAlertDispatcherTest` 7)
+- 배포 메모: #6 이후 아무 때나, 가이드 표 기준 10번째(#13 다음) 권장. #9와 `ReportService.java` 충돌 2곳(필드·`create()` 끝, 둘 다 유지)
+- 리스크: 재시작하면 묶음 상태 초기화, 서버 여러 대면 인스턴스별로 셈. 발송 실패 재시도 없음
+- 프론트: `feat/admin-alerts` — "관리자 알림" Android 채널, ADMIN_* 알림 → 관리 탭 해당 섹션, 관리자 전용 토글, 앱이 열려 있어도 표시
+- 추가(같은 PR) — 승인 대기 제보 리마인드
+  - 왜: 새 제보 알림을 놓치거나 미뤄 두면 PENDING 제보가 몇 시간씩 방치됨
+  - `AdminReportReminder`(10분마다, `PUSH_ADMIN_REMINDER_CRON`): PENDING 30분(`PUSH_ADMIN_REMINDER_AFTER_MINUTES`)·2시간(`PUSH_ADMIN_REMINDER_REPEAT_AFTER_MINUTES`) 넘은 제보를 회차당 한 번 묶어 "[관리] 검토 대기 중인 제보가 N건 있어요" / "가장 오래된 것 M분 전", data `{type: ADMIN_REPORT_REMINDER, count, oldestReportId}`, 채널 `admin`. N은 30분 넘게 대기 중인 PENDING 수
+  - 제보당 최대 2번: `reports.admin_reminder_count`/`admin_reminded_at`을 조건부 UPDATE로 선점(행 수 0이면 안 보냄) → 서버 여러 대·재시작에도 중복 없음. 2번째는 1번째에서 90분 이상 지나야(08:00 요약 직후 연달아 오지 않게)
+  - 방해 금지 KST 00–08시(`PUSH_ADMIN_REMINDER_QUIET_START_HOUR`/`_END_HOUR`) — 선점·발송 안 함, 08:00 회차에 한 번 요약. 받을 관리자 기기 없으면(모두 끔 포함) 선점 안 함
+  - 시각은 주입 Clock(UTC) — 테스트는 고정 Clock
+  - SQL: `db/alter_reports_add_admin_reminder.sql` (`admin_reminder_count TINYINT NOT NULL DEFAULT 0`, `admin_reminded_at DATETIME NULL`) — ddl-auto=validate라 배포 전 실행
+  - 테스트: `AdminReportReminderTest` 9개, 전체 191개 통과(main 병합 기준)
+  - main 병합(#9 등 22커밋): `ReportService.java` 필드·`create()` 끝(둘 다 유지), worklog 정리
+  - 충돌(`git merge-tree`): #13 없음. #17 `application-test.properties` 끝 한 줄씩(둘 다 유지). #12·#15·#16·#17 `docs/worklog.md`(끝 덧붙임 → 둘 다 남기기)
+  - 프론트: `feat/admin-reminder-route` — ADMIN_REPORT_REMINDER를 ADMIN_REPORT_PENDING처럼 라우팅(관리 탭 → 제보 검토 → 승인 대기, oldestReportId 강조)
+- 10-02 버그 점검 반영: 리마인드에서 이미 끝난(ends_at 지남) PENDING 제보 제외(개수·가장 오래된 것·선점), `@Scheduled` 스레드 1→4(`SCHEDULING_POOL_SIZE`, 정각 크롤링이 리마인드·Apple 재시도를 막던 문제). 테스트 193개 통과
+- 10-02 자동 숨김 규칙 변경(결정 반영): 승인된 제보도 **마지막 검토(reviewedAt) 뒤 신고 수 ≥ 임계치(3)**면 자동 숨김 + 관리자 알림. 검토 전이면 전부 셈, 다시 공개하면 그 전 신고는 안 셈(이용약관 제8조 4항). 전엔 `reviewedAt == null` 조건이라 승인된 제보는 절대 안 숨겨졌음. 테스트 JVM `user.timezone=UTC`(H2 시각 9시간 어긋남 방지). 테스트 194개 통과
+
 ## 2026-10-02 — PR #13 UGC 관리 (`feat/ugc-moderation`, base main)
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과

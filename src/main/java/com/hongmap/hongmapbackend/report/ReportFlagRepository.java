@@ -13,6 +13,13 @@ public interface ReportFlagRepository extends JpaRepository<ReportFlag, Long> {
 
     long countByReportId(Long reportId);
 
+    /**
+     * 자동 숨김 판단용 — since(마지막 관리자 검토 시각) 뒤에 들어온 신고 수. since 가 null(검토 전)이면 전부.
+     * 승인·복원 전에 들어온 신고는 운영진이 이미 보고 공개를 결정한 것이라 세지 않는다.
+     */
+    @Query("SELECT COUNT(f) FROM ReportFlag f WHERE f.report.id = :reportId AND (:since IS NULL OR f.createdAt > :since)")
+    long countByReportIdSince(@Param("reportId") Long reportId, @Param("since") java.time.LocalDateTime since);
+
     void deleteByUser_Id(Long userId);
 
     void deleteByReport_User_Id(Long userId);

@@ -116,6 +116,18 @@ public class Report {
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 
+    /**
+     * 승인 대기(PENDING) 리마인드 푸시(AdminReportReminder)에 이 제보가 들어간 횟수. 최대 2(30분·2시간 기준).
+     * 스케줄러가 조건부 UPDATE로 올려 선점하므로 서버가 여러 대이거나 재시작해도 같은 단계를 두 번 보내지 않는다.
+     */
+    @Column(name = "admin_reminder_count", nullable = false, columnDefinition = "TINYINT")
+    @Builder.Default
+    private int adminReminderCount = 0;
+
+    /** 마지막으로 리마인드에 들어간 시각(UTC). 한 번도 안 들어갔으면 null */
+    @Column(name = "admin_reminded_at")
+    private LocalDateTime adminRemindedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
