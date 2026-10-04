@@ -202,11 +202,15 @@ class AdminAlertDispatcherTest {
         device(admin, TokenType.EXPO, true);
         Report report = activeReport(user());
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 3; i++) {
             mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(user()))
                             .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
                     .andExpect(status().isCreated());
         }
+        // 숨겨진 제보는 더 신고할 수 없다(공개 제보만 신고 가능 → 404). 알림도 더 나가지 않는다.
+        mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(user()))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                .andExpect(status().isNotFound());
 
         awaitMine(m -> true);
         Thread.sleep(1500); // 묶음 간격(1초)이 지나도 더 오지 않는지

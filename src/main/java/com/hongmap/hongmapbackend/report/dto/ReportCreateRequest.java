@@ -1,7 +1,11 @@
 package com.hongmap.hongmapbackend.report.dto;
 
 import com.hongmap.hongmapbackend.report.Report;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -9,17 +13,28 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 좌표·층 범위를 여기서 400 으로 거른다 — 전엔 범위 밖 값(예: lat 1000)이 DECIMAL(10,7) 에 안 들어가 DB 오류(500)가 났다.
+ * 건물과의 거리·0층은 ReportService.create 가 본다.
+ */
 public record ReportCreateRequest(
         @NotNull
         Long buildingId,
 
+        /** 지하는 음수(B1 = -1). 범위는 ReportService.MIN_FLOOR~MAX_FLOOR 와 같게 둔다. */
         @NotNull
+        @Min(value = -10, message = "층은 지하 10층부터 30층까지 고를 수 있어요.")
+        @Max(value = 30, message = "층은 지하 10층부터 30층까지 고를 수 있어요.")
         Integer floor,
 
         @NotNull
+        @DecimalMin(value = "-90", message = "위치(위도)가 올바르지 않아요.")
+        @DecimalMax(value = "90", message = "위치(위도)가 올바르지 않아요.")
         java.math.BigDecimal lat,
 
         @NotNull
+        @DecimalMin(value = "-180", message = "위치(경도)가 올바르지 않아요.")
+        @DecimalMax(value = "180", message = "위치(경도)가 올바르지 않아요.")
         java.math.BigDecimal lng,
 
         @NotBlank

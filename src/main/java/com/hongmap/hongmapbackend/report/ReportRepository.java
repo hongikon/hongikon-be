@@ -13,15 +13,23 @@ import java.util.Optional;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
 
+    /**
+     * 지도 목록(공개). 작성자 표시 이름·authorKey 를 만들려고 제보마다 users 를 따로 읽던 N+1 을 JOIN FETCH 로 없앤다.
+     * ManyToOne 만 FETCH 하므로 행이 늘지 않고(중복 없음) 페이지(LIMIT)도 SQL 로 걸린다. 사진은 Report.images 의 @BatchSize 로 묶어 읽는다.
+     */
     @Query("""
             SELECT r FROM Report r
+            JOIN FETCH r.user
             WHERE r.status = :status
               AND :now BETWEEN r.startsAt AND r.endsAt
               AND (:buildingId IS NULL OR r.building.id = :buildingId)
-            ORDER BY r.createdAt DESC
+            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<Report> findLiveReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
-                                  @Param("buildingId") Long buildingId);
+                                  @Param("buildingId") Long buildingId, Pageable pageable);
+
+    /** 등록 제한용 — 한 사용자의 특정 상태(승인 대기) 제보 수. */
+    long countByUser_IdAndStatus(Long userId, ReportStatus status);
 
     @Query("""
             SELECT r FROM Report r
