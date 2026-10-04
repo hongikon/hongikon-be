@@ -3,6 +3,7 @@ package com.hongmap.hongmapbackend.user;
 import com.hongmap.hongmapbackend.auth.apple.AppleRevocationService;
 import com.hongmap.hongmapbackend.auth.token.RefreshTokenRepository;
 import com.hongmap.hongmapbackend.bookmark.BookmarkRepository;
+import com.hongmap.hongmapbackend.auth.oauth.KakaoUnlinkClient;
 import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
 import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
 import com.hongmap.hongmapbackend.notification.NotificationCategoryRepository;
@@ -48,6 +49,7 @@ public class UserService {
     private final UserBoardSubscriptionRepository userBoardSubscriptionRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserDepartmentRepository userDepartmentRepository;
+    private final KakaoUnlinkClient kakaoUnlinkClient;
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AppleRevocationService appleRevocationService;
@@ -71,6 +73,9 @@ public class UserService {
         reportFlagRepository.deleteByUser_Id(userId);
 
         bookmarkRepository.deleteByUser_Id(userId);
+        if (user.getSocialType() == SocialType.KAKAO) {
+            kakaoUnlinkClient.unlinkAfterCommit(user.getSocialId()); // 커밋 뒤 카카오 연결 끊기(실패해도 탈퇴는 완료)
+        }
         keywordSubscriptionRepository.deleteByUser_Id(userId);
         userBoardSubscriptionRepository.deleteByUser_Id(userId);
         userNotificationSettingRepository.deleteByUserId(userId);

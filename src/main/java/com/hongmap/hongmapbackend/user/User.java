@@ -80,12 +80,45 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /** 이용 정지 여부(약관 제10조). 정지돼도 로그인은 되고 쓰기만 막힌다. UserStatus 참고 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserStatus status = UserStatus.ACTIVE;
+
+    /** 정지 사유(관리자 메모). 해제하면 비운다. */
+    @Column(name = "suspended_reason", length = 200)
+    private String suspendedReason;
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
     @Builder
     public User(String socialId, SocialType socialType, String email, String nickname) {
         this.socialId = socialId;
         this.socialType = socialType;
         this.email = email;
         this.nickname = nickname;
+    }
+
+    public boolean isSuspended() {
+        return status == UserStatus.SUSPENDED;
+    }
+
+    public void suspend(String reason) {
+        this.status = UserStatus.SUSPENDED;
+        this.suspendedReason = reason;
+        this.suspendedAt = LocalDateTime.now();
+    }
+
+    /** 관리자 지정·해제. 관리자 콘솔(AdminUserService)에서만 부른다. */
+    public void changeRole(UserRole role) {
+        this.role = role;
+    }
+
+    public void unsuspend() {
+        this.status = UserStatus.ACTIVE;
+        this.suspendedReason = null;
+        this.suspendedAt = null;
     }
 
     public void changeNickname(String nickname) {
