@@ -2,6 +2,7 @@ package com.hongmap.hongmapbackend.admin;
 
 import com.hongmap.hongmapbackend.admin.dto.AdminUserListResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserResponse;
+import com.hongmap.hongmapbackend.user.MemberCodes;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import com.hongmap.hongmapbackend.user.UserRole;
@@ -12,7 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** 회원 조회와 이용 정지·해제(약관 제10조, App Store 가이드라인 1.2). */
 @Service
@@ -22,19 +25,31 @@ public class AdminUserService {
     private final UserRepository userRepository;
 
     /**
-     * q 가 숫자면 회원 id 로, 아니면 닉네임·앱 닉네임 일부로 찾는다. q 가 비어 있으면 정지된 회원 목록.
+     * q 로 회원을 찾는다. q 가 비어 있으면 정지된 회원 목록. 아래에 해당하는 것을 모두 모아 이 순서로 돌려준다.
+     * <ul>
+     *   <li>회원 번호(영문·숫자 10자리, 대소문자 무시): "K7Q2M9XA4D", "k7q2m9xa4d"</li>
+     *   <li>숫자면 회원 id</li>
+     *   <li>숫자가 아니면 닉네임·앱 닉네임 일부(10글자 닉네임이 회원 번호 형식과 겹칠 수 있어 함께 찾는다)</li>
+     * </ul>
      */
     @Transactional(readOnly = true)
     public AdminUserListResponse search(String q) {
-        List<User> users;
         if (q == null || q.isBlank()) {
-            users = userRepository.findTop200ByStatusOrderBySuspendedAtDesc(UserStatus.SUSPENDED);
-        } else if (q.trim().matches("\\d{1,18}")) {
-            users = userRepository.findById(Long.parseLong(q.trim())).map(List::of).orElse(List.of());
-        } else {
-            users = userRepository.findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(q.trim(), q.trim());
+            List<User> suspended = userRepository.findTop200ByStatusOrderBySuspendedAtDesc(UserStatus.SUSPENDED);
+            return new AdminUserListResponse(suspended.stream().map(AdminUserResponse::of).toList());
         }
-        return new AdminUserListResponse(users.stream().map(AdminUserResponse::of).toList());
+        String query = q.trim();
+        Map<Long, User> found = new LinkedHashMap<>();
+        MemberCodes.parse(query)
+                .flatMap(userRepository::findByMemberCode)
+                .ifPresent(user -> found.put(user.getId(), user));
+        if (query.matches("\\d{1,18}")) {
+            userRepository.findById(Long.parseLong(query)).ifPresent(user -> found.putIfAbsent(user.getId(), user));
+        } else {
+            userRepository.findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(query, query)
+                    .forEach(user -> found.putIfAbsent(user.getId(), user));
+        }
+        return new AdminUserListResponse(found.values().stream().map(AdminUserResponse::of).toList());
     }
 
     @Transactional(readOnly = true)

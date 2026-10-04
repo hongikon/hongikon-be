@@ -444,6 +444,32 @@
   401 재발급 미구현 등)를 정리해 Notion으로 석훈에게 전달 완료
 - 다음 단계: 제보 사진 업로드 API 설계/구현 (백엔드), 픽토그램 라우팅(PM 데이터 대기)
 
+## 2026-10-02 — 공개 회원 번호 `K7Q2M9XA4D` (PR #15, `feat/member-code`, base `feat/ugc-moderation`)
+
+- 왜: 설정 화면 "회원 번호"와 관리자 지정에 `users.id`(순번)를 보여 주면 가입자 수가 드러나고 남의 번호를 추측하기 쉬움. 내부 `users.id`는 그대로 PK·JWT sub
+- 변경
+  - `users.member_code` varchar(10) UNIQUE NOT NULL. 영문 대문자·숫자 10자리(접두사·하이픈 없음), 36^10 ≈ 3.6×10^15가지
+  - 발급: `MemberCodeAssigner`(User 엔티티 리스너 `@PrePersist`)가 저장 직전에 채움 → 카카오·테스트 토큰·(#7 머지 후) Apple 가입 모두 코드 수정 없이 적용. `SecureRandom`으로 36자에서 고르게 10자, 이미 쓰인 번호면 최대 5번 다시 뽑음(중복 확인은 JdbcTemplate — 콜백 안에서 영속성 컨텍스트를 건드리지 않게). 확인~INSERT 사이 경합은 유니크 인덱스가 막음(그 가입 1건 실패, 재로그인 시 새 번호)
+  - API `GET /users/me/member-code` → `{"memberCode":"K7Q2M9XA4D"}` (#11의 `GET /users/me`와 독립 — #11 없이도 머지 가능)
+  - 관리자 `AdminUserResponse` 맨 끝에 `memberCode`. `GET /admin/users?q=`가 회원 번호도 찾음(정확히 일치, 대소문자 무시). 숫자면 id, 아니면 닉네임 일부도 함께 찾아 합침
+  - 공개 제보 응답에는 싣지 않음(작성자 숨기기는 계속 `authorKey`)
+  - 충돌을 줄이려고 `User.java`는 필드 1개(마지막 필드 뒤)·메서드 1개·리스너 어노테이션만, DTO는 맨 끝 필드만 추가
+- SQL: `db/alter_users_add_member_code.sql` — 혼자 완결되고 처음부터 다시 실행해도 안전한 스크립트
+  1. 컬럼(NULL 허용)·유니크 인덱스를 없을 때만 추가(information_schema + PREPARE)
+  2. 기존 회원 전원(관리자 id 1·2 포함) `UPDATE IGNORE ... RANDOM_BYTES(8)`→36진수 끝 10자리로 채움, 3줄 = 충돌 재시도
+  3. 확인 SELECT: `still_null`·`duplicated`·`bad_format` 모두 0, 관리자 번호 조회
+  4. `MODIFY ... NOT NULL` (NULL이 남으면 실패해서 아무것도 안 바뀜)
+  - 앱 쪽 백필 러너 없음. 로컬 MySQL로 20,000행 백필(중복 0)·전체 재실행·일부 NULL 상태에서 재실행 확인
+- 배포 절차: **RDS 스냅샷 → SQL 전체 실행(확인 SELECT 0) → 머지 → 배포**. `ddl-auto=validate`라 SQL보다 앱을 먼저 배포하면 서버가 안 뜸. SQL~배포 사이에는 옛 서버로 "새 가입"만 실패(기존 회원 영향 없음) → SQL 직후 바로 배포
+- 환경변수: 없음
+- 테스트: +10 → 56개 (`MemberCodesTest` 5, `MemberCodeIntegrationTest` 5). #7+#11과 함께 합친 상태 122개 통과
+- 머지 순서·충돌: 가이드 표 10번째(#13 다음). `git merge-tree` — #4·#5·#6·#7·#8·#9·#10·#11·#13·main 충돌 없음, #12·#14와는 `docs/worklog.md`만(모두 파일 끝에 덧붙인 것 → 양쪽 섹션 다 남기기). `docs/deploy-order-2026-10.md`는 #12에만 있는 파일이라 여기서 고치지 않음 → #12 표에 추가할 줄:
+  ```
+  | 10 | #15 | 공개 회원 번호(영문·숫자 10자리) | `db/alter_users_add_member_code.sql` | RDS 스냅샷 먼저. SQL 직후 바로 배포(그 사이 새 가입만 실패) |
+  ```
+- 운영 메모: 관리자 지정은 이제 회원 번호로 찾아서(`q=K7Q2M9XA4D`) 지정 — API 경로는 그대로 id
+- 리스크: #11 머지 후 `GET /users/me`에도 `memberCode`를 넣을지는 후속(앱은 `/users/me/member-code`를 쓰고, 없으면 예전 `#id` 표시)
+- 10-02 버그 점검 반영: 갱신된 #13(main 병합·앱 닉네임 검색) 병합. `AdminUserService.search` 충돌 — 회원 번호·id 검색은 유지하고 닉네임 검색을 로그인 닉네임·앱 닉네임 둘 다로. 응답에 `displayName`·`memberCode` 둘 다. 테스트 196개 통과
 ## 2026-10-02 — PR #9 제보 사진 최대 3장 (`feat/report-images`, base main)
 - 왜: 제보 사진을 1장만 붙일 수 있어 현장 상황(전경·안내문·세부)을 함께 보여주기 어려웠음. #9가 아직 미머지라 후속 마이그레이션 대신 #9 스키마 자체를 바꿈
 - 변경
