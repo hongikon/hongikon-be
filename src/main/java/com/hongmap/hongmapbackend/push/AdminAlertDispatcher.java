@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 관리자 알림 푸시(Expo) — 새 제보 승인 대기, 새 문의, 신고 누적 자동 숨김.
+ * 관리자 알림 푸시(Expo) — 새 제보 승인 대기, 새 문의, 신고 누적 자동 숨김, 정지·신고 이력 회원 재가입.
  * 이벤트를 발행한 트랜잭션이 커밋된 뒤 별도 스레드에서 돈다(작성자 응답을 늦추지 않고, 롤백되면 보내지 않는다). 실패는 로그만 남긴다.
  *
  * <ul>
@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>묶음: 종류마다 push.admin-alert-window-seconds(기본 120초)에 한 번까지. 첫 건은 바로 보내고, 그 사이에 들어온 건은
  *       window가 끝날 때 "새 제보 3건 승인 대기"처럼 한 번에 보낸다(AdminAlertThrottle).</li>
  *   <li>구분: 제목 "[관리]" 접두어, Android 채널 "admin"(앱이 시작할 때 만든다 — 없는 구버전 앱은 기본 채널로 떨어짐),
- *       categoryId "admin", data.type ADMIN_REPORT_PENDING / ADMIN_FEEDBACK / ADMIN_REPORT_FLAGGED.</li>
+ *       categoryId "admin", data.type ADMIN_REPORT_PENDING / ADMIN_FEEDBACK / ADMIN_REPORT_FLAGGED / ADMIN_MEMBER_REJOINED.</li>
  *   <li>본문: 제보 제목·건물·층만. 작성자·문의 내용·연락처는 담지 않는다("새 문의가 도착했어요").</li>
  * </ul>
  */
@@ -134,12 +134,19 @@ public class AdminAlertDispatcher implements DisposableBean {
             case REPORT_PENDING -> n == 1 ? "새 제보 승인 대기" : "새 제보 " + n + "건 승인 대기";
             case FEEDBACK -> n == 1 ? "새 문의" : "새 문의 " + n + "건";
             case REPORT_FLAGGED -> n == 1 ? "신고 누적으로 자동 숨김" : "제보 " + n + "건 신고 누적으로 자동 숨김";
+            case MEMBER_REJOINED -> n == 1 ? "이력 있는 회원 재가입" : "이력 있는 회원 " + n + "명 재가입";
         };
     }
 
     static String body(AdminAlertThrottle.Batch batch) {
         if (batch.type() == AdminAlertType.FEEDBACK) {
             return batch.count() == 1 ? "새 문의가 도착했어요" : "새 문의 " + batch.count() + "건이 도착했어요";
+        }
+        if (batch.type() == AdminAlertType.MEMBER_REJOINED) {
+            // 회원 카드(priorHistory)에서 확인하도록 안내만 한다. 닉네임·정지 사유 같은 내용은 싣지 않는다.
+            return batch.count() == 1
+                    ? "정지·신고 이력이 있는 탈퇴 회원이 다시 가입했어요 (회원 #" + batch.latest().targetId() + ")"
+                    : "정지·신고 이력이 있는 탈퇴 회원 " + batch.count() + "명이 다시 가입했어요";
         }
         AdminAlertEvent latest = batch.latest();
         String line = latest.reportTitle() + " · " + ReportPushDispatcher.place(latest.buildingName(), latest.floor());

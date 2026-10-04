@@ -45,6 +45,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("SELECT i.imageKey FROM ReportImage i WHERE i.report.user.id = :userId")
     List<String> findImageKeysByUserId(@Param("userId") Long userId);
 
+    /** 탈퇴 부정 이용 방지 기록(WithdrawRetentionService)용 — 이 회원의 모든 제보(건물·사진 함께). */
+    @Query("SELECT DISTINCT r FROM Report r JOIN FETCH r.building LEFT JOIN FETCH r.images WHERE r.user.id = :userId ORDER BY r.id")
+    List<Report> findAllWithBuildingByUserId(@Param("userId") Long userId);
+
     /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */
     @Query("""
             SELECT r FROM Report r

@@ -112,6 +112,18 @@ class ReportImageIntegrationTest {
             bodies.remove(key);
             deleted.add(key);
         }
+
+        @Override
+        public synchronized void copy(String sourceKey, String destinationKey) {
+            StoredObject source = objects.get(sourceKey);
+            if (source == null) {
+                throw new IllegalStateException("no such key");
+            }
+            objects.put(destinationKey, source);
+            if (bodies.containsKey(sourceKey)) {
+                bodies.put(destinationKey, bodies.get(sourceKey));
+            }
+        }
     }
 
     @Autowired MockMvc mockMvc;

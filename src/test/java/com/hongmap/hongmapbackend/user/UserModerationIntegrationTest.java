@@ -154,7 +154,7 @@ class UserModerationIntegrationTest {
         mockMvc.perform(post("/reports").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content(reportBody()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(SuspendedUserInterceptor.SUSPENDED_MESSAGE));
+                .andExpect(jsonPath("$.message").value(SuspendedUserInterceptor.suspendedMessage("욕설 반복")));
         mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
                 .andExpect(status().isForbidden());

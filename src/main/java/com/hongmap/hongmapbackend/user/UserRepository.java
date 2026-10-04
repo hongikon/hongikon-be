@@ -15,6 +15,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u.status FROM User u WHERE u.id = :id")
     Optional<UserStatus> findStatusById(@Param("id") Long id);
 
+    @Query("SELECT u.suspendedReason FROM User u WHERE u.id = :id")
+    Optional<String> findSuspendedReasonById(@Param("id") Long id);
+
     /** 관리자 회원 조회: 닉네임 일부로 찾기(최신 가입순 50명). */
     /**
      * 관리자 회원 조회: 로그인 닉네임 또는 앱 닉네임(appNickname — 앱 사용자에게 보이는 이름) 일부로 찾기(최신 가입순 50명).

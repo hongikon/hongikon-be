@@ -40,4 +40,9 @@ public class DisabledReportImageStorage implements ReportImageStorage {
     public void delete(String key) {
         // 저장소가 없으니 지울 것도 없다.
     }
+
+    @Override
+    public void copy(String sourceKey, String destinationKey) {
+        // 저장소가 없으니 복사할 것도 없다.
+    }
 }

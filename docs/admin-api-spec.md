@@ -109,6 +109,44 @@
 
 `PATCH /admin/feedback/{id}` — `{ "status": "RESOLVED" }` 또는 `OPEN` → 변경된 항목
 
+## 회원
+
+`GET /admin/users?q=` (id 또는 닉네임 일부, 비우면 정지 회원 목록) → `{ "users": [회원] }`, `GET /admin/users/{id}` → 회원.
+정지·해제·관리자 지정/해제(`POST /admin/users/{id}/suspend|unsuspend|grant-admin|revoke-admin`)도 같은 회원 형태를 돌려준다.
+```json
+{
+  "id": 31, "nickname": "...", "displayName": "홍**", "socialType": "KAKAO",
+  "role": "USER", "status": "ACTIVE", "suspendedReason": null, "suspendedAt": null, "createdAt": "...",
+  "priorHistory": {
+    "withdrawnAt": "2026-10-04T06:30:00", "retainUntil": "2027-10-04T06:30:00", "rejoinedAt": "2026-10-05T01:00:00",
+    "suspendedAt": "2026-10-01T12:00:00", "suspendedReason": "도배",
+    "wasSuspendedAtWithdrawal": true, "reportCount": 3, "flaggedReportCount": 1
+  }
+}
+```
+`priorHistory`: 정지·신고 이력으로 탈퇴 기록(1년 보관)이 남은 계정이 같은 소셜 계정으로 **다시 가입한 경우에만** 채워지고, 아니면 `null`.
+재가입하면 관리자 알림(data.type `ADMIN_MEMBER_REJOINED`, `userId`)도 간다. 자동 정지는 하지 않는다.
+
+`GET /admin/users/{id}/prior-history` — 탈퇴 전 기록 전체. 없으면 `404`.
+```json
+{
+  "userId": 31,
+  "priorHistory": { "...": "위와 같음" },
+  "withdrawals": [{
+    "withdrawnAt": "...", "status": "SUSPENDED", "suspendedReason": "도배", "suspendedAt": "...",
+    "reports": [{
+      "id": 12, "category": "FOOD_TRUCK", "customCategoryLabel": null, "title": "...", "content": "...",
+      "buildingId": 3, "buildingName": "제4공학관", "floor": 1, "lat": 37.55, "lng": 126.92,
+      "startsAt": "...", "endsAt": "...", "status": "ACTIVE", "createdAt": "...",
+      "retainedImageKeys": ["retained/reports/....jpg"], "flagCount": 2, "flagReasons": ["SPAM", "FALSE_INFO"]
+    }],
+    "flagsFiled": [{ "reportId": 40, "reason": "SPAM", "createdAt": "..." }]
+  }],
+  "retainedImageUrls": ["https://...presigned..."]
+}
+```
+`withdrawals` 는 오래된 순(재가입·재탈퇴하면 한 건씩 늘어난다). 닉네임·이메일·소셜 id 는 없다.
+
 ## 운영 도구
 
 - `POST /crawler/trigger` → `{ "savedCount": 12 }` (기존, 이제 ADMIN 전용). 이미 도는 중이면 `409`.
