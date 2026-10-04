@@ -45,16 +45,24 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("SELECT i.imageKey FROM ReportImage i WHERE i.report.user.id = :userId")
     List<String> findImageKeysByUserId(@Param("userId") Long userId);
 
-    /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */
+    /**
+     * 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다.
+     * createdFrom·createdBefore(UTC, 둘 다 선택)로 등록 시각 범위를 거른다 — [from, before).
+     */
     @Query("""
             SELECT r FROM Report r
             JOIN FETCH r.user
             JOIN FETCH r.building
-            WHERE (:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
-               OR r.status = :status
+            WHERE ((:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
+                   OR r.status = :status)
+              AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
+              AND (:createdBefore IS NULL OR r.createdAt < :createdBefore)
             ORDER BY r.createdAt DESC
             """)
-    List<Report> findForAdmin(@Param("status") ReportStatus status, Pageable pageable);
+    List<Report> findForAdmin(@Param("status") ReportStatus status,
+                              @Param("createdFrom") LocalDateTime createdFrom,
+                              @Param("createdBefore") LocalDateTime createdBefore,
+                              Pageable pageable);
 
     long countByStatus(ReportStatus status);
 
@@ -93,4 +101,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /** 리마인드 본문용 — 아직 끝나지 않은 PENDING 제보 중 가장 오래된 것. */
     Optional<Report> findFirstByStatusAndEndsAtAfterOrderByCreatedAtAscIdAsc(ReportStatus status, LocalDateTime now);
+
+    /** 아직 끝나지 않은 제보 수 — 지도 목록(findLiveReports)과 같은 기준(endsAt > now). 관리자 대시보드 '노출 중'. */
+    long countByStatusAndEndsAtAfter(ReportStatus status, LocalDateTime now);
 }

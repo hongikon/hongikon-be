@@ -518,3 +518,12 @@
 
 ## 2026-10-02 — PR #13 UGC 관리 (`feat/ugc-moderation`, base main)
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
+
+## 2026-10-05 — 관리자 제보 검토: 끝난 제보를 '노출 중'으로 세지 않기, 등록일(날짜) 조회 (`fix/overview-live-count`)
+- 왜: 승인(ACTIVE)한 제보는 끝나는 시각이 지나도 상태가 ACTIVE 로 남고 지도 목록(live)에서만 빠진다. 관리자 대시보드 '노출 중' 수가 끝난 제보까지 세서 실제보다 컸다. 검토 목록을 날짜로 좁혀 보고 싶다는 요청도 있었다
+- 변경
+  - `GET /admin/overview` `reports.active`: `countByStatusAndEndsAtAfter(ACTIVE, now)` — 지도 목록과 같은 기준(endsAt > now)
+  - `GET /admin/reports?from=&to=`: 등록일(한국 날짜 yyyy-MM-dd, 둘 다 포함, 선택). DB 는 UTC 라 한국 0시를 UTC 로 바꿔 [from, to+1) 로 거른다. to < from 이면 400. 기간 안에서 최신순 최대 200건(기존과 같음). 파라미터 없으면 기존과 동일
+  - FE(관리 탭)는 '노출 중'(끝나지 않은 ACTIVE)과 '종료'(끝난 ACTIVE) 탭을 화면에서 나누고, 기간 칩(전체·오늘·7일·30일·날짜 지정)으로 from·to 를 보낸다
+- SQL·환경변수: 없음
+- 테스트: +2 → 224개 통과(대시보드 노출 중 수, 날짜 경계 한국 10/3 01:00 = UTC 10/2 16:00 포함·to<from 400)

@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -42,16 +45,37 @@ public class AdminReportService {
     private final ApplicationEventPublisher eventPublisher;
     private final ReportImageService reportImageService;
 
-    @Transactional(readOnly = true)
+    /** 관리자가 고르는 날짜는 한국 날짜다. DB 시각은 UTC(서버 기본 시간대)라 바꿔서 거른다. */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     public AdminReportListResponse list(String status) {
+        return list(status, null, null);
+    }
+
+    /**
+     * from·to: 등록일(한국 날짜, yyyy-MM-dd, 둘 다 포함). 비우면 그쪽 끝은 열어 둔다. 기간 안에서 최신순 최대 200건.
+     * to 가 from 보다 앞이면 400.
+     */
+    @Transactional(readOnly = true)
+    public AdminReportListResponse list(String status, LocalDate from, LocalDate to) {
         ReportStatus filter = parseListFilter(status);
-        List<Report> reports = reportRepository.findForAdmin(filter, PageRequest.of(0, LIST_LIMIT));
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "끝 날짜가 시작 날짜보다 앞이에요.");
+        }
+        LocalDateTime createdFrom = from == null ? null : kstStartOfDayUtc(from);
+        LocalDateTime createdBefore = to == null ? null : kstStartOfDayUtc(to.plusDays(1));
+        List<Report> reports = reportRepository.findForAdmin(filter, createdFrom, createdBefore, PageRequest.of(0, LIST_LIMIT));
         Map<Long, Long> flagCounts = flagCounts(reports);
 
         return new AdminReportListResponse(reports.stream()
                 .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L),
                         reportImageService.viewUrls(r.getImageKeys())))
                 .toList());
+    }
+
+    /** 한국 날짜의 0시를 UTC LocalDateTime 으로(예: 10/5 → 10/4 15:00). */
+    private static LocalDateTime kstStartOfDayUtc(LocalDate date) {
+        return date.atStartOfDay(KST).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
     @Transactional(readOnly = true)
