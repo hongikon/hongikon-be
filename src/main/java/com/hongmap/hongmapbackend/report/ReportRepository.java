@@ -47,10 +47,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /**
      * 탈퇴 부정 이용 방지 기록(WithdrawRetentionService)용 — 이 회원의 제보 중 운영진이 위반으로 확정한 것(관리자가 검토해
-     * statuses 로 바꾼, reviewed_at 있음)만 사진과 함께 읽는다.
+     * statuses 로 바꾼, reviewed_at 있음)만 읽는다.
      */
     @Query("""
-            SELECT DISTINCT r FROM Report r LEFT JOIN FETCH r.images
+            SELECT r FROM Report r
             WHERE r.user.id = :userId AND r.status IN :statuses AND r.reviewedAt IS NOT NULL
             ORDER BY r.id
             """)

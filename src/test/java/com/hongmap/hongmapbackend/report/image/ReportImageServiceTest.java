@@ -92,7 +92,6 @@ class ReportImageServiceTest {
             @Override public void put(String key, String type, byte[] bytes) { calls.add("put " + key); }
             @Override public String presignView(String key, Duration ttl) { return "https://view/" + key; }
             @Override public void delete(String key) { calls.add("delete " + key); }
-            @Override public void copy(String from, String to) { calls.add("copy " + from); }
         };
         ReportImageService service = new ReportImageService(recording, null, 5_242_880,
                 Duration.ofMinutes(5), Duration.ofHours(1), 30, Clock.systemUTC());

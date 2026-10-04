@@ -494,33 +494,27 @@
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
 
 ## 2026-10-04 — 탈퇴 회원 부정 이용 방지 기록 1년 보관 + 이용 제한 고지 (`feat/withdraw-retention`, base main)
-- 왜: 정지되거나 신고받은 회원이 탈퇴 후 같은 소셜 계정으로 바로 재가입하면 이력이 모두 사라져 운영진이 알 수 없었음(운영자 결정: 해당 회원만 1년 분리 보관). 법무 검토(공정위 2019 불공정약관 심사 지침): 이용 제한 시 사유 고지·이의 제기 기회 필요
+- 왜: 정지되거나 위반 제보로 삭제 처리된 회원이 탈퇴 후 같은 소셜 계정으로 바로 재가입하면 이력이 모두 사라져 운영진이 알 수 없었음. 법무 검토(공정위 2019 불공정약관 심사 지침): 이용 제한 시 사유 고지·이의 제기 기회 필요
+- 범위(운영자 결정, 법무 검토로 두 번 축소 — 개인정보 보호법 제3조·제16조 최소 수집, 제15조 제1항 제6호 정당한 이익의 필요성·비례성)
+  - 대상: 탈퇴 시점 `status = SUSPENDED` 또는 `suspended_at` 있음, 또는 **관리자가 삭제(`DELETED`)한 제보**(`reviewed_at` 있음)가 1건 이상인 회원만. `DELETED`는 관리자만 만들 수 있는 상태(본인 삭제는 행 삭제, 신고 누적은 `HIDDEN`)
+  - 제외: 신고만 받은 제보(자동 숨김 `HIDDEN` 포함), 반려(`REJECTED` — "중복 제보"·"캠퍼스 밖" 같은 단순 반려가 섞임), 남의 제보에 단 신고. 그 밖의 회원은 지금처럼 즉시 삭제, 아무것도 안 남김
+  - **사진은 보관하지 않는다**: 관리자 삭제 시점에 이미 지워지고(`AdminReportService.moderate`, 기존 동작 유지), 탈퇴 때 남은 제보 사진도 지금처럼 사본 없이 모두 삭제
 - 변경 — 탈퇴 기록(`user/retention/WithdrawRetentionService`)
-  - 대상: 탈퇴 시점 `status = SUSPENDED` 또는 `suspended_at` 있음, 또는 신고(report_flags)를 1건 이상 받은 제보를 쓴 회원(→ 아래 "10-04 범위 축소"로 변경: 위반 확정 제보만). 그 밖의 회원은 지금처럼 즉시 삭제, 아무것도 안 남김
-  - 별도 테이블 `withdraw_retentions`(users FK 없음): `social_type` + `social_id_hash`(HMAC-SHA256 hex, 원문 저장 안 함), 정지 여부·사유·시각, 제보 수·신고받은 제보 수, `snapshot`(JSON: 제보 id·분류·제목·본문·건물·층·좌표·기간·상태·작성일·받은 신고 수/사유, 남의 제보에 단 신고 reportId·사유·시각. 닉네임·이메일·Apple 토큰 없음 — 아래 범위 축소로 위반 확정 제보 요약만 남게 바뀜), `withdrawn_at`, `retain_until`(= 탈퇴 + 1년)
-  - 사진: 커밋 뒤 `retained/<원래 키>`로 S3 CopyObject → 원본 삭제(`ReportImageService.retainThenDeleteAfterCommit`). 복사 실패는 로그만, 탈퇴는 계속(원본도 지움). `ReportImageStorage.copy` 추가
-  - 만료 정리: `purgeExpired` 매일 03:40 UTC(`WITHDRAW_RETENTION_PURGE_CRON`) — `retain_until` 지난 행 + 사진 사본 삭제(커밋 뒤, 회당 최대 200건)
+  - 별도 테이블 `withdraw_retentions`(users FK 없음): `social_type` + `social_id_hash`(HMAC-SHA256 hex, 원문 저장 안 함), 정지 여부·사유·시각, `violation_report_count`, `snapshot`(JSON), `withdrawn_at`, `retain_until`(= 탈퇴 + 1년), `rejoined_user_id`·`rejoined_at`
+  - 스냅숏(`version` 2): 탈퇴마다 정지 정보 + 위반 확정 제보 요약(`id`, `category`, `customCategoryLabel`, `title`, `content` 앞 200자, `status`, `createdAt`, `moderationNote`, `flagCount`, `flagReasons`). 위치·기간·사진·위반 아닌 제보·단 신고·닉네임·이메일·Apple 토큰 없음
+  - 만료 정리: `purgeExpired` 매일 03:40 UTC(`WITHDRAW_RETENTION_PURGE_CRON`) — `retain_until` 지난 행만 삭제(회당 최대 200건)
   - 재가입 감지: 카카오(`CustomOAuth2UserService`)·Apple(`AppleLoginService`) 신규 가입 직후 같은 HMAC의 보관 중 기록이 있으면 `rejoined_user_id`·`rejoined_at` 연결 + 관리자 알림 `MEMBER_REJOINED`(data.type `ADMIN_MEMBER_REJOINED`, `userId`, 기존 묶음 규칙). 자동 정지 없음, 가입은 막지 않음
-  - 재탈퇴: 같은 계정이면 행을 새로 만들지 않고 이어 붙임(snapshot.withdrawals 추가, 수 합산, 정지 정보는 새 값이 있을 때만 교체, `retain_until` = 새 탈퇴 + 1년, 재가입 연결 해제). 새 이력이 없어도 보관 중 기록이 있으면 갱신
-  - 관리자 API: `GET /admin/users`·`/admin/users/{id}`(및 정지/해제 등 응답) 회원에 `priorHistory`(`withdrawnAt`, `retainUntil`, `rejoinedAt`, `suspendedAt`, `suspendedReason`, `wasSuspendedAtWithdrawal`, `reportCount`, `flaggedReportCount`, 없으면 null — 범위 축소 후 `violationReportCount` 하나로 바뀜). `GET /admin/users/{id}/prior-history` → `{userId, priorHistory, withdrawals[], retainedImageUrls[]}`(없으면 404). `docs/admin-api-spec.md` "회원" 절
+  - 재탈퇴: 같은 계정이면 행을 새로 만들지 않고 이어 붙임(`withdrawals` 추가, 수 합산, 정지 정보는 새 값이 있을 때만 교체, `retain_until` = 새 탈퇴 + 1년, 재가입 연결 해제). 새 이력이 없어도 보관 중 기록이 있으면 갱신
+  - 관리자 API: `GET /admin/users`·`/admin/users/{id}`(및 정지/해제 등 응답) 회원에 `priorHistory`(`withdrawnAt`, `retainUntil`, `rejoinedAt`, `suspendedAt`, `suspendedReason`, `wasSuspendedAtWithdrawal`, `violationReportCount`, 없으면 null). `GET /admin/users/{id}/prior-history` → `{userId, priorHistory, withdrawals[]}`(없으면 404). `docs/admin-api-spec.md` "회원" 절
 - 변경 — 이용 제한 고지
   - 관리자 정지/해제 → 커밋 뒤 본인에게 푸시(`AccountStatusPushDispatcher`, `UserSuspensionChangedEvent`). 정지: "이용이 제한됐어요" / "사유: …\n이의가 있으면 14일 안에 hongikonsupport@gmail.com 으로 알려 주세요", data.type `ACCOUNT_SUSPENDED`. 해제(정지 중이었을 때만): "이용 제한이 풀렸어요", `ACCOUNT_UNSUSPENDED`. 알림 설정과 무관(서비스 고지), 활성 Expo 기기 없으면 없음, 발송 실패해도 관리자 작업은 성공
   - 정지 회원 쓰기 403 메시지에 사유 포함: "운영 정책 위반으로 이용이 제한된 계정이에요(사유: …). 제보·신고·문의를 할 수 없어요. 이의 제기: hongikonsupport@gmail.com"(사유 없으면 사유 부분 생략)
   - `GET /users/me`에 `status`(ACTIVE/SUSPENDED), `suspendedReason`, `suspendedAt` 추가 — 앱 배너용
-- SQL: `db/create_withdraw_retentions_table.sql`(IF NOT EXISTS) — ddl-auto=validate라 배포 전 실행
-- 환경변수: `WITHDRAW_RETENTION_KEY_SECRET`(선택, 비우면 JWT_SECRET에서 파생 — **운영은 별도 값을 넣고 이후 바꾸지 말 것**, 바꾸면 기존 기록과 대조 불가), `WITHDRAW_RETENTION_PURGE_CRON`(선택, 기본 `0 40 3 * * *`)
-- 테스트: 210 → 221개 전부 통과. `WithdrawRetentionIntegrationTest` 7(일반 회원 기록 없음, 정지 회원 해시·스냅숏·1년·사진 복사, 신고받은 작성자, 재가입 알림·연결·관리자 API, 첫 가입은 무반응, 만료 정리, 재탈퇴 갱신), `AppleLoginIntegrationTest` +1(Apple 재가입), `AccountStatusPushDispatcherTest` 3. `UserModerationIntegrationTest` 403 문구 기대값 변경
+- SQL: `db/create_withdraw_retentions_table.sql`(IF NOT EXISTS, 배포 전이라 파일 자체를 최종 형태로 고침) — ddl-auto=validate라 배포 전 실행
+- 환경변수: `WITHDRAW_RETENTION_KEY_SECRET`(선택, 비우면 JWT_SECRET에서 파생 — **운영은 별도 값을 넣고 이후 바꾸지 말 것**, 바꾸면 기존 기록과 대조 불가), `WITHDRAW_RETENTION_PURGE_CRON`(선택, 기본 `0 40 3 * * *`). S3·IAM 설정 변경 없음(사진을 보관하지 않으므로)
+- 테스트: 210 → 222개 전부 통과. `WithdrawRetentionIntegrationTest` 8(신고만 받은·자동 숨김 작성자 기록 없음, 반려만 된 작성자 기록 없음, 정지 회원 해시·1년·정지 정보만, 관리자 삭제 제보 요약만·사진 미보관, 재가입 알림·연결·관리자 API, 첫 가입 무반응, 만료 정리, 재탈퇴 갱신), `AppleLoginIntegrationTest` +1(Apple 재가입), `AccountStatusPushDispatcherTest` 3. `UserModerationIntegrationTest` 403 문구 기대값 변경
 - 남은 일
-  - **FE 개인정보 처리방침 문구 갱신 필요**(보관 대상·항목·1년·사진 포함) — 메인 에이전트가 FE 레포에서 진행 중. 배포 전 문구와 이 구현이 맞는지 확인
-  - **AWS 콘솔에서 S3 수명 주기 규칙 추가**: 접두사 `retained/`, 생성 후 약 366일 만료(정리 작업 실패 대비 안전망). EC2 역할 IAM에 `retained/*` PutObject·DeleteObject 권한 있는지 확인(CopyObject는 원본 GetObject + 대상 PutObject 필요)
+  - **FE 개인정보 처리방침 문구 갱신 필요**(보관 대상: 정지 이력·관리자 삭제 제보가 있는 회원만 / 항목: 소셜 계정 식별값의 해시, 정지 정보, 삭제된 제보 요약 / 1년 / 사진은 보관 안 함) — 메인 에이전트가 FE 레포에서 진행 중. 배포 전 문구와 이 구현이 맞는지 확인
   - FE: 관리 탭 회원 카드에 `priorHistory` 표시, `ADMIN_MEMBER_REJOINED`·`ACCOUNT_SUSPENDED`·`ACCOUNT_UNSUSPENDED` 알림 라우팅, `/users/me` 정지 배너
-  - 한계: 정지 해제(`unsuspend`)가 `suspended_at`을 비우므로 "정지됐다가 해제된 뒤 탈퇴"한 회원은 정지 이력으로 잡히지 않음(위반 확정 제보가 있으면 그쪽으로 잡힘). 필요하면 정지 이력 별도 컬럼 검토
+  - 한계: 정지 해제(`unsuspend`)가 `suspended_at`을 비우므로 "정지됐다가 해제된 뒤 탈퇴"한 회원은 정지 이력으로 잡히지 않음(관리자 삭제 제보가 있으면 그쪽으로 잡힘). 필요하면 정지 이력 별도 컬럼 검토
   - 재가입 감지는 가입 시 1회만(기록 연결은 가입 트랜잭션 안). 키 미설정(JWT_SECRET도 없음) 환경에선 기록·감지 모두 꺼짐(WARN 로그)
-- 10-04 범위 축소(법무 검토 반영 — 개인정보 보호법 제3조·제16조 최소 수집, 제15조 제1항 제6호 정당한 이익의 필요성·비례성)
-  - 대상: 정지 이력(그대로) 또는 **운영진이 위반으로 확정한 제보**가 있는 회원만. 확정 = 관리자 검토(`reviewed_at` 있음)로 `REJECTED`(반려) 또는 `DELETED`(관리자 삭제)가 된 제보 — 둘 다 관리자만 만들 수 있는 종결 상태(본인 삭제는 행 삭제, 신고 누적은 `HIDDEN`). `HIDDEN`은 자동 숨김과 관리자 숨김이 구분되지 않고 "재검토 대기"라 제외. 신고만 받은 제보는 더 이상 대상 아님
-  - 보관 내용: 위반 확정 제보 요약만(`id`, `category`, `customCategoryLabel`, `title`, `content` 200자, `status`, `createdAt`, `moderationNote`, `flagCount`, `flagReasons`, `retainedImageKeys`). 위치·기간·위반 아닌 제보·`flagsFiled` 삭제. 스냅숏 `version` 2, 키 `withdrawals[].violationReports`
-  - 컬럼 `report_count`·`flagged_report_count` → **`violation_report_count`**(SQL 파일 직접 수정 — 아직 배포 전). API `priorHistory.reportCount`·`flaggedReportCount` → **`violationReportCount`**
-  - 사진: 위반 확정 제보에 붙은 것만 `retained/`로 복사, 나머지 제보 사진은 지금처럼 복사 없이 삭제
-  - **주의(결정 필요)**: 관리자 `PATCH /admin/reports/{id}`가 `REJECTED`·`DELETED`로 바꿀 때 사진을 바로 지운다(`AdminReportService.moderate`, "개인정보 최소 보관"). 그래서 지금 흐름에선 위반 확정 제보 사진이 탈퇴 시점에 이미 없어 사실상 사진 보관이 되지 않는다. 증거 사진이 필요하면 반려·삭제 시점 처리(예: 일정 기간 보관 후 삭제)를 별도로 정해야 함
-  - 참고: 반려(`REJECTED`)에는 "중복 제보"·"캠퍼스 밖" 같은 단순 반려도 섞일 수 있다. 더 좁히려면 `DELETED`만 보거나 반려 사유 분류가 필요
-  - 테스트: 221 → 222개 통과(`WithdrawRetentionIntegrationTest` 8 — 신고만 받은 작성자는 기록 없음, 정지 회원은 위반 아닌 제보·사진 미보관, 위반 확정 제보 요약·그 사진만 복사, 실제 관리자 반려 경로, 재가입·관리자 API, 첫 가입, 만료 정리, 재탈퇴)

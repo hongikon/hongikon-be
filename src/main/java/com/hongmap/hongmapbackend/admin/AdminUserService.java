@@ -109,7 +109,7 @@ public class AdminUserService {
     }
 
     /**
-     * 재가입 회원의 탈퇴 전 기록 전체(스냅숏·보관 사진 보기 URL). 보관 중인 기록이 없으면 404.
+     * 재가입 회원의 탈퇴 전 기록 전체(스냅숏). 보관 중인 기록이 없으면 404.
      * 회원이 지금 존재하지 않아도 404(탈퇴한 회원 자체의 기록은 회원 id 로 찾을 수 없다 — 소셜 id 해시로만 묶인다).
      */
     @Transactional(readOnly = true)
@@ -118,8 +118,7 @@ public class AdminUserService {
         WithdrawRetention record = withdrawRetentionService.findActiveForUser(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "탈퇴 전 이력이 없는 회원입니다."));
         RetentionSnapshot snapshot = withdrawRetentionService.readSnapshot(record);
-        return new AdminUserPriorHistoryResponse(userId, AdminUserPriorHistory.of(record), snapshot.withdrawals(),
-                withdrawRetentionService.retainedImageUrls(record));
+        return new AdminUserPriorHistoryResponse(userId, AdminUserPriorHistory.of(record), snapshot.withdrawals());
     }
 
     private AdminUserResponse toResponse(User user) {

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @param suspendedAt              탈퇴 전 마지막 정지 시각(정지된 적 없으면 null)
  * @param suspendedReason          그 정지 사유
  * @param wasSuspendedAtWithdrawal 탈퇴 시점에 정지 상태였는지(탈퇴가 여러 번이면 한 번이라도)
- * @param violationReportCount     탈퇴 전 운영진이 위반으로 확정한(반려·삭제) 제보 수 — 보관 중인 제보 요약 수와 같다
+ * @param violationReportCount     탈퇴 전 운영진이 위반으로 확정한(관리자 삭제) 제보 수 — 보관 중인 제보 요약 수와 같다
  */
 public record AdminUserPriorHistory(
         LocalDateTime withdrawnAt,

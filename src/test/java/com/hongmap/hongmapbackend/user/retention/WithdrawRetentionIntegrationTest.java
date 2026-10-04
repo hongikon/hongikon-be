@@ -52,10 +52,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 탈퇴 회원 부정 이용 방지 기록(withdraw_retentions): 대상 판단(정지 이력·운영진이 위반으로 확정한 제보 — 신고만 받은 제보는 아님),
- * 해시 저장(원문 없음)·위반 제보 요약만·1년 기한, 위반 제보 사진만 사본(커밋 뒤 retained/ 복사 → 원본 삭제),
- * 재가입 감지(관리자 알림·연결·관리자 API), 재탈퇴 갱신, 만료 정리.
- * S3 는 메모리 가짜 저장소, 관리자 알림은 발행된 이벤트(@RecordApplicationEvents)로 확인한다.
+ * 탈퇴 회원 부정 이용 방지 기록(withdraw_retentions): 대상 판단(정지 이력·관리자가 삭제한 위반 확정 제보 — 신고만 받았거나 반려된
+ * 제보는 아님), 해시 저장(원문 없음)·위반 제보 요약만·1년 기한, 사진은 보관하지 않음(사본 없이 모두 삭제),
+ * 재가입 감지(관리자 알림·연결·관리자 API), 재탈퇴 갱신, 만료 정리(행만).
+ * S3 는 메모리 가짜 저장소(삭제만 기록), 관리자 알림은 발행된 이벤트(@RecordApplicationEvents)로 확인한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -74,7 +74,6 @@ class WithdrawRetentionIntegrationTest {
 
     static class FakeStorage implements ReportImageStorage {
         final Map<String, StoredObject> objects = new ConcurrentHashMap<>();
-        final List<String> copied = Collections.synchronizedList(new ArrayList<>());
         final List<String> deleted = Collections.synchronizedList(new ArrayList<>());
 
         @Override public boolean isEnabled() { return true; }
@@ -88,14 +87,6 @@ class WithdrawRetentionIntegrationTest {
         @Override public synchronized void delete(String key) {
             objects.remove(key);
             deleted.add(key);
-        }
-        @Override public synchronized void copy(String sourceKey, String destinationKey) {
-            StoredObject source = objects.get(sourceKey);
-            if (source == null) {
-                throw new IllegalStateException("no such key");
-            }
-            objects.put(destinationKey, source);
-            copied.add(sourceKey + "->" + destinationKey);
         }
     }
 
@@ -119,7 +110,6 @@ class WithdrawRetentionIntegrationTest {
     @BeforeEach
     void setUp() {
         storage.objects.clear();
-        storage.copied.clear();
         storage.deleted.clear();
         building = buildingRepository.save(Building.builder()
                 .name("보관테스트관-" + UUID.randomUUID())
@@ -130,7 +120,7 @@ class WithdrawRetentionIntegrationTest {
     }
 
     @Test
-    void 신고만_받고_처리되지_않은_제보의_작성자는_기록을_남기지_않고_사진도_복사하지_않는다() throws Exception {
+    void 신고만_받고_처리되지_않은_제보의_작성자는_기록을_남기지_않는다() throws Exception {
         String socialId = UUID.randomUUID().toString();
         User me = newUser("평범한학생", socialId);
         User other = newUser("다른학생", UUID.randomUUID().toString());
@@ -146,12 +136,24 @@ class WithdrawRetentionIntegrationTest {
         withdraw(me);
 
         assertThat(recordOf(SocialType.KAKAO, socialId)).isEmpty();
-        assertThat(storage.copied).isEmpty();
         assertThat(storage.deleted).contains(imageKey);
+        assertThat(storage.objects).doesNotContainKey(imageKey);
     }
 
     @Test
-    void 정지된_회원은_해시와_정지_정보로_1년_기록되고_위반이_아닌_제보와_사진은_남기지_않는다() throws Exception {
+    void 관리자가_반려만_한_제보의_작성자는_기록을_남기지_않는다() throws Exception {
+        String socialId = UUID.randomUUID().toString();
+        User me = newUser("반려학생", socialId);
+        Report report = saveReport(me, "중복 제보", List.of());
+        moderate(report, "REJECTED", "중복 제보");
+
+        withdraw(me);
+
+        assertThat(recordOf(SocialType.KAKAO, socialId)).isEmpty();
+    }
+
+    @Test
+    void 정지된_회원은_해시와_정지_정보로_1년_기록되고_제보와_사진은_남기지_않는다() throws Exception {
         String socialId = "kakao-" + UUID.randomUUID();
         User me = newUser("정지된학생", socialId);
         User other = newUser("신고한학생", UUID.randomUUID().toString());
@@ -186,29 +188,27 @@ class WithdrawRetentionIntegrationTest {
         assertThat(w.suspendedReason()).isEqualTo("도배");
         assertThat(w.violationReports()).isEmpty();
 
-        // 위반이 아닌 제보의 사진은 사본 없이 지운다
-        assertThat(record.getRetainedImageKeys()).isEmpty();
-        assertThat(storage.copied).isEmpty();
+        // 사진은 보관하지 않고 지금처럼 지운다
         assertThat(storage.deleted).contains(imageKey);
+        assertThat(storage.objects).isEmpty();
         assertThat(userRepository.findById(me.getId())).isEmpty();
     }
 
     @Test
-    void 위반_확정_제보가_있으면_그_제보_요약과_사진만_보관한다() throws Exception {
+    void 관리자가_삭제한_제보가_있으면_그_제보_요약만_보관하고_사진은_보관하지_않는다() throws Exception {
         String socialId = UUID.randomUUID().toString();
-        User me = newUser("반려된학생", socialId);
+        User me = newUser("삭제당한학생", socialId);
         User flagger1 = newUser("신고자1", UUID.randomUUID().toString());
         User flagger2 = newUser("신고자2", UUID.randomUUID().toString());
-        String evidenceKey = uploadedKey();
-        String normalKey = uploadedKey();
-        String longContent = "가".repeat(250);
-        Report violation = saveReport(me, "허위 제보", longContent, List.of(evidenceKey));
-        Report normal = saveReport(me, "멀쩡한 제보", "본문", List.of(normalKey));
+        String violationImage = uploadedKey();
+        String normalImage = uploadedKey();
+        Report violation = saveReport(me, "허위 제보", "가".repeat(250), List.of(violationImage));
+        Report normal = saveReport(me, "멀쩡한 제보", "본문", List.of(normalImage));
         reportFlagRepository.save(ReportFlag.builder().report(violation).user(flagger1).reason("FALSE_INFO").build());
         reportFlagRepository.save(ReportFlag.builder().report(violation).user(flagger2).reason("SPAM").build());
         reportFlagRepository.save(ReportFlag.builder().report(normal).user(flagger1).reason("SPAM").build());
-        // 관리자 반려 처리. 실제 PATCH 는 반려 즉시 사진을 지우므로(AdminReportService) 사진이 남은 경우를 위해 DB 로 직접 맞춘다
-        markModerated(violation, "DELETED", "허위 정보 반복");
+        moderate(violation, "DELETED", "허위 정보 반복"); // 관리자 삭제 — 사진은 이 시점에 지워진다
+        assertThat(storage.deleted).contains(violationImage);
 
         withdraw(me);
 
@@ -227,40 +227,17 @@ class WithdrawRetentionIntegrationTest {
             assertThat(r.moderationNote()).isEqualTo("허위 정보 반복");
             assertThat(r.flagCount()).isEqualTo(2);
             assertThat(r.flagReasons()).containsExactlyInAnyOrder("FALSE_INFO", "SPAM");
-            assertThat(r.retainedImageKeys()).containsExactly("retained/" + evidenceKey);
         });
-        // 위치·기간·위반 아닌 제보·신고자 닉네임은 스냅숏에 없다
+        // 위치·기간·사진·위반 아닌 제보·신고자 닉네임은 스냅숏에 없다
         assertThat(record.getSnapshot()).doesNotContain("멀쩡한 제보").doesNotContain("신고자1")
                 .doesNotContain("\"lat\"").doesNotContain("\"lng\"").doesNotContain("\"floor\"")
-                .doesNotContain("building").doesNotContain("\"startsAt\"").doesNotContain("\"endsAt\"");
+                .doesNotContain("building").doesNotContain("\"startsAt\"").doesNotContain("\"endsAt\"")
+                .doesNotContain("Image").doesNotContain("reports/");
 
-        // 사진: 위반 제보 것만 커밋 뒤 retained/ 로 복사, 둘 다 원본은 삭제
-        assertThat(record.getRetainedImageKeys()).containsExactly("retained/" + evidenceKey);
-        assertThat(storage.copied).containsExactly(evidenceKey + "->retained/" + evidenceKey);
-        assertThat(storage.deleted).contains(evidenceKey, normalKey);
-        assertThat(storage.objects).containsKey("retained/" + evidenceKey)
-                .doesNotContainKey(evidenceKey).doesNotContainKey(normalKey).doesNotContainKey("retained/" + normalKey);
+        // 사진: 사본 없이 모두 삭제
+        assertThat(storage.deleted).contains(violationImage, normalImage);
+        assertThat(storage.objects).isEmpty();
         assertThat(reportRepository.findById(violation.getId())).isEmpty();
-    }
-
-    @Test
-    void 관리자가_실제로_반려한_제보의_작성자는_기록된다() throws Exception {
-        String socialId = UUID.randomUUID().toString();
-        User me = newUser("반려학생", socialId);
-        Report report = saveReport(me, "캠퍼스 밖 광고", List.of());
-
-        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"REJECTED\",\"note\":\"광고성 게시물\"}"))
-                .andExpect(status().isOk());
-        withdraw(me);
-
-        WithdrawRetention record = recordOf(SocialType.KAKAO, socialId).orElseThrow();
-        assertThat(record.getViolationReportCount()).isEqualTo(1);
-        assertThat(retentionService.readSnapshot(record).withdrawals().get(0).violationReports())
-                .singleElement().satisfies(r -> {
-                    assertThat(r.status()).isEqualTo("REJECTED");
-                    assertThat(r.moderationNote()).isEqualTo("광고성 게시물");
-                });
     }
 
     @Test
@@ -268,7 +245,7 @@ class WithdrawRetentionIntegrationTest {
         String socialId = UUID.randomUUID().toString();
         User me = newUser("돌아온학생", socialId);
         Report violation = saveReport(me, "정지 전 위반 제보", List.of());
-        markModerated(violation, "REJECTED", "욕설");
+        moderate(violation, "DELETED", "욕설");
         saveReport(me, "평범한 제보", List.of());
         suspend(me, "욕설");
         withdraw(me);
@@ -304,8 +281,9 @@ class WithdrawRetentionIntegrationTest {
                 .andExpect(jsonPath("$.withdrawals[0].violationReports.length()").value(1))
                 .andExpect(jsonPath("$.withdrawals[0].violationReports[0].title").value("정지 전 위반 제보"))
                 .andExpect(jsonPath("$.withdrawals[0].violationReports[0].moderationNote").value("욕설"))
+                .andExpect(jsonPath("$.withdrawals[0].violationReports[0].retainedImageKeys").doesNotExist())
                 .andExpect(jsonPath("$.withdrawals[0].flagsFiled").doesNotExist())
-                .andExpect(jsonPath("$.retainedImageUrls").isArray());
+                .andExpect(jsonPath("$.retainedImageUrls").doesNotExist());
 
         // 이력이 없는 회원은 null / 404, 관리자가 아니면 403
         mockMvc.perform(get("/admin/users/" + admin.getId()).header("Authorization", bearer(admin)))
@@ -328,12 +306,10 @@ class WithdrawRetentionIntegrationTest {
     }
 
     @Test
-    void 기한이_지난_기록은_정리_작업이_행과_사진_사본을_지운다() throws Exception {
+    void 기한이_지난_기록은_정리_작업이_행을_지운다() throws Exception {
         String expiredSocialId = UUID.randomUUID().toString();
         User expiredUser = newUser("오래된학생", expiredSocialId);
-        String imageKey = uploadedKey();
-        Report violation = saveReport(expiredUser, "오래된 위반 제보", List.of(imageKey));
-        markModerated(violation, "DELETED", "도배");
+        suspend(expiredUser, "도배");
         withdraw(expiredUser);
 
         String activeSocialId = UUID.randomUUID().toString();
@@ -342,7 +318,6 @@ class WithdrawRetentionIntegrationTest {
         withdraw(activeUser);
 
         WithdrawRetention expired = recordOf(SocialType.KAKAO, expiredSocialId).orElseThrow();
-        assertThat(expired.getRetainedImageKeys()).containsExactly("retained/" + imageKey);
         jdbcTemplate.update("UPDATE withdraw_retentions SET retain_until = ? WHERE id = ?",
                 LocalDateTime.now().minusMinutes(1), expired.getId());
         storage.deleted.clear();
@@ -351,8 +326,7 @@ class WithdrawRetentionIntegrationTest {
 
         assertThat(purged).isGreaterThanOrEqualTo(1);
         assertThat(retentionRepository.findById(expired.getId())).isEmpty();
-        assertThat(storage.deleted).contains("retained/" + imageKey);
-        assertThat(storage.objects).doesNotContainKey("retained/" + imageKey);
+        assertThat(storage.deleted).isEmpty(); // 지울 사진 사본이 없다
         assertThat(recordOf(SocialType.KAKAO, activeSocialId)).isPresent();
     }
 
@@ -361,7 +335,7 @@ class WithdrawRetentionIntegrationTest {
         String socialId = UUID.randomUUID().toString();
         User first = newUser("반복학생", socialId);
         Report firstViolation = saveReport(first, "첫 계정 위반 제보", List.of());
-        markModerated(firstViolation, "REJECTED", "도배");
+        moderate(firstViolation, "DELETED", "도배");
         suspend(first, "도배");
         withdraw(first);
         WithdrawRetention before = recordOf(SocialType.KAKAO, socialId).orElseThrow();
@@ -423,10 +397,12 @@ class WithdrawRetentionIntegrationTest {
         return saveReport(user, title, "본문", imageKeys);
     }
 
-    /** 관리자 검토로 상태를 바꾼 것처럼(reviewed_at·사유 포함) DB 를 직접 맞춘다 — 사진을 남겨 둔 채로. */
-    private void markModerated(Report report, String status, String note) {
-        jdbcTemplate.update("UPDATE reports SET status = ?, moderation_note = ?, reviewed_at = ? WHERE id = ?",
-                status, note, LocalDateTime.now(), report.getId());
+    /** 실제 관리자 검토 API(PATCH /admin/reports/{id})로 상태를 바꾼다. */
+    private void moderate(Report report, String status, String note) throws Exception {
+        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"" + status + "\",\"note\":\"" + note + "\"}"))
+                .andExpect(status().isOk());
     }
 
     private Report saveReport(User user, String title, String content, List<String> imageKeys) {

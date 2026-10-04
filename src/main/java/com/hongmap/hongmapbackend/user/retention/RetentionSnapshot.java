@@ -11,7 +11,7 @@ import java.util.List;
  */
 public record RetentionSnapshot(int version, List<Withdrawal> withdrawals) {
 
-    /** 2: 위반 확정 제보 요약만(2026-10-04 범위 축소). 1 은 배포 전이라 운영 데이터에 없다. */
+    /** 2: 위반 확정 제보 요약만, 사진 없음(2026-10-04 범위 축소). 1 은 배포 전이라 운영 데이터에 없다. */
     public static final int VERSION = 2;
 
     /** 탈퇴 1회분 */
@@ -25,11 +25,10 @@ public record RetentionSnapshot(int version, List<Withdrawal> withdrawals) {
     }
 
     /**
-     * 운영진이 위반으로 확정한(반려 REJECTED·삭제 DELETED 처리한) 제보 1건의 요약.
+     * 운영진이 위반으로 확정한(관리자가 삭제 DELETED 처리한) 제보 1건의 요약. 사진은 없다(보관하지 않음).
      *
      * @param content           본문 앞 {@link WithdrawRetentionService#CONTENT_SUMMARY_LENGTH}자(넘으면 "…")
-     * @param moderationNote    관리자가 남긴 반려·삭제 사유(없으면 null)
-     * @param retainedImageKeys 증거로 복사해 둔 사진 사본 키(retained/reports/...). 없으면 빈 목록
+     * @param moderationNote    관리자가 남긴 삭제 사유(없으면 null)
      */
     public record ViolationReport(
             Long id,
@@ -41,8 +40,7 @@ public record RetentionSnapshot(int version, List<Withdrawal> withdrawals) {
             LocalDateTime createdAt,
             String moderationNote,
             int flagCount,
-            List<String> flagReasons,
-            List<String> retainedImageKeys
+            List<String> flagReasons
     ) {
     }
 }

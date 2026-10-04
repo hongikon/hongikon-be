@@ -9,13 +9,11 @@ import java.util.List;
  *
  * @param userId            재가입한 지금 회원 id
  * @param priorHistory      회원 카드와 같은 요약
- * @param withdrawals       탈퇴 1회마다 정지 정보와 위반 확정 제보 요약(오래된 순). 닉네임·이메일·소셜 id·위치는 없다.
- * @param retainedImageUrls 보관 중인 위반 제보 사진 사본의 보기 URL(presigned GET, 1시간). 저장소가 꺼져 있거나 없으면 빈 목록.
+ * @param withdrawals       탈퇴 1회마다 정지 정보와 위반 확정(관리자 삭제) 제보 요약(오래된 순). 닉네임·이메일·소셜 id·위치·사진은 없다.
  */
 public record AdminUserPriorHistoryResponse(
         Long userId,
         AdminUserPriorHistory priorHistory,
-        List<RetentionSnapshot.Withdrawal> withdrawals,
-        List<String> retainedImageUrls
+        List<RetentionSnapshot.Withdrawal> withdrawals
 ) {
 }

@@ -42,8 +42,8 @@ public class AdminUserController {
     }
 
     @Operation(summary = "재가입 회원의 탈퇴 전 이력",
-            description = "정지 이력·위반 확정 제보로 탈퇴 기록(1년 보관)이 남은 계정이 다시 가입한 경우의 스냅숏"
-                    + "(정지 정보, 위반 확정 제보 요약)과 보관 사진 보기 URL. 기록이 없으면 404.")
+            description = "정지 이력·위반 확정(관리자 삭제) 제보로 탈퇴 기록(1년 보관)이 남은 계정이 다시 가입한 경우의 스냅숏"
+                    + "(정지 정보, 위반 확정 제보 요약). 기록이 없으면 404.")
     @GetMapping("/{id}/prior-history")
     public AdminUserPriorHistoryResponse priorHistory(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
         AdminUserPriorHistoryResponse response = adminUserService.priorHistory(id);

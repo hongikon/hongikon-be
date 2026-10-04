@@ -33,9 +33,6 @@ public interface ReportImageStorage {
 
     void delete(String key);
 
-    /** 같은 버킷 안에서 객체를 복사한다(탈퇴 회원 부정 이용 방지 기록의 사진 사본). 원본이 없으면 예외. */
-    void copy(String sourceKey, String destinationKey);
-
     record PresignedUpload(String url, Map<String, String> headers, Instant expiresAt) {
     }
 

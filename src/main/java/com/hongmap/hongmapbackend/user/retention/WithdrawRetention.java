@@ -1,9 +1,7 @@
 package com.hongmap.hongmapbackend.user.retention;
 
-import com.hongmap.hongmapbackend.news.converter.StringListJsonConverter;
 import com.hongmap.hongmapbackend.user.SocialType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -19,12 +17,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
 
 /**
- * 탈퇴 회원의 부정 이용 방지 기록(개인정보 처리방침: 탈퇴 후 1년 분리 보관). 정지 이력이 있거나 운영진이 위반으로 확정한 제보가 있는 회원만 남는다
+ * 탈퇴 회원의 부정 이용 방지 기록(개인정보 처리방침: 탈퇴 후 1년 분리 보관). 정지 이력이 있거나 관리자가 삭제한(위반 확정) 제보가 있는 회원만 남는다. 사진은 없다
  * — 대상 판단과 생성·갱신·만료 삭제는 {@link WithdrawRetentionService}.
  * <ul>
  *   <li>소셜 id 원문은 없다. {@link #socialIdHash} 는 서버 비밀키로 만든 HMAC 이라 재가입 대조에만 쓰이고 거꾸로 풀 수 없다.</li>
@@ -77,11 +72,6 @@ public class WithdrawRetention {
     @Column(name = "snapshot", nullable = false, columnDefinition = "LONGTEXT")
     private String snapshot;
 
-    /** S3 에 복사해 둔 위반 확정 제보의 사진 키(retained/...). 만료 삭제 때 함께 지운다. */
-    @Convert(converter = StringListJsonConverter.class)
-    @Column(name = "retained_image_keys", columnDefinition = "TEXT")
-    private List<String> retainedImageKeys = new ArrayList<>();
-
     @Column(name = "withdrawn_at", nullable = false)
     private LocalDateTime withdrawnAt;
 
@@ -119,7 +109,7 @@ public class WithdrawRetention {
      * @param snapshotJson 지금까지의 탈퇴를 모두 담은 스냅숏(서비스가 합쳐서 넘긴다)
      */
     void recordWithdrawal(boolean suspendedNow, String suspendedReason, LocalDateTime suspendedAt,
-                          int violationReportCount, String snapshotJson, List<String> newImageKeys,
+                          int violationReportCount, String snapshotJson,
                           LocalDateTime withdrawnAt, LocalDateTime retainUntil) {
         this.wasSuspended = this.wasSuspended || suspendedNow;
         if (suspendedAt != null) { // 이번에 정지 이력이 없으면 이전 기록의 정지 정보를 남긴다
@@ -128,9 +118,6 @@ public class WithdrawRetention {
         }
         this.violationReportCount += violationReportCount;
         this.snapshot = snapshotJson;
-        LinkedHashSet<String> keys = new LinkedHashSet<>(retainedImageKeys == null ? List.of() : retainedImageKeys);
-        keys.addAll(newImageKeys);
-        this.retainedImageKeys = new ArrayList<>(keys);
         this.withdrawnAt = withdrawnAt;
         this.retainUntil = retainUntil;
         // 재가입했던 회원이 다시 탈퇴했으니 연결을 끊는다(users 행이 곧 지워진다).
@@ -138,14 +125,13 @@ public class WithdrawRetention {
         this.rejoinedAt = null;
     }
 
-    /** 만료됐지만 아직 정리되지 않은 행을 새 탈퇴에 다시 쓸 때 — 이전 이력을 모두 버린다(사진 사본은 서비스가 지운다). */
+    /** 만료됐지만 아직 정리되지 않은 행을 새 탈퇴에 다시 쓸 때 — 이전 이력을 모두 버린다. */
     void resetExpired() {
         this.wasSuspended = false;
         this.suspendedReason = null;
         this.suspendedAt = null;
         this.violationReportCount = 0;
         this.snapshot = null;
-        this.retainedImageKeys = new ArrayList<>();
         this.rejoinedUserId = null;
         this.rejoinedAt = null;
     }

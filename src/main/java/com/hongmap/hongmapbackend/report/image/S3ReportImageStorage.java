@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -124,14 +123,5 @@ public class S3ReportImageStorage implements ReportImageStorage {
     @Override
     public void delete(String key) {
         s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
-    }
-
-    @Override
-    public void copy(String sourceKey, String destinationKey) {
-        // 서버 쪽 복사(CopyObject)라 본문이 EC2 를 거치지 않는다. IAM 에 retained/* 쓰기(PutObject)와 reports/* 읽기(GetObject)가 필요하다.
-        s3.copyObject(CopyObjectRequest.builder()
-                .sourceBucket(bucket).sourceKey(sourceKey)
-                .destinationBucket(bucket).destinationKey(destinationKey)
-                .build());
     }
 }

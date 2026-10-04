@@ -43,8 +43,6 @@ import java.util.regex.Pattern;
 public class ReportImageService {
 
     public static final String KEY_PREFIX = "reports/";
-    /** 탈퇴 회원 부정 이용 방지 기록으로 1년 보관하는 사진 사본의 접두사(S3 수명 주기 규칙도 이 접두사로 건다). */
-    public static final String RETAINED_PREFIX = "retained/";
     /** 서버가 발급한 키만 받는다. 다른 접두사·경로 조작(../)·임의 확장자는 여기서 걸러진다. */
     private static final Pattern KEY_PATTERN =
             Pattern.compile("^reports/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png)$");
@@ -261,43 +259,6 @@ public class ReportImageService {
             });
         } else {
             deleteQuietly(key);
-        }
-    }
-
-    /** 탈퇴 회원 부정 이용 방지 기록용 사본 키. 원래 키 앞에 {@link #RETAINED_PREFIX} 를 붙인다(reports/x.jpg → retained/reports/x.jpg). */
-    public static String retainedKeyOf(String key) {
-        return RETAINED_PREFIX + key;
-    }
-
-    /**
-     * 탈퇴 회원 부정 이용 방지 기록(1년 보관)용 — DB 커밋이 끝난 뒤 원본을 {@link #retainedKeyOf(String)} 로 복사하고 원본을 지운다.
-     * {@link #deleteAfterCommit(String)} 와 같은 시점(커밋 뒤)이라 롤백되면 복사도 삭제도 하지 않는다(탈퇴가 취소되면 원본이 그대로).
-     * 복사 실패는 로그만 남기고 원본은 그대로 지운다 — 탈퇴(삭제 의무)가 우선이다. 사본은 만료 정리(WithdrawRetentionService)가
-     * 지우고, S3 수명 주기 규칙(retained/ 약 366일)이 안전망이다.
-     */
-    public void retainThenDeleteAfterCommit(String key) {
-        if (key == null || !storage.isEnabled()) {
-            return;
-        }
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    copyQuietly(key);
-                    deleteQuietly(key);
-                }
-            });
-        } else {
-            copyQuietly(key);
-            deleteQuietly(key);
-        }
-    }
-
-    private void copyQuietly(String key) {
-        try {
-            storage.copy(key, retainedKeyOf(key));
-        } catch (RuntimeException e) {
-            log.warn("report image retention copy failed key={}: {}", key, e.toString());
         }
     }
 
