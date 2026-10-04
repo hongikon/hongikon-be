@@ -47,19 +47,16 @@ public class AdminUserController {
     }
 
     /**
-     * 로그인 닉네임 원문 열람. 관리자 응답은 평소 앱에 보이는 이름·회원 번호만 싣고, 원문은 이 경로로만 — 부를 때마다
-     * admin_pii_access_logs 에 (관리자 id, 대상 id, LOGIN_NICKNAME, 사유, 시각)이 남는다. 브라우저·프록시가 값을
-     * 캐시하지 않게 no-store. GET 이지만 기록이 남는 요청이라 화면은 버튼을 눌렀을 때만 부른다.
+     * 로그인 닉네임 원문 열람. 관리자 응답은 평소 앱에 보이는 이름·회원 번호만 싣고, 원문은 이 경로로만 준다.
+     * 열람마다 서버 로그(ADMIN_AUDIT)에 관리자 id·대상 id 한 줄(값 없음). 브라우저·프록시가 값을 캐시하지 않게 no-store.
      */
-    @Operation(summary = "로그인 닉네임 열람(기록 남음)",
-            description = "카카오/Apple 로그인 닉네임 원문과 로그인 방식. 호출할 때마다 열람 기록(누가·언제·누구의)이 남는다. "
-                    + "purpose: 열람 사유(선택, 100자에서 자름). 없는 회원이면 404(기록 없음).")
+    @Operation(summary = "로그인 닉네임 열람",
+            description = "카카오/Apple 로그인 닉네임 원문과 로그인 방식. 다른 관리자 응답에는 원문이 없다. 없는 회원이면 404.")
     @GetMapping("/{id}/login-name")
-    public ResponseEntity<AdminLoginNameResponse> loginName(@AuthenticationPrincipal Long adminId, @PathVariable Long id,
-                                                            @RequestParam(required = false) String purpose) {
+    public ResponseEntity<AdminLoginNameResponse> loginName(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(adminPiiAccessService.revealLoginName(adminId, id, purpose));
+                .body(adminPiiAccessService.revealLoginName(adminId, id));
     }
 
     @Operation(summary = "이용 정지", description = "정지된 회원은 로그인·조회는 되지만 제보·신고·문의·닉네임 변경이 403 으로 막힙니다. 사유 필수.")

@@ -13,8 +13,11 @@ import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,7 +26,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -31,7 +33,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,14 +45,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 관리자 콘솔 로그인 닉네임 가리기(개인정보 보호법 제3조 최소 처리).
  * <ul>
  *   <li>관리자 응답(제보·신고·문의·회원)에 로그인 닉네임 원문이 없다 — 앱에 보이는 이름 + 회원 번호만</li>
- *   <li>GET /admin/users/{id}/login-name 은 관리자 전용이고, 부를 때마다 admin_pii_access_logs 에 기록이 남는다</li>
+ *   <li>GET /admin/users/{id}/login-name 은 관리자 전용이고, 열람마다 서버 로그(ADMIN_AUDIT)에 id 만 한 줄 남긴다(값은 안 씀)</li>
  *   <li>회원 조회는 로그인 닉네임으로 찾지 않는다(회원 번호·id·앱 닉네임만)</li>
- *   <li>열람 기록은 보관 기간(최소 1년)이 지나야 지운다</li>
  * </ul>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class AdminPiiAccessIntegrationTest {
 
     @Autowired MockMvc mockMvc;
@@ -60,8 +61,6 @@ class AdminPiiAccessIntegrationTest {
     @Autowired BuildingRepository buildingRepository;
     @Autowired ReportRepository reportRepository;
     @Autowired FeedbackRepository feedbackRepository;
-    @Autowired AdminPiiAccessLogRepository accessLogRepository;
-    @Autowired AdminPiiAccessLogPurger purger;
     @Autowired JdbcTemplate jdbcTemplate;
 
     User admin;
@@ -104,10 +103,6 @@ class AdminPiiAccessIntegrationTest {
                 .category(ReportCategory.FOOD_TRUCK).title("붕어빵 트럭")
                 .startsAt(now.minusHours(1)).endsAt(now.plusHours(3))
                 .build());
-    }
-
-    private List<AdminPiiAccessLog> logsOf(User target) {
-        return accessLogRepository.findByTargetUserIdOrderByIdDesc(target.getId());
     }
 
     @Test
@@ -180,81 +175,31 @@ class AdminPiiAccessIntegrationTest {
     }
 
     @Test
-    void 로그인_닉네임_열람은_관리자만_되고_열람할_때마다_기록이_남는다() throws Exception {
+    void 로그인_닉네임_열람은_관리자만_되고_서버_로그에는_id만_남는다(CapturedOutput output) throws Exception {
         String url = "/admin/users/" + author.getId() + "/login-name";
+        String logLine = "admin-login-name-view adminId=" + admin.getId() + " targetUserId=" + author.getId();
 
         mockMvc.perform(get(url)).andExpect(status().isUnauthorized());
         mockMvc.perform(get(url).header("Authorization", bearer(flagger))).andExpect(status().isForbidden());
-        assertThat(logsOf(author)).isEmpty();
+        assertThat(output.getAll()).doesNotContain("targetUserId=" + author.getId());
 
-        mockMvc.perform(get(url).param("purpose", "  신고 3건 — 동일인 여부 확인 ").header("Authorization", bearer(admin)))
+        mockMvc.perform(get(url).header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(jsonPath("$.userId").value(author.getId()))
                 .andExpect(jsonPath("$.loginNickname").value(loginName))
-                .andExpect(jsonPath("$.socialType").value("APPLE"))
-                .andExpect(jsonPath("$.accessedAt").isNotEmpty());
+                .andExpect(jsonPath("$.socialType").value("APPLE"));
 
-        List<AdminPiiAccessLog> logs = logsOf(author);
-        assertThat(logs).hasSize(1);
-        AdminPiiAccessLog log = logs.get(0);
-        assertThat(log.getAdminUserId()).isEqualTo(admin.getId());
-        assertThat(log.getTargetUserId()).isEqualTo(author.getId());
-        assertThat(log.getField()).isEqualTo(AdminPiiAccessLog.FIELD_LOGIN_NICKNAME);
-        assertThat(log.getPurpose()).isEqualTo("신고 3건 — 동일인 여부 확인");
-        assertThat(log.getAccessedAt()).isNotNull();
-
-        // 다시 열람하면 또 남는다(사유 없이도 된다)
-        mockMvc.perform(get(url).header("Authorization", bearer(admin))).andExpect(status().isOk());
-        assertThat(logsOf(author)).hasSize(2);
-        assertThat(logsOf(author).get(0).getPurpose()).isNull();
+        assertThat(output.getAll()).contains(logLine);
+        // 로그에는 닉네임 값이 절대 남지 않는다(요청 경로·id 만)
+        assertThat(output.getAll()).doesNotContain(loginName);
     }
 
     @Test
-    void 없는_회원의_로그인_닉네임_열람은_404이고_기록이_남지_않는다() throws Exception {
+    void 없는_회원의_로그인_닉네임_열람은_404이고_로그가_남지_않는다(CapturedOutput output) throws Exception {
         long missing = 987_654_321L;
         mockMvc.perform(get("/admin/users/" + missing + "/login-name").header("Authorization", bearer(admin)))
                 .andExpect(status().isNotFound());
-        assertThat(accessLogRepository.findByTargetUserIdOrderByIdDesc(missing)).isEmpty();
-    }
-
-    @Test
-    void 열람_사유는_100자에서_자른다() {
-        assertThat(AdminPiiAccessService.normalizePurpose(null)).isNull();
-        assertThat(AdminPiiAccessService.normalizePurpose("   ")).isNull();
-        assertThat(AdminPiiAccessService.normalizePurpose("가".repeat(150))).hasSize(100);
-    }
-
-    @Test
-    void 열람_기록은_보관_기간이_지나야_지우고_1년_미만으로는_지우지_않는다() {
-        LocalDateTime now = LocalDateTime.of(2026, 10, 5, 4, 30);
-        AdminPiiAccessLog old = accessLogRepository.save(new AdminPiiAccessLog(admin.getId(), author.getId(),
-                AdminPiiAccessLog.FIELD_LOGIN_NICKNAME, null, now.minusDays(731)));
-        AdminPiiAccessLog recent = accessLogRepository.save(new AdminPiiAccessLog(admin.getId(), author.getId(),
-                AdminPiiAccessLog.FIELD_LOGIN_NICKNAME, null, now.minusDays(400)));
-
-        purger.purgeOlderThan(now, 730);
-        assertThat(accessLogRepository.existsById(old.getId())).isFalse();
-        assertThat(accessLogRepository.existsById(recent.getId())).isTrue();
-
-        // 설정을 30일로 잘못 줄여도 1년(365일) 안의 기록은 남는다
-        assertThat(AdminPiiAccessLogPurger.effectiveRetentionDays(30)).isEqualTo(AdminPiiAccessLogPurger.MIN_RETENTION_DAYS);
-        AdminPiiAccessLog withinYear = accessLogRepository.save(new AdminPiiAccessLog(admin.getId(), author.getId(),
-                AdminPiiAccessLog.FIELD_LOGIN_NICKNAME, null, now.minusDays(200)));
-        purger.purgeOlderThan(now, 30);
-        assertThat(accessLogRepository.existsById(withinYear.getId())).isTrue();
-        assertThat(accessLogRepository.existsById(recent.getId())).isFalse(); // 400일 > 365일
-    }
-
-    @Test
-    void 탈퇴해도_열람_기록은_남는다() throws Exception {
-        // 카카오·Apple 은 탈퇴 때 외부 연결 끊기를 부르므로 외부 호출이 없는 GOOGLE 회원으로 확인한다
-        User leaving = newUser("탈퇴예정" + UUID.randomUUID().toString().substring(0, 4), SocialType.GOOGLE);
-        mockMvc.perform(get("/admin/users/" + leaving.getId() + "/login-name").header("Authorization", bearer(admin)))
-                .andExpect(status().isOk());
-        mockMvc.perform(delete("/auth/me").header("Authorization", bearer(leaving)))
-                .andExpect(status().isNoContent());
-        assertThat(userRepository.existsById(leaving.getId())).isFalse();
-        assertThat(logsOf(leaving)).hasSize(1); // FK 가 없어 id 만 남은 기록이 그대로 있다
+        assertThat(output.getAll()).doesNotContain("admin-login-name-view adminId=" + admin.getId() + " targetUserId=" + missing);
     }
 }

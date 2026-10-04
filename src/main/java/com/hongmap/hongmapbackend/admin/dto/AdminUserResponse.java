@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  * 관리자 회원 조회·정지 화면의 한 줄. memberCode 는 공개 회원 번호(K7Q2M9XA4D).
  * 연락처(email)와 로그인(카카오/Apple) 닉네임 원문은 싣지 않는다 — 로그인 닉네임은 실명인 경우가 많아, 운영진도
  * 평소엔 앱에 보이는 이름과 회원 번호로만 회원을 가리킨다(개인정보 보호법 제3조 최소 처리). 꼭 필요할 때만
- * GET /admin/users/{id}/login-name 으로 열람하고, 그때마다 admin_pii_access_logs 에 기록이 남는다.
+ * GET /admin/users/{id}/login-name 으로 따로 열람한다.
  */
 public record AdminUserResponse(
         Long id,

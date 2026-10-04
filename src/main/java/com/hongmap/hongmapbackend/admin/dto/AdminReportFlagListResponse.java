@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * 제보에 달린 신고 목록(관리자). 신고자는 앱에 보이는 이름과 회원 번호로만 가리키고 로그인 닉네임 원문은 싣지 않는다
- * (개인정보 보호법 제3조 최소 처리 — 원문 열람은 GET /admin/users/{id}/login-name, 열람 기록이 남는다).
+ * (개인정보 보호법 제3조 최소 처리 — 원문 열람은 GET /admin/users/{id}/login-name).
  */
 public record AdminReportFlagListResponse(List<Item> flags) {
 

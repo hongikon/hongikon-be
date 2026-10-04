@@ -10,7 +10,7 @@ import java.util.List;
  * 관리자 제보 검토 화면의 한 줄. 사용자용 ReportResponse 와 달리 상태·작성자·신고 수·검토 기록을 모두 싣는다.
  * 작성자는 앱에 보이는 이름(authorDisplayName)과 공개 회원 번호(authorMemberCode)로만 가리킨다 — 로그인(카카오/Apple)
  * 닉네임 원문은 실명인 경우가 많아 싣지 않는다(개인정보 보호법 제3조 최소 처리). 꼭 필요하면
- * GET /admin/users/{id}/login-name 으로 따로 열람하고, 그때마다 admin_pii_access_logs 에 기록이 남는다.
+ * GET /admin/users/{id}/login-name 으로 따로 열람한다.
  */
 public record AdminReportResponse(
         Long id,

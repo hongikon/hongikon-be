@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 /**
  * 관리자 문의 목록의 한 줄. 작성자는 앱에 보이는 이름과 회원 번호로만 가리키고 로그인 닉네임 원문은 싣지 않는다
- * (개인정보 보호법 제3조 최소 처리 — 원문 열람은 GET /admin/users/{id}/login-name, 열람 기록이 남는다).
+ * (개인정보 보호법 제3조 최소 처리 — 원문 열람은 GET /admin/users/{id}/login-name).
  * 비로그인 문의·탈퇴한 작성자의 문의는 userId 부터 모두 null.
  *
  * @param userNickname    구버전 관리자 화면 호환용. 예전엔 로그인 닉네임 원문이었지만 이제 userDisplayName 과 같은 값

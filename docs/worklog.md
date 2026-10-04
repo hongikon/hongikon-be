@@ -520,23 +520,22 @@
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
 
 ## 2026-10-05 — 관리자 콘솔 로그인 닉네임 가리기 (`feat/admin-hide-login-name`, base main)
-- 왜: 관리자 화면 곳곳(제보 카드 "최석훈 (앱 표시: 와우)", 회원 카드, 신고 목록, 문의 작성자)에 카카오/Apple 로그인 닉네임 원문이 그대로 보였음. 실명인 경우가 많아 개인정보 보호법 제3조(목적에 필요한 최소한)에 맞춰 평소엔 앱에 보이는 이름 + 공개 회원 번호로만 회원을 가리키고, 원문은 필요할 때만 기록을 남기고 열람하도록 바꿈(오너 승인)
+- 왜: 관리자 화면 곳곳(제보 카드 "실명 (앱 표시: 와우)", 회원 카드, 신고 목록, 문의 작성자)에 카카오/Apple 로그인 닉네임 원문이 그대로 보였음. 실명인 경우가 많아 개인정보 보호법 제3조(목적에 필요한 최소한)에 맞춰 평소엔 앱에 보이는 이름 + 공개 회원 번호로만 회원을 가리키고, 원문은 필요할 때 버튼으로만 열람하도록 바꿈(오너 승인)
 - 변경
   - 관리자 응답에서 로그인 닉네임 원문 제거. 구버전 화면이 깨지지 않게 옛 키는 남기되 **값을 앱 표시 이름으로** 바꿈(새 화면은 새 키를 씀)
     - `AdminReportResponse`(목록·상태 변경): `authorNickname` = `authorDisplayName`, 끝에 `authorMemberCode` 추가
     - `AdminReportFlagListResponse.Item`: `reporterNickname` = 표시 이름, `reporterId`·`reporterDisplayName`·`reporterMemberCode` 추가
     - `FeedbackResponse`(`/admin/feedback` 전용): `userNickname` = 표시 이름, `userDisplayName`·`userMemberCode` 추가
-    - `AdminUserResponse`: `nickname` = `displayName`, 끝에 `appNickname`(없으면 null — 회원 카드 제목에 앱 닉네임, 없으면 "홍**" + "앱 닉네임 없음") 추가. email 은 원래 없음
+    - `AdminUserResponse`: `nickname` = `displayName`, 끝에 `appNickname`(없으면 null — 회원 카드 제목은 앱 닉네임, 없으면 "홍**" + "앱 닉네임 없음") 추가. email 은 원래 없음
     - 댓글 관리자 응답(`AdminCommentResponse`)·재가입 이력(`priorHistory`)은 main 에 아직 없음 → 해당 브랜치에서 같은 규칙 적용 필요(남은 일)
   - 회원 조회 `GET /admin/users?q=`: 로그인 닉네임 검색 제거. 회원 번호(10자리, 대소문자 무시)·숫자 id·앱 닉네임 일부만. `UserRepository.findTop50ByAppNicknameContainingOrderByIdDesc`. Swagger 설명 갱신
-  - 새 API `GET /admin/users/{id}/login-name?purpose=` → `{userId, loginNickname, socialType, accessedAt}`. ADMIN 전용(SecurityConfig `/admin/**`, 비로그인 401·일반 403), `Cache-Control: no-store`. 같은 트랜잭션에서 `admin_pii_access_logs` 에 한 줄 저장(기록 실패 시 값도 안 나감). 없는 회원 404·기록 없음. 사유는 선택, 100자에서 자름. 열람한 값은 기록하지 않음
-  - `admin_pii_access_logs` (id, admin_user_id, target_user_id, field, purpose, accessed_at): **users FK 없음** — 탈퇴하면 users 행이 지워지지만 기록은 보관 기간 동안 남아야 하고(CASCADE 면 기록 소실, SET NULL 이면 "누구의 것"이 사라짐), 탈퇴 뒤엔 숫자 id 만 남아 개인 식별 불가. `UserService.withdraw` 도 이 테이블은 정리하지 않음(주석 명시)
-  - 보관: 안전성 확보조치 기준 제8조(1년 이상) → 기본 2년. `AdminPiiAccessLogPurger` 매일 04:30 벌크 DELETE, 설정을 줄여도 365일 미만으로는 안 지움
-- SQL: `db/create_admin_pii_access_logs_table.sql` (CREATE TABLE IF NOT EXISTS, 인덱스 target·admin·accessed_at). ddl-auto=validate 라 **배포 전 실행**. 옛 서버엔 영향 없음
-- 환경변수(선택): `ADMIN_PII_ACCESS_LOG_RETENTION_DAYS`(기본 730, 최소 365로 올림), `ADMIN_PII_ACCESS_LOG_PURGE_CRON`(기본 `0 30 4 * * *`). 테스트는 purge-cron `-`
-- 테스트: +8 → 230개 통과(main 222). `AdminPiiAccessIntegrationTest` 8(제보·신고·문의·회원 응답에 로그인 닉네임 없음+회원 번호, 로그인 닉네임 검색 불가·앱 닉네임/회원 번호/id 검색, 열람 401/403/200+기록·no-store, 404 무기록, 사유 자르기, 보관 기간 정리·365일 하한, 탈퇴 뒤 기록 유지). 기존 `AdminApiIntegrationTest`·`UserModerationIntegrationTest`·`MemberCodeIntegrationTest` 기대값 갱신
-- 프론트: `feat/admin-hide-login-name` — 표시 이름 + 회원 번호로 표시, 회원 카드 제목을 앱 닉네임으로, "로그인 닉네임 보기" 버튼(열람 기록 안내, 404면 "서버 업데이트 후 사용 가능"), 처리방침에 열람 기록 문구
+  - 새 API `GET /admin/users/{id}/login-name` → `{userId, loginNickname, socialType}`. ADMIN 전용(SecurityConfig `/admin/**`, 비로그인 401·일반 403), `Cache-Control: no-store`, 없는 회원 404
+  - 열람 기록: **별도 테이블 없이 서버 로그 한 줄**(오너 결정 — 화면·처리방침에 열람 기록 기능을 드러내지 않음). `ADMIN_AUDIT` 로거에 `admin-login-name-view adminId={} targetUserId={}` (id 만, 닉네임 값은 절대 안 씀). 「개인정보의 안전성 확보조치 기준」 제8조 접속기록은 이 로그 + 기존 `AdminAuditInterceptor` 접속 로그로 최소한 충족 — 운영에서 ADMIN_AUDIT 로그를 1년 이상 보관해야 하는 건 기존과 같음
+  - (처음엔 `admin_pii_access_logs` 테이블·정리 스케줄로 만들었다가 오너 결정으로 같은 브랜치에서 걷어냄 — SQL·엔티티·환경변수 없음)
+- SQL: 없음
+- 환경변수: 없음
+- 테스트: +5 → 227개 통과(main 222). `AdminPiiAccessIntegrationTest` 5(제보·신고·문의·회원 응답에 로그인 닉네임 없음 + 회원 번호, 로그인 닉네임 검색 불가·앱 닉네임/회원 번호/id 검색, 열람 401/403/200 + no-store + 로그에 id 만·값 없음, 없는 회원 404·로그 없음). 기존 `AdminApiIntegrationTest`·`UserModerationIntegrationTest`·`MemberCodeIntegrationTest` 기대값 갱신
+- 프론트: `feat/admin-hide-login-name` — 표시 이름 + 회원 번호로 표시, 회원 카드 제목을 앱 닉네임으로, "로그인 닉네임 보기" 버튼(404면 "서버 업데이트 후 사용 가능"), 처리방침 문구 정확히(운영진도 평소엔 앱 닉네임·회원 번호로 확인)
 - 남은 일
   - 댓글 관리자 응답(`AdminCommentResponse` — 댓글 브랜치)과 재가입 이력 응답에도 같은 규칙(로그인 닉네임 제거, 회원 번호 추가)
-  - 열람 기록 조회 화면/API는 없음 — 점검은 당분간 SQL(파일 끝 예시)로. 분기 1회 점검 권장
   - 구버전 관리자 화면이 모두 사라지면 옛 키(`authorNickname`·`reporterNickname`·`userNickname`·`nickname`) 삭제
