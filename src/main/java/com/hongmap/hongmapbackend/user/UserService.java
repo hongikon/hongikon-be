@@ -24,6 +24,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 회원탈퇴는 하드 삭제로 처리한다. User는 연관 엔티티를 역참조로 들고 있지 않고
@@ -32,7 +33,7 @@ import java.util.List;
  * 시간 한정 정보라 작성자 탈퇴 시 함께 삭제한다(익명화 대신 삭제로 결정).
  * Apple 로그인 사용자는 커밋 뒤 Apple 토큰도 폐기한다(App Store 가이드라인 5.1.1(v)). 폐기 실패는 탈퇴를 막지 않고
  * 재시도 대기열(apple_pending_revocations)에 들어간다.
- * 정지 이력이 있거나 신고받은 제보를 쓴 회원은 지우기 전에 부정 이용 방지 기록을 1년 분리 보관한다(WithdrawRetentionService,
+ * 정지 이력이 있거나 운영진이 위반으로 확정한 제보가 있는 회원은 지우기 전에 부정 이용 방지 기록을 1년 분리 보관한다(WithdrawRetentionService,
  * 개인정보 처리방침). 그 밖의 회원은 아무것도 남지 않는다.
  */
 @Slf4j
@@ -64,17 +65,23 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
 
-        // 부정 이용 방지 기록(정지 이력·신고받은 제보가 있는 회원만, 1년 분리 보관 — WithdrawRetentionService).
-        // 제보·신고를 지우기 전에 스냅숏을 떠야 하므로 맨 앞에서 부른다. 대상이 아니면 아무것도 남기지 않는다.
-        boolean retained = withdrawRetentionService.retainOnWithdraw(user);
+        // 부정 이용 방지 기록(정지 이력·운영진이 위반으로 확정한 제보가 있는 회원만, 1년 분리 보관 — WithdrawRetentionService).
+        // 제보를 지우기 전에 스냅숏을 떠야 하므로 맨 앞에서 부른다. 대상이 아니면 아무것도 남기지 않는다.
+        // 돌려받은 키는 위반 확정 제보의 사진(증거)이다 — 커밋 뒤 retained/ 로 사본을 뜬 다음 원본을 지운다.
+        Set<String> retainedImageKeys = withdrawRetentionService.retainOnWithdraw(user);
 
         // 제보 사진(S3)은 DB 에서 제보를 지우기 전에 키를 모아 두고, 커밋된 뒤 지운다(실패는 로그, 수명 주기 규칙이 마저 정리).
-        // 보관 대상이면 커밋 뒤 retained/ 로 사본을 뜬 다음 원본을 지운다.
         List<String> imageKeys = reportRepository.findImageKeysByUserId(userId);
-        imageKeys.forEach(retained ? reportImageService::retainThenDeleteAfterCommit : reportImageService::deleteAfterCommit);
+        for (String key : imageKeys) {
+            if (retainedImageKeys.contains(key)) {
+                reportImageService.retainThenDeleteAfterCommit(key);
+            } else {
+                reportImageService.deleteAfterCommit(key);
+            }
+        }
         if (!imageKeys.isEmpty()) {
             log.info("withdraw userId={} report images scheduled for deletion: {} (retained copy: {})",
-                    userId, imageKeys.size(), retained);
+                    userId, imageKeys.size(), retainedImageKeys.size());
         }
 
         // 이 유저가 작성한 제보에 달린 신고 먼저, 그다음 제보 본문

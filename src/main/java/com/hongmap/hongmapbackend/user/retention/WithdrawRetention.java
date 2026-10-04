@@ -24,7 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * 탈퇴 회원의 부정 이용 방지 기록(개인정보 처리방침: 탈퇴 후 1년 분리 보관). 정지 이력이 있거나 신고받은 제보를 쓴 회원만 남는다
+ * 탈퇴 회원의 부정 이용 방지 기록(개인정보 처리방침: 탈퇴 후 1년 분리 보관). 정지 이력이 있거나 운영진이 위반으로 확정한 제보가 있는 회원만 남는다
  * — 대상 판단과 생성·갱신·만료 삭제는 {@link WithdrawRetentionService}.
  * <ul>
  *   <li>소셜 id 원문은 없다. {@link #socialIdHash} 는 서버 비밀키로 만든 HMAC 이라 재가입 대조에만 쓰이고 거꾸로 풀 수 없다.</li>
@@ -69,19 +69,15 @@ public class WithdrawRetention {
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
 
-    /** 스냅숏에 담긴 제보 수(탈퇴가 여러 번이면 합계) */
-    @Column(name = "report_count", nullable = false)
-    private int reportCount;
+    /** 스냅숏에 담긴 위반 확정 제보 수(탈퇴가 여러 번이면 합계) */
+    @Column(name = "violation_report_count", nullable = false)
+    private int violationReportCount;
 
-    /** 그중 신고를 1건 이상 받은 제보 수 */
-    @Column(name = "flagged_report_count", nullable = false)
-    private int flaggedReportCount;
-
-    /** RetentionSnapshot JSON. 닉네임·이메일·Apple 토큰은 넣지 않는다. */
+    /** RetentionSnapshot JSON(위반 확정 제보 요약만). 닉네임·이메일·Apple 토큰은 넣지 않는다. */
     @Column(name = "snapshot", nullable = false, columnDefinition = "LONGTEXT")
     private String snapshot;
 
-    /** S3 에 복사해 둔 제보 사진 키(retained/...). 만료 삭제 때 함께 지운다. */
+    /** S3 에 복사해 둔 위반 확정 제보의 사진 키(retained/...). 만료 삭제 때 함께 지운다. */
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "retained_image_keys", columnDefinition = "TEXT")
     private List<String> retainedImageKeys = new ArrayList<>();
@@ -123,15 +119,14 @@ public class WithdrawRetention {
      * @param snapshotJson 지금까지의 탈퇴를 모두 담은 스냅숏(서비스가 합쳐서 넘긴다)
      */
     void recordWithdrawal(boolean suspendedNow, String suspendedReason, LocalDateTime suspendedAt,
-                          int reportCount, int flaggedReportCount, String snapshotJson, List<String> newImageKeys,
+                          int violationReportCount, String snapshotJson, List<String> newImageKeys,
                           LocalDateTime withdrawnAt, LocalDateTime retainUntil) {
         this.wasSuspended = this.wasSuspended || suspendedNow;
         if (suspendedAt != null) { // 이번에 정지 이력이 없으면 이전 기록의 정지 정보를 남긴다
             this.suspendedReason = suspendedReason;
             this.suspendedAt = suspendedAt;
         }
-        this.reportCount += reportCount;
-        this.flaggedReportCount += flaggedReportCount;
+        this.violationReportCount += violationReportCount;
         this.snapshot = snapshotJson;
         LinkedHashSet<String> keys = new LinkedHashSet<>(retainedImageKeys == null ? List.of() : retainedImageKeys);
         keys.addAll(newImageKeys);
@@ -148,8 +143,7 @@ public class WithdrawRetention {
         this.wasSuspended = false;
         this.suspendedReason = null;
         this.suspendedAt = null;
-        this.reportCount = 0;
-        this.flaggedReportCount = 0;
+        this.violationReportCount = 0;
         this.snapshot = null;
         this.retainedImageKeys = new ArrayList<>();
         this.rejoinedUserId = null;

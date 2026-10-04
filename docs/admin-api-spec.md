@@ -120,11 +120,13 @@
   "priorHistory": {
     "withdrawnAt": "2026-10-04T06:30:00", "retainUntil": "2027-10-04T06:30:00", "rejoinedAt": "2026-10-05T01:00:00",
     "suspendedAt": "2026-10-01T12:00:00", "suspendedReason": "도배",
-    "wasSuspendedAtWithdrawal": true, "reportCount": 3, "flaggedReportCount": 1
+    "wasSuspendedAtWithdrawal": true, "violationReportCount": 1
   }
 }
 ```
-`priorHistory`: 정지·신고 이력으로 탈퇴 기록(1년 보관)이 남은 계정이 같은 소셜 계정으로 **다시 가입한 경우에만** 채워지고, 아니면 `null`.
+`priorHistory`: 탈퇴 기록(1년 보관)이 남은 계정이 같은 소셜 계정으로 **다시 가입한 경우에만** 채워지고, 아니면 `null`.
+기록 대상은 정지 이력(탈퇴 시 정지 중이거나 `suspendedAt` 있음) 또는 **운영진이 위반으로 확정한 제보**(관리자가 `REJECTED`·`DELETED` 처리)가
+있는 회원뿐이다. 신고만 받은 제보는 대상이 아니다. `violationReportCount` = 보관 중인 위반 확정 제보 수.
 재가입하면 관리자 알림(data.type `ADMIN_MEMBER_REJOINED`, `userId`)도 간다. 자동 정지는 하지 않는다.
 
 `GET /admin/users/{id}/prior-history` — 탈퇴 전 기록 전체. 없으면 `404`.
@@ -134,18 +136,18 @@
   "priorHistory": { "...": "위와 같음" },
   "withdrawals": [{
     "withdrawnAt": "...", "status": "SUSPENDED", "suspendedReason": "도배", "suspendedAt": "...",
-    "reports": [{
-      "id": 12, "category": "FOOD_TRUCK", "customCategoryLabel": null, "title": "...", "content": "...",
-      "buildingId": 3, "buildingName": "제4공학관", "floor": 1, "lat": 37.55, "lng": 126.92,
-      "startsAt": "...", "endsAt": "...", "status": "ACTIVE", "createdAt": "...",
-      "retainedImageKeys": ["retained/reports/....jpg"], "flagCount": 2, "flagReasons": ["SPAM", "FALSE_INFO"]
-    }],
-    "flagsFiled": [{ "reportId": 40, "reason": "SPAM", "createdAt": "..." }]
+    "violationReports": [{
+      "id": 12, "category": "ETC", "customCategoryLabel": "홍보", "title": "...", "content": "본문 앞 200자(넘으면 …)",
+      "status": "REJECTED", "createdAt": "...", "moderationNote": "광고성 게시물",
+      "flagCount": 2, "flagReasons": ["SPAM", "FALSE_INFO"], "retainedImageKeys": ["retained/reports/....jpg"]
+    }]
   }],
   "retainedImageUrls": ["https://...presigned..."]
 }
 ```
-`withdrawals` 는 오래된 순(재가입·재탈퇴하면 한 건씩 늘어난다). 닉네임·이메일·소셜 id 는 없다.
+`withdrawals` 는 오래된 순(재가입·재탈퇴하면 한 건씩 늘어난다). 위반 확정 제보의 요약만 담는다 — 위치(건물·층·좌표)·기간,
+위반이 아닌 제보, 이 회원이 단 신고, 닉네임·이메일·소셜 id 는 없다. `retainedImageUrls` 는 위반 제보 사진 사본의 보기 URL(대개 빈 목록 —
+관리자 반려·삭제 시점에 사진을 지우기 때문).
 
 ## 운영 도구
 

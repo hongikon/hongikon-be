@@ -28,10 +28,6 @@ public interface ReportFlagRepository extends JpaRepository<ReportFlag, Long> {
     @Query("SELECT f.report.id, f.reason FROM ReportFlag f WHERE f.report.user.id = :userId ORDER BY f.id")
     List<Object[]> findReasonsOnReportsOfUser(@Param("userId") Long userId);
 
-    /** 탈퇴 기록용 — 이 회원이 남의 제보에 단 신고. 행: [reportId(Long), reason(String), createdAt(LocalDateTime)] */
-    @Query("SELECT f.report.id, f.reason, f.createdAt FROM ReportFlag f WHERE f.user.id = :userId AND f.report.user.id <> :userId ORDER BY f.id")
-    List<Object[]> findFiledByUser(@Param("userId") Long userId);
-
     @Query("SELECT f FROM ReportFlag f JOIN FETCH f.user WHERE f.report.id = :reportId ORDER BY f.createdAt DESC")
     List<ReportFlag> findWithUserByReportId(@Param("reportId") Long reportId);
 

@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.event.ApplicationEvents;
@@ -46,12 +47,14 @@ import static org.assertj.core.api.Assertions.within;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 탈퇴 회원 부정 이용 방지 기록(withdraw_retentions): 대상 판단(정지 이력·신고받은 제보), 해시 저장(원문 없음)·스냅숏·1년 기한,
- * 사진 사본(커밋 뒤 retained/ 복사 → 원본 삭제), 재가입 감지(관리자 알림·연결·관리자 API), 재탈퇴 갱신, 만료 정리.
+ * 탈퇴 회원 부정 이용 방지 기록(withdraw_retentions): 대상 판단(정지 이력·운영진이 위반으로 확정한 제보 — 신고만 받은 제보는 아님),
+ * 해시 저장(원문 없음)·위반 제보 요약만·1년 기한, 위반 제보 사진만 사본(커밋 뒤 retained/ 복사 → 원본 삭제),
+ * 재가입 감지(관리자 알림·연결·관리자 API), 재탈퇴 갱신, 만료 정리.
  * S3 는 메모리 가짜 저장소, 관리자 알림은 발행된 이벤트(@RecordApplicationEvents)로 확인한다.
  */
 @SpringBootTest
@@ -127,13 +130,16 @@ class WithdrawRetentionIntegrationTest {
     }
 
     @Test
-    void 이력이_없는_회원은_기록을_남기지_않고_사진도_복사하지_않는다() throws Exception {
+    void 신고만_받고_처리되지_않은_제보의_작성자는_기록을_남기지_않고_사진도_복사하지_않는다() throws Exception {
         String socialId = UUID.randomUUID().toString();
         User me = newUser("평범한학생", socialId);
         User other = newUser("다른학생", UUID.randomUUID().toString());
         String imageKey = uploadedKey();
-        saveReport(me, "평범한 제보", List.of(imageKey));
-        // 남의 제보에 신고를 단 것만으로는 대상이 아니다
+        Report flaggedOnly = saveReport(me, "신고만 받은 제보", List.of(imageKey));
+        reportFlagRepository.save(ReportFlag.builder().report(flaggedOnly).user(other).reason("SPAM").build());
+        // 신고 누적 자동 숨김(HIDDEN, 관리자 처리 아님)도 위반 확정이 아니다
+        jdbcTemplate.update("UPDATE reports SET status = 'HIDDEN' WHERE id = ?", flaggedOnly.getId());
+        // 남의 제보에 신고를 단 것도 대상이 아니다
         Report othersReport = saveReport(other, "남의 제보", List.of());
         reportFlagRepository.save(ReportFlag.builder().report(othersReport).user(me).reason("SPAM").build());
 
@@ -145,12 +151,12 @@ class WithdrawRetentionIntegrationTest {
     }
 
     @Test
-    void 정지된_회원은_해시_스냅숏_1년_기한으로_기록되고_사진_사본을_뜬다() throws Exception {
+    void 정지된_회원은_해시와_정지_정보로_1년_기록되고_위반이_아닌_제보와_사진은_남기지_않는다() throws Exception {
         String socialId = "kakao-" + UUID.randomUUID();
         User me = newUser("정지된학생", socialId);
         User other = newUser("신고한학생", UUID.randomUUID().toString());
         String imageKey = uploadedKey();
-        Report mine = saveReport(me, "도배 제보", List.of(imageKey));
+        saveReport(me, "평범한 제보", List.of(imageKey));
         Report othersReport = saveReport(other, "남의 제보", List.of());
         reportFlagRepository.save(ReportFlag.builder().report(othersReport).user(me).reason("FALSE_INFO").build());
         suspend(me, "도배");
@@ -167,69 +173,103 @@ class WithdrawRetentionIntegrationTest {
         assertThat(record.isWasSuspended()).isTrue();
         assertThat(record.getSuspendedReason()).isEqualTo("도배");
         assertThat(record.getSuspendedAt()).isNotNull();
-        assertThat(record.getReportCount()).isEqualTo(1);
-        assertThat(record.getFlaggedReportCount()).isZero();
+        assertThat(record.getViolationReportCount()).isZero();
         assertThat(record.getRetainUntil()).isCloseTo(record.getWithdrawnAt().plusYears(1), within(1, java.time.temporal.ChronoUnit.SECONDS));
         assertThat(record.getWithdrawnAt()).isCloseTo(LocalDateTime.now(), within(1, java.time.temporal.ChronoUnit.MINUTES));
         assertThat(record.getRejoinedUserId()).isNull();
 
-        // 스냅숏: 제보·단 신고는 있고 닉네임은 없다
-        assertThat(record.getSnapshot()).doesNotContain("정지된학생").doesNotContain("신고한학생");
-        RetentionSnapshot snapshot = retentionService.readSnapshot(record);
-        assertThat(snapshot.withdrawals()).hasSize(1);
-        RetentionSnapshot.Withdrawal w = snapshot.withdrawals().get(0);
+        // 스냅숏: 정지 정보만. 위반이 아닌 제보·단 신고·닉네임은 없다
+        assertThat(record.getSnapshot()).doesNotContain("평범한 제보").doesNotContain("FALSE_INFO")
+                .doesNotContain("정지된학생").doesNotContain("flagsFiled");
+        RetentionSnapshot.Withdrawal w = retentionService.readSnapshot(record).withdrawals().get(0);
         assertThat(w.status()).isEqualTo("SUSPENDED");
-        assertThat(w.reports()).singleElement().satisfies(r -> {
-            assertThat(r.id()).isEqualTo(mine.getId());
-            assertThat(r.title()).isEqualTo("도배 제보");
-            assertThat(r.buildingId()).isEqualTo(building.getId());
-            assertThat(r.floor()).isEqualTo(1);
-            assertThat(r.retainedImageKeys()).containsExactly("retained/" + imageKey);
-        });
-        assertThat(w.flagsFiled()).singleElement().satisfies(f -> {
-            assertThat(f.reportId()).isEqualTo(othersReport.getId());
-            assertThat(f.reason()).isEqualTo("FALSE_INFO");
-        });
+        assertThat(w.suspendedReason()).isEqualTo("도배");
+        assertThat(w.violationReports()).isEmpty();
 
-        // 사진: 커밋 뒤 retained/ 로 복사한 다음 원본 삭제
-        assertThat(record.getRetainedImageKeys()).containsExactly("retained/" + imageKey);
-        assertThat(storage.copied).containsExactly(imageKey + "->retained/" + imageKey);
+        // 위반이 아닌 제보의 사진은 사본 없이 지운다
+        assertThat(record.getRetainedImageKeys()).isEmpty();
+        assertThat(storage.copied).isEmpty();
         assertThat(storage.deleted).contains(imageKey);
-        assertThat(storage.objects).containsKey("retained/" + imageKey).doesNotContainKey(imageKey);
         assertThat(userRepository.findById(me.getId())).isEmpty();
     }
 
     @Test
-    void 신고받은_제보를_쓴_회원은_정지되지_않았어도_기록된다() throws Exception {
+    void 위반_확정_제보가_있으면_그_제보_요약과_사진만_보관한다() throws Exception {
         String socialId = UUID.randomUUID().toString();
-        User me = newUser("신고받은학생", socialId);
+        User me = newUser("반려된학생", socialId);
         User flagger1 = newUser("신고자1", UUID.randomUUID().toString());
         User flagger2 = newUser("신고자2", UUID.randomUUID().toString());
-        Report flagged = saveReport(me, "허위 제보", List.of());
-        saveReport(me, "멀쩡한 제보", List.of());
-        reportFlagRepository.save(ReportFlag.builder().report(flagged).user(flagger1).reason("FALSE_INFO").build());
-        reportFlagRepository.save(ReportFlag.builder().report(flagged).user(flagger2).reason("SPAM").build());
+        String evidenceKey = uploadedKey();
+        String normalKey = uploadedKey();
+        String longContent = "가".repeat(250);
+        Report violation = saveReport(me, "허위 제보", longContent, List.of(evidenceKey));
+        Report normal = saveReport(me, "멀쩡한 제보", "본문", List.of(normalKey));
+        reportFlagRepository.save(ReportFlag.builder().report(violation).user(flagger1).reason("FALSE_INFO").build());
+        reportFlagRepository.save(ReportFlag.builder().report(violation).user(flagger2).reason("SPAM").build());
+        reportFlagRepository.save(ReportFlag.builder().report(normal).user(flagger1).reason("SPAM").build());
+        // 관리자 반려 처리. 실제 PATCH 는 반려 즉시 사진을 지우므로(AdminReportService) 사진이 남은 경우를 위해 DB 로 직접 맞춘다
+        markModerated(violation, "DELETED", "허위 정보 반복");
 
         withdraw(me);
 
         WithdrawRetention record = recordOf(SocialType.KAKAO, socialId).orElseThrow();
         assertThat(record.isWasSuspended()).isFalse();
         assertThat(record.getSuspendedAt()).isNull();
-        assertThat(record.getReportCount()).isEqualTo(2);
-        assertThat(record.getFlaggedReportCount()).isEqualTo(1);
-        RetentionSnapshot.ReportEntry entry = retentionService.readSnapshot(record).withdrawals().get(0).reports().stream()
-                .filter(r -> r.id().equals(flagged.getId())).findFirst().orElseThrow();
-        assertThat(entry.flagCount()).isEqualTo(2);
-        assertThat(entry.flagReasons()).containsExactlyInAnyOrder("FALSE_INFO", "SPAM");
-        assertThat(record.getSnapshot()).doesNotContain("신고자1");
-        assertThat(reportRepository.findById(flagged.getId())).isEmpty();
+        assertThat(record.getViolationReportCount()).isEqualTo(1);
+        RetentionSnapshot.Withdrawal w = retentionService.readSnapshot(record).withdrawals().get(0);
+        assertThat(w.violationReports()).singleElement().satisfies(r -> {
+            assertThat(r.id()).isEqualTo(violation.getId());
+            assertThat(r.category()).isEqualTo("FOOD_TRUCK");
+            assertThat(r.title()).isEqualTo("허위 제보");
+            assertThat(r.content()).hasSize(201).endsWith("…"); // 200자 요약
+            assertThat(r.status()).isEqualTo("DELETED");
+            assertThat(r.createdAt()).isNotNull();
+            assertThat(r.moderationNote()).isEqualTo("허위 정보 반복");
+            assertThat(r.flagCount()).isEqualTo(2);
+            assertThat(r.flagReasons()).containsExactlyInAnyOrder("FALSE_INFO", "SPAM");
+            assertThat(r.retainedImageKeys()).containsExactly("retained/" + evidenceKey);
+        });
+        // 위치·기간·위반 아닌 제보·신고자 닉네임은 스냅숏에 없다
+        assertThat(record.getSnapshot()).doesNotContain("멀쩡한 제보").doesNotContain("신고자1")
+                .doesNotContain("\"lat\"").doesNotContain("\"lng\"").doesNotContain("\"floor\"")
+                .doesNotContain("building").doesNotContain("\"startsAt\"").doesNotContain("\"endsAt\"");
+
+        // 사진: 위반 제보 것만 커밋 뒤 retained/ 로 복사, 둘 다 원본은 삭제
+        assertThat(record.getRetainedImageKeys()).containsExactly("retained/" + evidenceKey);
+        assertThat(storage.copied).containsExactly(evidenceKey + "->retained/" + evidenceKey);
+        assertThat(storage.deleted).contains(evidenceKey, normalKey);
+        assertThat(storage.objects).containsKey("retained/" + evidenceKey)
+                .doesNotContainKey(evidenceKey).doesNotContainKey(normalKey).doesNotContainKey("retained/" + normalKey);
+        assertThat(reportRepository.findById(violation.getId())).isEmpty();
+    }
+
+    @Test
+    void 관리자가_실제로_반려한_제보의_작성자는_기록된다() throws Exception {
+        String socialId = UUID.randomUUID().toString();
+        User me = newUser("반려학생", socialId);
+        Report report = saveReport(me, "캠퍼스 밖 광고", List.of());
+
+        mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"REJECTED\",\"note\":\"광고성 게시물\"}"))
+                .andExpect(status().isOk());
+        withdraw(me);
+
+        WithdrawRetention record = recordOf(SocialType.KAKAO, socialId).orElseThrow();
+        assertThat(record.getViolationReportCount()).isEqualTo(1);
+        assertThat(retentionService.readSnapshot(record).withdrawals().get(0).violationReports())
+                .singleElement().satisfies(r -> {
+                    assertThat(r.status()).isEqualTo("REJECTED");
+                    assertThat(r.moderationNote()).isEqualTo("광고성 게시물");
+                });
     }
 
     @Test
     void 같은_소셜_계정으로_재가입하면_관리자_알림과_연결이_되고_관리자_API에_이력이_보인다() throws Exception {
         String socialId = UUID.randomUUID().toString();
         User me = newUser("돌아온학생", socialId);
-        saveReport(me, "정지 전 제보", List.of());
+        Report violation = saveReport(me, "정지 전 위반 제보", List.of());
+        markModerated(violation, "REJECTED", "욕설");
+        saveReport(me, "평범한 제보", List.of());
         suspend(me, "욕설");
         withdraw(me);
 
@@ -250,17 +290,21 @@ class WithdrawRetentionIntegrationTest {
                 .andExpect(jsonPath("$.priorHistory.withdrawnAt").isString())
                 .andExpect(jsonPath("$.priorHistory.retainUntil").isString())
                 .andExpect(jsonPath("$.priorHistory.rejoinedAt").isString())
-                .andExpect(jsonPath("$.priorHistory.reportCount").value(1))
-                .andExpect(jsonPath("$.priorHistory.flaggedReportCount").value(0));
+                .andExpect(jsonPath("$.priorHistory.violationReportCount").value(1))
+                .andExpect(jsonPath("$.priorHistory.reportCount").doesNotExist())
+                .andExpect(jsonPath("$.priorHistory.flaggedReportCount").doesNotExist());
         mockMvc.perform(get("/admin/users").param("q", String.valueOf(rejoined.getId())).header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.users[0].priorHistory.reportCount").value(1));
+                .andExpect(jsonPath("$.users[0].priorHistory.violationReportCount").value(1));
         mockMvc.perform(get("/admin/users/" + rejoined.getId() + "/prior-history").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(rejoined.getId()))
                 .andExpect(jsonPath("$.priorHistory.wasSuspendedAtWithdrawal").value(true))
                 .andExpect(jsonPath("$.withdrawals[0].status").value("SUSPENDED"))
-                .andExpect(jsonPath("$.withdrawals[0].reports[0].title").value("정지 전 제보"))
+                .andExpect(jsonPath("$.withdrawals[0].violationReports.length()").value(1))
+                .andExpect(jsonPath("$.withdrawals[0].violationReports[0].title").value("정지 전 위반 제보"))
+                .andExpect(jsonPath("$.withdrawals[0].violationReports[0].moderationNote").value("욕설"))
+                .andExpect(jsonPath("$.withdrawals[0].flagsFiled").doesNotExist())
                 .andExpect(jsonPath("$.retainedImageUrls").isArray());
 
         // 이력이 없는 회원은 null / 404, 관리자가 아니면 403
@@ -288,8 +332,8 @@ class WithdrawRetentionIntegrationTest {
         String expiredSocialId = UUID.randomUUID().toString();
         User expiredUser = newUser("오래된학생", expiredSocialId);
         String imageKey = uploadedKey();
-        saveReport(expiredUser, "오래된 제보", List.of(imageKey));
-        suspend(expiredUser, "도배");
+        Report violation = saveReport(expiredUser, "오래된 위반 제보", List.of(imageKey));
+        markModerated(violation, "DELETED", "도배");
         withdraw(expiredUser);
 
         String activeSocialId = UUID.randomUUID().toString();
@@ -298,6 +342,7 @@ class WithdrawRetentionIntegrationTest {
         withdraw(activeUser);
 
         WithdrawRetention expired = recordOf(SocialType.KAKAO, expiredSocialId).orElseThrow();
+        assertThat(expired.getRetainedImageKeys()).containsExactly("retained/" + imageKey);
         jdbcTemplate.update("UPDATE withdraw_retentions SET retain_until = ? WHERE id = ?",
                 LocalDateTime.now().minusMinutes(1), expired.getId());
         storage.deleted.clear();
@@ -315,7 +360,8 @@ class WithdrawRetentionIntegrationTest {
     void 재가입한_회원이_다시_탈퇴하면_같은_기록을_갱신하고_기한을_다시_센다() throws Exception {
         String socialId = UUID.randomUUID().toString();
         User first = newUser("반복학생", socialId);
-        saveReport(first, "첫 계정 제보", List.of());
+        Report firstViolation = saveReport(first, "첫 계정 위반 제보", List.of());
+        markModerated(firstViolation, "REJECTED", "도배");
         suspend(first, "도배");
         withdraw(first);
         WithdrawRetention before = recordOf(SocialType.KAKAO, socialId).orElseThrow();
@@ -325,8 +371,8 @@ class WithdrawRetentionIntegrationTest {
                 earlier, earlier.plusYears(1), before.getId());
 
         User second = signUp("반복학생", socialId);
-        saveReport(second, "둘째 계정 제보", List.of());
-        withdraw(second); // 둘째 계정은 정지·신고 이력이 없어도 기존 기록에 이어 붙는다
+        saveReport(second, "둘째 계정 평범한 제보", List.of());
+        withdraw(second); // 둘째 계정은 정지·위반 이력이 없어도 기존 기록에 이어 붙는다
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM withdraw_retentions WHERE social_type = 'KAKAO' AND social_id_hash = ?",
@@ -338,12 +384,14 @@ class WithdrawRetentionIntegrationTest {
         assertThat(after.getRejoinedAt()).isNull();
         assertThat(after.isWasSuspended()).isTrue();
         assertThat(after.getSuspendedReason()).isEqualTo("도배"); // 이번엔 정지 이력이 없으니 이전 정보 유지
-        assertThat(after.getReportCount()).isEqualTo(2);
+        assertThat(after.getViolationReportCount()).isEqualTo(1);
         RetentionSnapshot snapshot = retentionService.readSnapshot(after);
         assertThat(snapshot.withdrawals()).hasSize(2);
-        assertThat(snapshot.withdrawals().get(0).reports()).extracting(RetentionSnapshot.ReportEntry::title).containsExactly("첫 계정 제보");
-        assertThat(snapshot.withdrawals().get(1).reports()).extracting(RetentionSnapshot.ReportEntry::title).containsExactly("둘째 계정 제보");
+        assertThat(snapshot.withdrawals().get(0).violationReports())
+                .extracting(RetentionSnapshot.ViolationReport::title).containsExactly("첫 계정 위반 제보");
+        assertThat(snapshot.withdrawals().get(1).violationReports()).isEmpty();
         assertThat(snapshot.withdrawals().get(1).status()).isEqualTo("ACTIVE");
+        assertThat(after.getSnapshot()).doesNotContain("둘째 계정 평범한 제보");
     }
 
     private User newUser(String nickname, String socialId) {
@@ -372,11 +420,21 @@ class WithdrawRetentionIntegrationTest {
     }
 
     private Report saveReport(User user, String title, List<String> imageKeys) {
+        return saveReport(user, title, "본문", imageKeys);
+    }
+
+    /** 관리자 검토로 상태를 바꾼 것처럼(reviewed_at·사유 포함) DB 를 직접 맞춘다 — 사진을 남겨 둔 채로. */
+    private void markModerated(Report report, String status, String note) {
+        jdbcTemplate.update("UPDATE reports SET status = ?, moderation_note = ?, reviewed_at = ? WHERE id = ?",
+                status, note, LocalDateTime.now(), report.getId());
+    }
+
+    private Report saveReport(User user, String title, String content, List<String> imageKeys) {
         LocalDateTime now = LocalDateTime.now();
         Report report = Report.builder()
                 .user(user).building(building).floor(1)
                 .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
-                .category(ReportCategory.FOOD_TRUCK).title(title).content("본문")
+                .category(ReportCategory.FOOD_TRUCK).title(title).content(content)
                 .startsAt(now.minusHours(1)).endsAt(now.plusHours(3))
                 .build();
         report.addImages(imageKeys);
