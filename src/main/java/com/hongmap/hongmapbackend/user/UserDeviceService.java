@@ -25,7 +25,12 @@ public class UserDeviceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다."));
 
         userDeviceRepository.findByPushToken(request.pushToken())
-                .ifPresent(userDeviceRepository::delete);
+                .ifPresent(existing -> {
+                    userDeviceRepository.delete(existing);
+                    // Flush the DELETE now: with IDENTITY ids, save() below INSERTs immediately,
+                    // which would otherwise hit uq_device_token before the deferred DELETE runs.
+                    userDeviceRepository.flush();
+                });
 
         UserDevice device = UserDevice.builder()
                 .user(user)
