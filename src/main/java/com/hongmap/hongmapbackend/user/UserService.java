@@ -40,6 +40,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final BookmarkRepository bookmarkRepository;
     // users를 참조하는 테이블을 새로 만들면 withdraw에 정리 코드를 추가하고 UserWithdrawIntegrationTest에 데이터를 넣을 것.
+    // 예외: admin_pii_access_logs(운영진 개인정보 열람 기록)는 FK 없이 숫자 id 만 담고, 법정 보관 기간(1년 이상) 동안
+    // 탈퇴와 상관없이 남긴다 — AdminPiiAccessLogPurger 가 기간이 지나면 지운다.
     private final NotificationCategoryRepository notificationCategoryRepository;
     private final FeedbackRepository feedbackRepository;
     private final ReportRepository reportRepository;

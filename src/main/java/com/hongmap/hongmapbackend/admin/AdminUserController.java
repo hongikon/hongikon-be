@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.admin;
 
+import com.hongmap.hongmapbackend.admin.dto.AdminLoginNameResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserListResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserResponse;
 import com.hongmap.hongmapbackend.admin.dto.UserSuspendRequest;
@@ -9,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,8 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final AdminPiiAccessService adminPiiAccessService;
 
-    @Operation(summary = "회원 조회", description = "q: 회원 번호(10자리, 대소문자 무시), 회원 id(숫자) 또는 닉네임 일부. 비우면 정지된 회원 목록.")
+    @Operation(summary = "회원 조회", description = "q: 회원 번호(10자리, 대소문자 무시), 회원 id(숫자) 또는 앱 닉네임 일부. "
+            + "로그인(카카오/Apple) 닉네임으로는 찾지 않는다. 비우면 정지된 회원 목록. "
+            + "응답에는 로그인 닉네임 원문이 없다(nickname 은 구버전 화면 호환용으로 displayName 과 같은 값).")
     @GetMapping
     public AdminUserListResponse search(@RequestParam(required = false) String q) {
         return adminUserService.search(q);
@@ -38,6 +44,22 @@ public class AdminUserController {
     @GetMapping("/{id}")
     public AdminUserResponse get(@PathVariable Long id) {
         return adminUserService.get(id);
+    }
+
+    /**
+     * 로그인 닉네임 원문 열람. 관리자 응답은 평소 앱에 보이는 이름·회원 번호만 싣고, 원문은 이 경로로만 — 부를 때마다
+     * admin_pii_access_logs 에 (관리자 id, 대상 id, LOGIN_NICKNAME, 사유, 시각)이 남는다. 브라우저·프록시가 값을
+     * 캐시하지 않게 no-store. GET 이지만 기록이 남는 요청이라 화면은 버튼을 눌렀을 때만 부른다.
+     */
+    @Operation(summary = "로그인 닉네임 열람(기록 남음)",
+            description = "카카오/Apple 로그인 닉네임 원문과 로그인 방식. 호출할 때마다 열람 기록(누가·언제·누구의)이 남는다. "
+                    + "purpose: 열람 사유(선택, 100자에서 자름). 없는 회원이면 404(기록 없음).")
+    @GetMapping("/{id}/login-name")
+    public ResponseEntity<AdminLoginNameResponse> loginName(@AuthenticationPrincipal Long adminId, @PathVariable Long id,
+                                                            @RequestParam(required = false) String purpose) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(adminPiiAccessService.revealLoginName(adminId, id, purpose));
     }
 
     @Operation(summary = "이용 정지", description = "정지된 회원은 로그인·조회는 되지만 제보·신고·문의·닉네임 변경이 403 으로 막힙니다. 사유 필수.")
