@@ -29,9 +29,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportService {
 
-    /** 신고 사유 예시값. */
+    /** 신고 사유: 허위 정보 / 스팸·광고 / 욕설·혐오 등 부적절 / 개인정보 노출 / 기타. */
     private static final List<String> FLAG_REASONS =
-            List.of("FALSE_INFO", "SPAM", "INAPPROPRIATE", "ETC");
+            List.of("FALSE_INFO", "SPAM", "INAPPROPRIATE", "PRIVACY", "ETC");
 
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;

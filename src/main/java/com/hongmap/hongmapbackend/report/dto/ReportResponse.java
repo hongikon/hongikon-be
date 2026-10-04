@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.report.dto;
 
+import com.hongmap.hongmapbackend.report.AuthorKeys;
 import com.hongmap.hongmapbackend.report.Report;
 import lombok.Builder;
 
@@ -27,6 +28,8 @@ public record ReportResponse(
         /** 사진 보기 URL 들(presigned GET, 1시간 유효, 최대 3장, 등록 순서). 사진이 없으면 빈 배열 */
         List<String> imageUrls,
         boolean isMine,
+        /** 작성자 식별값(불투명, 사용자 id 가 아님). 앱의 "이 사용자의 제보 숨기기"용. AuthorKeys 참고 */
+        String authorKey,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         String status,
@@ -49,6 +52,7 @@ public record ReportResponse(
                 .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
                 .imageUrls(imageUrls)
                 .isMine(requesterId != null && requesterId.equals(report.getUser().getId()))
+                .authorKey(AuthorKeys.of(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
                 .status(report.getStatus().name())
