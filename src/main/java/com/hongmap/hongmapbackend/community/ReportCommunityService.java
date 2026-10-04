@@ -107,7 +107,7 @@ public class ReportCommunityService {
     public FireResponse setFire(Long userId, Long reportId, boolean on) {
         Report report = requireOpenReport(reportId);
         if (report.getUser().getId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내 제보에는 🔥를 누를 수 없어요.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내 제보에는 공감을 누를 수 없어요.");
         }
         acquire(userId);
         boolean added = false;

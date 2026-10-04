@@ -216,7 +216,7 @@ class ReportCommunityIntegrationTest {
         sent.clear();
         ReportFireMilestoneEvent event = new ReportFireMilestoneEvent(report.getId(), author.getId(), "붕어빵 트럭", 10);
         assertThat(communityDispatcher.sendFireMilestone(event)).isEqualTo(1);
-        assertThat(sent.get(0).title()).isEqualTo("내 제보에 🔥가 10개 모였어요");
+        assertThat(sent.get(0).title()).isEqualTo("내 제보에 공감이 10개 모였어요");
         assertThat(sent.get(0).data()).containsEntry("type", "REPORT_FIRE").containsEntry("milestone", 10);
 
         mockMvc.perform(put(notifications(report)).header("Authorization", bearer(author))

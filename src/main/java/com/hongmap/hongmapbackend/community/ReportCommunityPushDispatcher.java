@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 커뮤니티 푸시(Expo).
  *
  * <ul>
- *   <li>🔥 이정표: 작성자에게 "내 제보에 🔥가 N개 모였어요"(data.type = REPORT_FIRE, reportId, milestone).
+ *   <li>🔥 이정표: 작성자에게 "내 제보에 공감이 N개 모였어요"(data.type = REPORT_FIRE, reportId, milestone).
  *       작성자의 "이 제보 알림"을 끄면 보내지 않는다.</li>
  *   <li>관심 제보(data.type = REPORT_FOLLOW, reportId, kind = START·ENDING·COMMENT):
  *       시작했어요 / 곧 끝나요(스케줄러가 부른다) / 새 댓글(제보마다·사람마다 push.report-follow-comment-coalesce-minutes,
@@ -91,8 +91,8 @@ public class ReportCommunityPushDispatcher {
         data.put("type", TYPE_FIRE);
         data.put("reportId", event.reportId());
         data.put("milestone", event.milestone());
-        return send(List.of(event.authorId()), "내 제보에 🔥가 " + event.milestone() + "개 모였어요",
-                excerpt(event.reportTitle(), 60), data, "🔥 이정표");
+        return send(List.of(event.authorId()), "내 제보에 공감이 " + event.milestone() + "개 모였어요",
+                excerpt(event.reportTitle(), 60), data, "공감 이정표");
     }
 
     // ---------- 관심: 새 댓글 ----------

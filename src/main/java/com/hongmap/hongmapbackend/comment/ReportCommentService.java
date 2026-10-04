@@ -228,7 +228,7 @@ public class ReportCommentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다.");
         }
         if (comment.getUser().getId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내 댓글에는 👍를 누를 수 없어요.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내 댓글에는 좋아요를 누를 수 없어요.");
         }
         if (!actionLimiter.tryAcquire(userId)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "너무 자주 누르고 있어요. 잠시 뒤에 다시 시도해 주세요.");
