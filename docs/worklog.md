@@ -518,3 +518,24 @@
 
 ## 2026-10-02 — PR #13 UGC 관리 (`feat/ugc-moderation`, base main)
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
+
+## 2026-10-05 — 크롤링 최적화 (`perf/crawler-optimize`, base main)
+- 왜: 매시간 크롤링이 새 글이 없어도 게시판 47개 × 목록 2페이지 = **94회 요청**, 글마다 `exists` 쿼리(평시 ~4,500회) + 페이지마다 `UPDATE` 94회. 죽은 게시판은 매시간 재시도 3회+타임아웃(최대 ~60초). 같은 서버에 게시판 사이 간격 없이 연달아 요청
+- 확인(크롤러 UA로 목록 4건만 요청): 학교 게시판·건축·Imweb 모두 `ETag`/`Last-Modified` 없음(`no-store`) → 조건부 GET 불가, 안 함. 학과 `.do` 게시판은 서브도메인이 달라도 **전부 같은 IP**(203.249.66.153) → 호스트명 기준 병렬화는 학교 서버 한 대를 동시에 때림. 목록 1페이지 응답 0.12~0.39초
+- 변경
+  - 증분 수집: 페이지의 **가장 오래된(마지막) 글**이 이미 저장돼 있으면 다음 페이지를 안 받음. "아는 글이 하나라도 있으면 멈춤"은 상단 고정 공지 때문에 쓰면 안 됨. 실패한 게시판은 다음 성공 때까지 끝까지 훑음(1페이지 저장 뒤 2페이지 실패 → 2페이지 누락 방지). `maxItems` 도달 시에도 다음 페이지 안 받음
+  - 저장된 글 판단을 페이지당 `SELECT sourceUrl, sourceId ... WHERE source_url IN (...)` 1회로. `source_id` 채우기 UPDATE는 빈 행이 있을 때만. 건축학부(링크가 매번 바뀜)는 콜레이션 차이로 중복 저장되지 않게 기존 글별 판단 유지. 저장된 글 상세 미요청·수정글 미갱신은 기존 그대로
+  - 서버(IP)별 묶음끼리만 병렬(기본 2), 같은 서버는 한 스레드가 순차 + **게시판 사이에도 `request-delay-ms`**. 실제로 겹치는 건 건축·도시공학과뿐(학과 .do는 한 서버라 순차)
+  - `CrawlerBoardCircuitBreaker`: 게시판(목록 URL)이 3회 연속 실패하면 6시간 건너뜀 → 지나면 1회 재시도(성공 시 정상화). 서버 메모리 기준
+  - 실행 요약 `CrawlResult` + 로그 한 줄(`크롤링 요약: 게시판 N개(실패·건너뜀), 요청 N회, 신규 N건, Nms`). `GET /admin/overview` `crawler`에 `lastRequestCount`·`lastDurationMs`·`lastFailedBoards`·`lastSkippedBoards` 추가(필드 추가만, 기존 필드 그대로)
+  - 새 소식 푸시는 게시판 설정 순서대로 모아 한 번(기존과 같음). 분류·위치 매칭·푸시 로직 변경 없음
+- 추정(평시 = 새 글 0건, 게시판 47개): 요청 94 → **47회**(−50%), DB 쿼리 ~4,600 → **47회**, 시간 ~45~50초 → **~30초**(목록 0.25초×47 + 같은 서버 간격 0.4초×43). 새 글 1건당 상세 1회는 그대로. 죽은 게시판: 매시간 4회·최대 ~60초 → 3회 실패 뒤 6시간에 1번. 실측은 DB 상태가 필요해 하지 않음(학교 서버에 전체 크롤 반복 X) — 코드 기준 계산 + 목록 응답시간 실측
+- SQL: 없음(새 쿼리는 기존 `source_url` UNIQUE 인덱스 사용)
+- 환경변수(모두 선택, 기본값 있음): `CRAWLER_INCREMENTAL`(true, false면 예전처럼 전 페이지 — 비상 스위치), `CRAWLER_PARALLEL_SERVERS`(2, 1이면 완전 순차), `CRAWLER_FAILURE_THRESHOLD`(3, 0이면 끔), `CRAWLER_FAILURE_COOLDOWN_MINUTES`(360)
+- 테스트: +15 → 237개 통과(기존 222). `CrawlerServiceTest` 9(증분 중단·고정 공지·끄기·페이지당 1회 판단·실패 뒤 전체 훑기·건너뛰기/복구·서버별 순차 병렬·푸시 순서), `CrawlerBoardCircuitBreakerTest` 3, `CrawlerRunTrackerTest` 1, `NewsCrawlStorageServiceTest` +2(H2)
+- 충돌: #18(`fix/crawler-missing-boards`)과 `CrawlerService.java`의 `crawlAll`/`crawlBoard`가 겹침 — #18의 "목록 0건 게시판" WARN과 `firstPageCount`를 이 브랜치에 같은 문구로 넣어 둠 → 충돌 시 **이 브랜치 쪽을 택하면 #18 동작도 유지**. `CrawlerBoards`·`NewsPushDispatcher`는 안 건드림. `docs/worklog.md`는 끝 덧붙임(둘 다 남기기)
+- 남은 일
+  - 관리자 대시보드(FE)에 요청 수·소요 시간·건너뛴 게시판 표시
+  - 서버 여러 대로 늘리면 차단기·증분 실패 기록이 인스턴스별(지금은 1대)
+  - `NewsLocationMatcher.matchBuilding`이 새 글마다 `buildings` 전체 조회 — 새 글 수에만 비례해 그대로 둠(새 게시판 첫 수집 때만 수십 회)
+  - 게시판이 수정된 글을 반영하지 않는 건 기존과 같음(필요하면 별도 갱신 주기)

@@ -14,6 +14,19 @@ public interface NewsRepository extends JpaRepository<News, Long>, JpaSpecificat
 
     boolean existsBySourceUrl(String sourceUrl);
 
+    /**
+     * 크롤러 목록 한 페이지의 상세 링크 중 이미 저장된 것과 그 source_id. 글마다 exists 쿼리를 날리던 것을
+     * 페이지당 한 번으로 줄이고, source_id가 빈 행만 골라 채울 수 있게 source_id도 같이 돌려준다.
+     */
+    @Query("SELECT n.sourceUrl AS sourceUrl, n.sourceId AS sourceId FROM News n WHERE n.sourceUrl IN :sourceUrls")
+    List<SourceUrlState> findSourceUrlStates(@Param("sourceUrls") Collection<String> sourceUrls);
+
+    interface SourceUrlState {
+        String getSourceUrl();
+
+        String getSourceId();
+    }
+
     /** 상세 링크가 매번 바뀌는 게시판(건축학부 등)의 중복 판단용 — 게시판 출처+제목+작성일. */
     boolean existsBySourceIdAndTitleAndPublishedAt(String sourceId, String title, LocalDateTime publishedAt);
 
