@@ -28,7 +28,7 @@ public class AdminUserController {
 
     private final AdminUserService adminUserService;
 
-    @Operation(summary = "회원 조회", description = "q: 회원 id(숫자) 또는 닉네임 일부. 비우면 정지된 회원 목록.")
+    @Operation(summary = "회원 조회", description = "q: 회원 번호(10자리, 대소문자 무시), 회원 id(숫자) 또는 닉네임 일부. 비우면 정지된 회원 목록.")
     @GetMapping
     public AdminUserListResponse search(@RequestParam(required = false) String q) {
         return adminUserService.search(q);

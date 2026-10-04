@@ -24,6 +24,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findTop200ByStatusOrderBySuspendedAtDesc(UserStatus status);
 
+    /** 관리자 회원 조회: 회원 번호(K7Q2M9XA4D)로 찾기. 번호는 대문자로 저장한다. */
+    Optional<User> findByMemberCode(String memberCode);
+
     Optional<User> findBySocialTypeAndSocialId(SocialType socialType, String socialId);
 
     boolean existsBySocialTypeAndSocialId(SocialType socialType, String socialId);
