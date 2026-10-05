@@ -43,6 +43,7 @@ application-local.properties
 !.env.example
 credentials*.json
 *.pem
+*.p8
 *.p12
 *.jks
 *.key
