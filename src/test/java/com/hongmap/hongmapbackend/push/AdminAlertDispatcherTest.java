@@ -164,8 +164,8 @@ class AdminAlertDispatcherTest {
         Building building = building();
         String body = """
                 {"buildingId": %d, "floor": 2, "lat": 37.55, "lng": 126.925, "category": "FOOD_TRUCK",
-                 "title": "붕어빵 트럭", "startsAt": "2026-10-01T08:00:00.000Z", "endsAt": "%s"}
-                """.formatted(building.getId(), Instant.now().plus(Duration.ofHours(2)).toString());
+                 "title": "붕어빵 트럭", "startsAt": "%s", "endsAt": "%s"}
+                """.formatted(building.getId(), Instant.now().toString(), Instant.now().plus(Duration.ofHours(2)).toString());
 
         mockMvc.perform(post("/reports").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content(body))

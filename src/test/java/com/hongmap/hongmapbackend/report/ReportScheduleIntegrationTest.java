@@ -162,8 +162,9 @@ class ReportScheduleIntegrationTest {
         try {
             stats.clear();
             assertThat(ids("/reports?buildingId=" + building.getId() + "&include=upcoming")).hasSize(6);
-            // 진행 중 1번 + 예정 1번 + 사진 묶음 1번. 작성자(닉네임) 지연 로딩이 제보·작성자 수만큼 늘지 않아야 한다.
-            assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(3);
+            // 진행 중 1번 + 예정 1번 + 사진 묶음 1번 + 댓글 수 1번·공감 통계 1번(건수와 무관).
+            // 작성자(닉네임) 지연 로딩이 제보·작성자 수만큼 늘지 않아야 한다.
+            assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(5);
         } finally {
             stats.setStatisticsEnabled(false);
         }

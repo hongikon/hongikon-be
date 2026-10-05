@@ -208,8 +208,9 @@ class ReportAbuseGuardIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.reports.length()").value(ReportService.LIVE_LIST_LIMIT))
                     .andExpect(jsonPath("$.reports[0].title").value("제보0"));
-            // 제보 1번 + 사진 묶음(@BatchSize 100 → 300건이면 3번). 작성자를 제보마다 읽으면 여기서 5번 이상 더 나온다.
-            assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(4);
+            // 제보 1번 + 사진 묶음(@BatchSize 100 → 300건이면 3번) + 댓글 수 1번·공감 통계 1번(건수와 무관하게 한 번씩).
+            // 작성자를 제보마다 읽으면 여기서 5번 이상 더 나온다.
+            assertThat(stats.getPrepareStatementCount()).isLessThanOrEqualTo(6);
         } finally {
             stats.setStatisticsEnabled(false);
         }
