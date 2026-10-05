@@ -27,9 +27,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -63,6 +65,42 @@ class AdminApiIntegrationTest {
                 .name("테스트관-" + UUID.randomUUID())
                 .latitude(new BigDecimal("37.5500000")).longitude(new BigDecimal("126.9250000"))
                 .build());
+    }
+
+    @Test
+    void 공식_계정으로_인증하면_공식_이름과_배지가_제보에_보이고_해제할_수_있다() throws Exception {
+        String name = "경영대학 학생회 " + UUID.randomUUID().toString().substring(0, 6);
+        String url = "/admin/users/" + normal.getId() + "/official";
+        // 관리자만 붙일 수 있다.
+        mockMvc.perform(put(url).header("Authorization", bearer(normal))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  " + name + "  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.officialName").value(name))
+                .andExpect(jsonPath("$.displayName").value(name));
+        // 같은 공식 이름은 다른 계정에 줄 수 없다.
+        mockMvc.perform(put("/admin/users/" + admin.getId() + "/official").header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(put(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"학\"}"))
+                .andExpect(status().isBadRequest());
+
+        Report report = pendingReport();
+        approve(report);
+        mockMvc.perform(get("/reports").param("buildingId", String.valueOf(building.getId())))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value(name))
+                .andExpect(jsonPath("$.reports[0].authorOfficial").value(true));
+
+        mockMvc.perform(delete(url).header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.officialName").doesNotExist());
+        mockMvc.perform(get("/reports").param("buildingId", String.valueOf(building.getId())))
+                .andExpect(jsonPath("$.reports[0].authorOfficial").value(false))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value("학*"));
+        reportRepository.delete(report);
     }
 
     private String bearer(User user) {

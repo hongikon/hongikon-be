@@ -34,4 +34,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsBySocialTypeAndSocialId(SocialType socialType, String socialId);
 
     boolean existsByAppNicknameIgnoreCaseAndIdNot(String appNickname, Long id);
+
+    /** 같은 공식 이름을 가진 다른 계정이 있는지(공식 이름은 계정마다 하나). */
+    boolean existsByOfficialNameAndIdNot(String officialName, Long id);
 }

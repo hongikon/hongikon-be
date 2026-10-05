@@ -34,6 +34,8 @@ public record ReportSummaryResponse(
         LocalDateTime createdAt,
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
         String authorDisplayName,
+        /** 운영진이 인증한 공식 계정(학생회 등)이 올린 제보면 true — 앱이 공식 배지를 붙인다 */
+        boolean authorOfficial,
         /** 공개 댓글 수(GET /reports 목록에서만 채움 — ReportCommentCounts, 쿼리 1번). 그 밖의 응답에서는 null */
         Long commentCount,
         /** 🔥 수(GET /reports 목록에서만 채움 — ReportCommunityStats). 그 밖의 응답에서는 null */
@@ -70,6 +72,7 @@ public record ReportSummaryResponse(
                 .endsAt(report.getEndsAt())
                 .createdAt(report.getCreatedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
+                .authorOfficial(report.getUser().isOfficial())
                 .build();
     }
 

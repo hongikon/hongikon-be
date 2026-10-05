@@ -35,7 +35,9 @@ public record ReportResponse(
         String status,
         LocalDateTime createdAt,
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
-        String authorDisplayName
+        String authorDisplayName,
+        /** 운영진이 인증한 공식 계정(학생회 등)이 올린 제보면 true */
+        boolean authorOfficial
 ) {
     public static ReportResponse of(Report report, Long requesterId, List<String> imageUrls) {
         return ReportResponse.builder()
@@ -58,6 +60,7 @@ public record ReportResponse(
                 .status(report.getStatus().name())
                 .createdAt(report.getCreatedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
+                .authorOfficial(report.getUser().isOfficial())
                 .build();
     }
 }
