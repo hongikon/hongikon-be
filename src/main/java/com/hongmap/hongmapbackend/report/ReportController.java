@@ -66,16 +66,19 @@ public class ReportController {
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
-    @Operation(summary = "실시간 제보 목록 조회", description = "live 여부와 건물 id로 필터링된 실시간 제보 목록을 조회합니다.")
+    @Operation(summary = "실시간 제보 목록 조회", description = "지금 진행 중인(startsAt ≤ 지금 ≤ endsAt) 승인된 제보를 건물 id로 필터링해 조회합니다. "
+            + "include=upcoming 이면 24시간 안에 시작할 예정 제보를 시작 시각 순으로 뒤에 덧붙입니다(항목의 startsAt 이 지금보다 뒤면 예정).")
     @GetMapping("/reports")
     public ReportListResponse getLiveReports(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false, defaultValue = "false") boolean live,
-            @RequestParam(required = false) Long buildingId
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) String include
     ) {
         // live=false 케이스(전체 조회)는 현재 스펙에 없어 live 목록으로 통일.
         // 추후 필요 시 reportService.getAllReports(...) 분기 추가.
-        return reportService.getLiveReports(userId, buildingId);
+        boolean includeUpcoming = include != null && include.trim().equalsIgnoreCase("upcoming");
+        return reportService.getLiveReports(userId, buildingId, includeUpcoming);
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
