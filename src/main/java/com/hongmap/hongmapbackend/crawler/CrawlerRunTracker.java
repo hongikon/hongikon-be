@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -18,8 +19,14 @@ public class CrawlerRunTracker {
 
     public enum Trigger { SCHEDULED, MANUAL }
 
+    /**
+     * lastRequestCount~lastSkippedBoards는 마지막으로 끝까지 돈 실행의 요약(CrawlResult). 실행이 예외로 끝나면 null.
+     * 크롤링 최적화(증분 수집·건너뛰기) 효과를 대시보드에서 바로 보려고 넣었다.
+     */
     public record Snapshot(boolean running, LocalDateTime lastStartedAt, LocalDateTime lastFinishedAt,
-                           Integer lastSavedCount, String lastError, Trigger lastTrigger) {
+                           Integer lastSavedCount, String lastError, Trigger lastTrigger,
+                           Long lastRequestCount, Long lastDurationMs,
+                           List<String> lastFailedBoards, List<String> lastSkippedBoards) {
     }
 
     /** 다른 실행이 이미 돌고 있을 때 */
@@ -37,6 +44,7 @@ public class CrawlerRunTracker {
     private volatile Integer lastSavedCount;
     private volatile String lastError;
     private volatile Trigger lastTrigger;
+    private volatile CrawlResult lastResult;
 
     public int run(Trigger trigger) {
         if (!running.compareAndSet(false, true)) {
@@ -45,11 +53,13 @@ public class CrawlerRunTracker {
         lastStartedAt = LocalDateTime.now();
         lastTrigger = trigger;
         try {
-            int saved = crawlerService.crawlAll();
-            lastSavedCount = saved;
+            CrawlResult result = crawlerService.crawlAll();
+            lastResult = result;
+            lastSavedCount = result.savedCount();
             lastError = null;
-            return saved;
+            return result.savedCount();
         } catch (RuntimeException e) {
+            lastResult = null;
             lastSavedCount = null;
             lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
             throw e;
@@ -60,6 +70,11 @@ public class CrawlerRunTracker {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot(running.get(), lastStartedAt, lastFinishedAt, lastSavedCount, lastError, lastTrigger);
+        CrawlResult result = lastResult;
+        return new Snapshot(running.get(), lastStartedAt, lastFinishedAt, lastSavedCount, lastError, lastTrigger,
+                result != null ? result.requestCount() : null,
+                result != null ? result.durationMs() : null,
+                result != null ? result.failedBoards() : null,
+                result != null ? result.skippedBoards() : null);
     }
 }

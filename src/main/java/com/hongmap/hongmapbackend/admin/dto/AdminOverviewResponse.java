@@ -3,6 +3,7 @@ package com.hongmap.hongmapbackend.admin.dto;
 import com.hongmap.hongmapbackend.crawler.CrawlerRunTracker;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /** 관리자 대시보드 한 화면 분량의 요약 */
 public record AdminOverviewResponse(
@@ -24,11 +25,15 @@ public record AdminOverviewResponse(
     public record News(long total, long missingDepartment) {
     }
 
+    /** lastRequestCount 이하 4개는 크롤링 최적화(2026-10)로 추가 — 학교 서버 요청 수·소요 시간·실패/건너뛴 게시판(출처명). */
     public record Crawler(boolean running, LocalDateTime lastStartedAt, LocalDateTime lastFinishedAt,
-                          Integer lastSavedCount, String lastError, String lastTrigger) {
+                          Integer lastSavedCount, String lastError, String lastTrigger,
+                          Long lastRequestCount, Long lastDurationMs,
+                          List<String> lastFailedBoards, List<String> lastSkippedBoards) {
         public static Crawler of(CrawlerRunTracker.Snapshot s) {
             return new Crawler(s.running(), s.lastStartedAt(), s.lastFinishedAt(), s.lastSavedCount(), s.lastError(),
-                    s.lastTrigger() == null ? null : s.lastTrigger().name());
+                    s.lastTrigger() == null ? null : s.lastTrigger().name(),
+                    s.lastRequestCount(), s.lastDurationMs(), s.lastFailedBoards(), s.lastSkippedBoards());
         }
     }
 }
