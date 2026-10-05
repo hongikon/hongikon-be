@@ -7,6 +7,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportSummaryResponse;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportHotService {
 
+    /** 지도 목록(ReportService.LIVE_LIST_LIMIT)과 같은 상한 — 최신순 300건 안에서 고른다. */
+    private static final int LIVE_LIST_LIMIT = 300;
+
     private final ReportRepository reportRepository;
     private final ReportImageService reportImageService;
     private final ReportCommentCounts reportCommentCounts;
@@ -30,7 +34,7 @@ public class ReportHotService {
     @Transactional(readOnly = true)
     public ReportListResponse hotReports(Long requesterId) {
         List<ReportSummaryResponse> body = reportRepository
-                .findLiveReports(ReportStatus.ACTIVE, LocalDateTime.now(), null).stream()
+                .findLiveReports(ReportStatus.ACTIVE, LocalDateTime.now(), null, PageRequest.of(0, LIVE_LIST_LIMIT)).stream()
                 .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
                 .toList();
         return new ReportListResponse(communityStats.attach(reportCommentCounts.attach(body), requesterId,
