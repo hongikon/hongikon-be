@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
 
 /** 제보 검토(승인/반려/숨김/삭제). ADMIN 전용 — SecurityConfig 의 /admin/** 규칙. */
 @Slf4j
@@ -29,10 +32,14 @@ public class AdminReportController {
 
     private final AdminReportService adminReportService;
 
-    @Operation(summary = "제보 검토 목록", description = "status: PENDING(기본)/ACTIVE/HIDDEN/REJECTED/ALL. 최신순 최대 200건.")
+    @Operation(summary = "제보 검토 목록", description = "status: PENDING(기본)/ACTIVE/HIDDEN/REJECTED/ALL. "
+            + "from·to: 등록일(한국 날짜 yyyy-MM-dd, 둘 다 포함, 선택). 기간 안에서 최신순 최대 200건.")
     @GetMapping
-    public AdminReportListResponse list(@RequestParam(required = false) String status) {
-        return adminReportService.list(status);
+    public AdminReportListResponse list(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return adminReportService.list(status, from, to);
     }
 
     @Operation(summary = "제보에 달린 신고 목록")

@@ -5,6 +5,7 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportCategory;
+import com.hongmap.hongmapbackend.report.ReportStatus;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
@@ -86,6 +87,56 @@ class AdminApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reports.pending").isNumber())
                 .andExpect(jsonPath("$.crawler.running").value(false));
+    }
+
+    @Test
+    void 대시보드_노출중은_끝나지_않은_승인_제보만_센다() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        // 이 클래스는 테스트마다 DB 를 비우지 않아 다른 테스트의 제보가 남는다 — 전후 차이로 본다.
+        long before = reportRepository.countByStatusAndEndsAtAfter(ReportStatus.ACTIVE, now);
+        Report live = pendingReport();
+        live.moderate(ReportStatus.ACTIVE, null, now);
+        reportRepository.save(live);
+        // 승인했지만 끝나는 시각이 지난 제보 — 지도 목록에서 빠지므로 '노출 중'에 넣지 않는다.
+        Report ended = reportRepository.save(Report.builder()
+                .user(normal).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.EVENT).title("끝난 행사")
+                .startsAt(now.minusHours(5)).endsAt(now.minusHours(1))
+                .build());
+        ended.moderate(ReportStatus.ACTIVE, null, now.minusHours(4));
+        reportRepository.save(ended);
+
+        mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports.active").value((int) before + 1));
+    }
+
+    @Test
+    void 제보_검토_목록을_등록일_한국날짜로_거른다() throws Exception {
+        Report early = pendingReport();
+        Report boundary = pendingReport();
+        Report late = pendingReport();
+        // DB 시각은 UTC. 한국 10/3 01:00 = UTC 10/2 16:00 — 한국 날짜로는 10/3 이라 10/3 조회에 들어가야 한다.
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 2, 14, 0), early.getId());
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 2, 16, 0), boundary.getId());
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 4, 1, 0), late.getId());
+
+        mockMvc.perform(get("/admin/reports").param("status", "ALL").param("from", "2026-10-03").param("to", "2026-10-03")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports.length()").value(1))
+                .andExpect(jsonPath("$.reports[0].id").value(boundary.getId()));
+
+        mockMvc.perform(get("/admin/reports").param("status", "ALL").param("from", "2026-10-02").param("to", "2026-10-04")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", early.getId()).exists())
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", boundary.getId()).exists())
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", late.getId()).exists());
+
+        mockMvc.perform(get("/admin/reports").param("from", "2026-10-05").param("to", "2026-10-01")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
