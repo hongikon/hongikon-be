@@ -125,22 +125,23 @@ class ReportScheduleIntegrationTest {
     // ---------- 지도 목록 ----------
 
     @Test
-    void 시작_전_제보는_기본_목록에_없고_include_upcoming_이면_48시간_안의_것만_붙는다() throws Exception {
+    void 시작_전_제보는_기본_목록에_없고_include_upcoming_이면_72시간_안의_것만_붙는다() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         Report live = active(now.minusHours(1), now.plusHours(2), "진행 중");
         Report soon = active(now.plusHours(20), now.plusHours(22), "내일 아침");
         Report sooner = active(now.plusHours(2), now.plusHours(4), "오늘 오후");
         Report dayAfter = active(now.plusHours(30), now.plusHours(32), "모레 아침");
-        Report later = active(now.plusHours(50), now.plusHours(52), "글피");
+        Report threeDays = active(now.plusHours(60), now.plusHours(62), "사흘 뒤");
+        Report later = active(now.plusHours(80), now.plusHours(82), "나흘 뒤");
         Report pendingSoon = reportRepository.save(builder(now.plusHours(1), now.plusHours(3), "검토 전").build());
         // 어제 시작해 모레 끝나는 여러 날 제보는 진행 중이다.
         Report multiDay = active(now.minusDays(1), now.plusDays(2), "3일 축제 부스");
 
         assertThat(ids("/reports?buildingId=" + building.getId())).containsExactlyInAnyOrder(live.getId(), multiDay.getId());
-        // live 다음에 예정이 시작 시각 순으로 붙는다. 승인 전(PENDING)·48시간 밖은 빠진다.
+        // live 다음에 예정이 시작 시각 순으로 붙는다. 승인 전(PENDING)·72시간 밖은 빠진다.
         List<Long> withUpcoming = ids("/reports?buildingId=" + building.getId() + "&include=upcoming");
         assertThat(withUpcoming.subList(0, 2)).containsExactlyInAnyOrder(live.getId(), multiDay.getId());
-        assertThat(withUpcoming.subList(2, withUpcoming.size())).containsExactly(sooner.getId(), soon.getId(), dayAfter.getId());
+        assertThat(withUpcoming.subList(2, withUpcoming.size())).containsExactly(sooner.getId(), soon.getId(), dayAfter.getId(), threeDays.getId());
         assertThat(withUpcoming).doesNotContain(later.getId(), pendingSoon.getId());
         // 알 수 없는 include 값은 무시(기본 목록).
         assertThat(ids("/reports?buildingId=" + building.getId() + "&include=all"))
