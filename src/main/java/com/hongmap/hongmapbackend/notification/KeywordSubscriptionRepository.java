@@ -10,5 +10,10 @@ public interface KeywordSubscriptionRepository extends JpaRepository<KeywordSubs
 
     boolean existsByUser_IdAndKeyword(Long userId, String keyword);
 
+    /** 대소문자 무시 중복 확인 — 운영 콜레이션(ci)과 같은 기준을 H2 에서도 쓰려고 명시한다. */
+    boolean existsByUser_IdAndKeywordIgnoreCase(Long userId, String keyword);
+
+    long countByUser_Id(Long userId);
+
     void deleteByUser_Id(Long userId);
 }

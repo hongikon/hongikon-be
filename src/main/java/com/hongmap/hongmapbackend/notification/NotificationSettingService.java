@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.notification;
 
+import com.hongmap.hongmapbackend.common.persistence.UniqueConflictRetry;
 import com.hongmap.hongmapbackend.notification.dto.NotificationSettingsResponse;
 import com.hongmap.hongmapbackend.notification.dto.NotificationSettingsUpdateRequest;
 import com.hongmap.hongmapbackend.user.UserRepository;
@@ -19,6 +20,7 @@ public class NotificationSettingService {
 
     private final UserNotificationSettingRepository settingRepository;
     private final UserRepository userRepository;
+    private final UniqueConflictRetry uniqueConflictRetry;
 
     @Transactional(readOnly = true)
     public NotificationSettingsResponse get(Long userId) {
@@ -27,9 +29,17 @@ public class NotificationSettingService {
                 .orElseGet(NotificationSettingsResponse::defaults);
     }
 
-    @Transactional
+    /**
+     * 처음 저장할 때(행 없음) 토글을 연달아 바꾸면 두 요청이 모두 INSERT 해 PK(user_id) 위반 500 이 났다 →
+     * UniqueConflictRetry 가 새 트랜잭션에서 한 번 더 돌려, 두 번째는 먼저 만든 행을 고친다. 트랜잭션은 그쪽이 연다.
+     */
     public NotificationSettingsResponse update(Long userId, NotificationSettingsUpdateRequest request) {
         NewReportScope scope = parseScope(request.newReportsScope());
+        return uniqueConflictRetry.execute("notification-settings-update", () -> updateOnce(userId, request, scope));
+    }
+
+    private NotificationSettingsResponse updateOnce(Long userId, NotificationSettingsUpdateRequest request,
+                                                    NewReportScope scope) {
         if (!userRepository.existsById(userId)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다.");
         }

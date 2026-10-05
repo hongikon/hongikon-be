@@ -721,3 +721,26 @@
 - 남은 일
   - 댓글 관리자 응답(`AdminCommentResponse` — 댓글 브랜치)과 재가입 이력 응답에도 같은 규칙(로그인 닉네임 제거, 회원 번호 추가)
   - 구버전 관리자 화면이 모두 사라지면 옛 키(`authorNickname`·`reporterNickname`·`userNickname`·`nickname`) 삭제
+
+## 2026-10-05 — 버그 점검 수정 (`fix/be-bughunt-1005`, base main `00f26d1`)
+- 왜: 동시 요청 경합(유니크 키 위반 500), 남용 제한 부재(문의·제보), 입력 범위 미검증(DB 오류 500), 반려·삭제 제보 재공개(사진 없이 공개 + 새 제보 알림 재발송), 지도 목록 N+1, UTC 날짜로 센 "오늘"
+- 변경
+  - 공통: `GlobalExceptionHandler`에 `DataIntegrityViolationException` → 409 "이미 처리된 요청이에요. 잠시 후 다시 확인해 주세요." (로그엔 제약 이름만 — MySQL 메시지에 푸시 토큰·키워드 값이 들어 있음). `common/persistence/UniqueConflictRetry`(유니크 위반 시 REQUIRES_NEW 새 트랜잭션으로 1회 재시도), `common/ratelimit/SlidingWindowRateLimiter`(기존 `acquireQuota` 방식을 공용으로)
+  - 기기 등록: 같은 토큰 동시 등록 → 재시도로 둘 다 성공·행 하나. `DeviceRegisterRequest` `@Size(max=255)` + EXPO 토큰 형식(`ExponentPushToken[…]`/`ExpoPushToken[…]`) → 400
+  - 제보 신고: `ReportFlag`에 `uq_flag` 명시(운영엔 이미 있음, `create_report_flags_table.sql`) + `saveAndFlush` → 동시 중복 신고 409 "이미 신고한 제보예요.". ACTIVE 아닌 제보 404, 본인 제보 400. 응답 `flagCount` → `flagged`(앱 미사용, 다른 사람 신고 수 노출 불필요)
+  - 제보 등록: lat ±90·lng ±180·층 -10~30(0층 400) → 400(전엔 DECIMAL(10,7) 초과로 500), 좌표는 소수 7자리로 맞춰 저장, 고른 건물 중심과 300m 넘게 떨어지면 400. 승인 대기 3건(DB 카운트)·1시간 5건(메모리, 사진 검증까지 통과한 요청만 셈) 넘으면 429
+  - 관리자 제보 처리: REJECTED → ACTIVE/HIDDEN, DELETED → 무엇이든 400 "반려·삭제한 제보는 다시 공개할 수 없어요. 작성자에게 다시 올려 달라고 해 주세요." 반려 사유 수정(REJECTED→REJECTED)·반려→삭제·숨김→다시 공개는 그대로
+  - `GET /reports`: `JOIN FETCH r.user`(작성자 N+1 제거, ManyToOne 이라 중복 행 없음), 최신순 최대 300건
+  - 문의 `POST /feedback`: 접속 IP(+로그인 시 사용자)마다 10분에 5건 → 429. IP 는 `request.getRemoteAddr()`(nginx 가 X-Forwarded-For 덮어씀, `AdminAuditInterceptor`와 같음). 본문 검증 통과한 요청만 셈
+  - 북마크·학과 구독 생성: 이미 있으면 기존 행 반환(멱등, 전엔 409 — 앱은 두 API 모두 안 씀), 경합 재시도. 삭제는 조합 벌크 삭제(중복 행 있어도 500 없음). 학과는 isPrimary 재요청 시 주 학과 전환
+  - 키워드 구독: 앞뒤 공백 제거, 대소문자 무시 중복 409(앱이 409 를 "이미 등록한 키워드예요"로 표시하므로 유지), 유저당 30개(앱 20개) 400, 경합도 409
+  - 알림 설정 첫 저장·게시판 구독 upsert: `UniqueConflictRetry`로 동시 요청 둘 다 성공
+  - KST: `NewsPushDispatcher` 오래된 소식 기준일을 한국 날짜로(KST 00~09시에 하루 밀리던 문제), `NewsCrawlStorageService` 작성일 대체값 `now(KST)`(한 줄 — 크롤러 PR #26 과 겹침 최소화)
+- SQL: `db/alter_add_unique_user_lists.sql` — bookmarks(user_id, news_id)·keyword_subscriptions(user_id, keyword)·user_departments(user_id, department_id) 중복 정리 후 같은 컬럼 조합 유니크 인덱스가 **없을 때만** 추가(재실행 안전, 로컬 MySQL 로 중복 정리·재실행 확인). 배포 전후 아무 때나 실행해도 앱은 뜸(`ddl-auto=validate`는 유니크 비교 안 함), 다만 실행 전까진 경합 시 중복 행이 생길 수 있음 → 배포 직전 실행 권장. RDS 스냅샷 먼저. `report_flags.uq_flag`는 운영에 이미 있어 SQL 없음
+- 환경변수(모두 선택, 기본값): `REPORT_CREATE_LIMIT_PER_HOUR`(5), `REPORT_CREATE_MAX_PENDING`(3), `REPORT_BUILDING_MAX_DISTANCE_METERS`(300), `FEEDBACK_RATE_LIMIT_MAX_REQUESTS`(5), `FEEDBACK_RATE_LIMIT_WINDOW_MINUTES`(10)
+- 테스트: +24 → 246개 통과(기준 222). `UserDeviceRegisterRaceIntegrationTest` 3(스파이로 결정적 경합 + 두 스레드), `GlobalExceptionHandlerTest` 1, `ReportAbuseGuardIntegrationTest` 7, `SlidingWindowRateLimiterTest` 2, `FeedbackRateLimitIntegrationTest` 2, `NewsPushCutoffTest` 2, `NewsCrawlStorageKstTest` 1, `UserListIdempotencyIntegrationTest` 6. 경합 테스트는 수정 전 코드에서 실패 확인. `AdminAlertDispatcherTest` 자동 숨김 테스트는 숨겨진 뒤 4번째 신고가 404 인 것으로 수정
+- 남은 일
+  - 프론트: 관리자 제보 화면 `actionsFor('REJECTED')`에서 '승인' 버튼 제거(삭제만), DELETED 는 이미 버튼 없음. 층 휠 지하를 B10 까지로(지금 B30 까지 고를 수 있음 → 서버 400). `ReportFlagResult.flagCount` 타입을 `flagged`로(앱은 값을 안 읽어 동작 영향 없음). 문의·제보 429 문구는 서버 메시지 그대로 표시됨(`SERVER_MESSAGE_STATUSES`에 429 포함)
+  - 메모리 제한은 서버 1대 기준(재시작 시 초기화, 여러 대면 대수만큼 느슨). 승인 대기 3건 확인은 동시 등록 시 1건 넘칠 수 있음(도배 방지 목적엔 충분)
+  - 캠퍼스 와이파이처럼 IP 하나를 여럿이 쓰면 문의 한도를 함께 씀(10분 5건이라 실제로 걸릴 일은 드묾)
+  - `ReportPushDispatcher`의 "반려 → 승인 = 첫 공개" 분기는 이제 도달하지 않음(남겨 둠)

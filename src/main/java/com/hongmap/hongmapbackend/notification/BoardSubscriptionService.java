@@ -1,5 +1,7 @@
 package com.hongmap.hongmapbackend.notification;
 
+import com.hongmap.hongmapbackend.common.persistence.UniqueConflictRetry;
+import com.hongmap.hongmapbackend.crawler.config.BoardConfig;
 import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.notification.dto.BoardSubscriptionListResponse;
 import com.hongmap.hongmapbackend.notification.dto.BoardSubscriptionResponse;
@@ -32,6 +34,7 @@ public class BoardSubscriptionService {
 
     private final UserBoardSubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final UniqueConflictRetry uniqueConflictRetry;
 
     @Transactional(readOnly = true)
     public BoardSubscriptionListResponse getUserSubscriptions(Long userId) {
@@ -41,10 +44,16 @@ public class BoardSubscriptionService {
         return new BoardSubscriptionListResponse(subscriptions);
     }
 
-    /** 없으면 구독을 만들고, 있으면 알림 여부만 바꾼다. */
-    @Transactional
+    /**
+     * 없으면 구독을 만들고, 있으면 알림 여부만 바꾼다. 같은 게시판 구독이 동시에 두 번 오면(앱 일괄 동기화 + 토글 등)
+     * 늦은 쪽이 uq_board_sub_user_source 위반 500 이었다 → UniqueConflictRetry 가 새 트랜잭션에서 다시 돌려 "있으면 갱신"으로 간다.
+     */
     public BoardSubscriptionResponse upsert(Long userId, String sourceId, boolean alertEnabled) {
         validateSourceId(sourceId);
+        return uniqueConflictRetry.execute("board-subscription-upsert", () -> upsertOnce(userId, sourceId, alertEnabled));
+    }
+
+    private BoardSubscriptionResponse upsertOnce(Long userId, String sourceId, boolean alertEnabled) {
 
         var existing = subscriptionRepository.findByUser_IdAndSourceId(userId, sourceId);
         if (existing.isPresent()) {
