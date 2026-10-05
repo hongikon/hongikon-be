@@ -38,8 +38,11 @@ public class AdminUserService {
      * <ul>
      *   <li>회원 번호(영문·숫자 10자리, 대소문자 무시): "K7Q2M9XA4D", "k7q2m9xa4d"</li>
      *   <li>숫자면 회원 id</li>
-     *   <li>숫자가 아니면 닉네임·앱 닉네임 일부(10글자 닉네임이 회원 번호 형식과 겹칠 수 있어 함께 찾는다)</li>
+     *   <li>숫자가 아니면 앱 닉네임 일부(10글자 앱 닉네임이 회원 번호 형식과 겹칠 수 있어 함께 찾는다)</li>
      * </ul>
+     * 로그인(카카오/Apple) 닉네임으로는 찾지 않는다. 실명일 수 있는 값을 검색어로 쓰면 결과 유무만으로 "이 사람이 가입했는지"가
+     * 드러나므로, 운영진도 회원 번호·id·앱에 보이는 이름으로만 회원을 가리킨다(개인정보 보호법 제3조 최소 처리).
+     * 앱 닉네임이 없는 회원(가린 이름 "홍**")은 회원 번호나 id 로 찾는다 — 신고·문의·제보 화면에 회원 번호가 함께 보인다.
      */
     @Transactional(readOnly = true)
     public AdminUserListResponse search(String q) {
@@ -54,7 +57,7 @@ public class AdminUserService {
         if (query.matches("\\d{1,18}")) {
             userRepository.findById(Long.parseLong(query)).ifPresent(user -> found.putIfAbsent(user.getId(), user));
         } else {
-            userRepository.findTop50ByNicknameContainingOrAppNicknameContainingOrderByIdDesc(query, query)
+            userRepository.findTop50ByAppNicknameContainingOrderByIdDesc(query)
                     .forEach(user -> found.putIfAbsent(user.getId(), user));
         }
         return withPriorHistory(List.copyOf(found.values()));

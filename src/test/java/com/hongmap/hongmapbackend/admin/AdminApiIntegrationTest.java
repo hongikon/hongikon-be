@@ -155,7 +155,9 @@ class AdminApiIntegrationTest {
         mockMvc.perform(get("/admin/reports").header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.reports[0].id").value(report.getId()))
                 .andExpect(jsonPath("$.reports[0].buildingName").value(building.getName()))
-                .andExpect(jsonPath("$.reports[0].authorNickname").value("학생"))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value("학*"))
+                .andExpect(jsonPath("$.reports[0].authorNickname").value("학*"))
+                .andExpect(jsonPath("$.reports[0].authorMemberCode").value(normal.getMemberCode()))
                 .andExpect(jsonPath("$.reports[0].flagCount").value(0));
 
         mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))

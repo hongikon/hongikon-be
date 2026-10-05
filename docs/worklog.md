@@ -700,3 +700,24 @@
 - DB·환경변수: 변화 없음
 - 테스트: 저장한 목록 HTML 픽스처(`src/test/resources/crawler`)로 파서 확인, FE 49개 id 전부 구독 가능 확인, 별칭 조회·푸시·구독 테스트 추가. `./gradlew test` 통과
 - **10-02 추가 (#18)**: 사물인터넷공학전공·지능로봇공학전공은 상위 학부(전자전기공학부·기계시스템디자인공학과) 게시판 연결을 해제(`UNLINKED_APP_SOURCE_IDS`) — 학부 전체 공지까지 받게 되는 걸 막기 위해(사용자 결정). 구독 요청은 그대로 받되(앱 400 방지) 자체 게시판이 생기기 전까지 소식·푸시 없음.
+
+## 2026-10-05 — 관리자 콘솔 로그인 닉네임 가리기 (`feat/admin-hide-login-name`, base main)
+- 왜: 관리자 화면 곳곳(제보 카드 "실명 (앱 표시: 와우)", 회원 카드, 신고 목록, 문의 작성자)에 카카오/Apple 로그인 닉네임 원문이 그대로 보였음. 실명인 경우가 많아 개인정보 보호법 제3조(목적에 필요한 최소한)에 맞춰 평소엔 앱에 보이는 이름 + 공개 회원 번호로만 회원을 가리키고, 원문은 필요할 때 버튼으로만 열람하도록 바꿈(오너 승인)
+- 변경
+  - 관리자 응답에서 로그인 닉네임 원문 제거. 구버전 화면이 깨지지 않게 옛 키는 남기되 **값을 앱 표시 이름으로** 바꿈(새 화면은 새 키를 씀)
+    - `AdminReportResponse`(목록·상태 변경): `authorNickname` = `authorDisplayName`, 끝에 `authorMemberCode` 추가
+    - `AdminReportFlagListResponse.Item`: `reporterNickname` = 표시 이름, `reporterId`·`reporterDisplayName`·`reporterMemberCode` 추가
+    - `FeedbackResponse`(`/admin/feedback` 전용): `userNickname` = 표시 이름, `userDisplayName`·`userMemberCode` 추가
+    - `AdminUserResponse`: `nickname` = `displayName`, 끝에 `appNickname`(없으면 null — 회원 카드 제목은 앱 닉네임, 없으면 "홍**" + "앱 닉네임 없음") 추가. email 은 원래 없음
+    - 댓글 관리자 응답(`AdminCommentResponse`)·재가입 이력(`priorHistory`)은 main 에 아직 없음 → 해당 브랜치에서 같은 규칙 적용 필요(남은 일)
+  - 회원 조회 `GET /admin/users?q=`: 로그인 닉네임 검색 제거. 회원 번호(10자리, 대소문자 무시)·숫자 id·앱 닉네임 일부만. `UserRepository.findTop50ByAppNicknameContainingOrderByIdDesc`. Swagger 설명 갱신
+  - 새 API `GET /admin/users/{id}/login-name` → `{userId, loginNickname, socialType}`. ADMIN 전용(SecurityConfig `/admin/**`, 비로그인 401·일반 403), `Cache-Control: no-store`, 없는 회원 404
+  - 열람 기록: **별도 테이블 없이 서버 로그 한 줄**(오너 결정 — 화면·처리방침에 열람 기록 기능을 드러내지 않음). `ADMIN_AUDIT` 로거에 `admin-login-name-view adminId={} targetUserId={}` (id 만, 닉네임 값은 절대 안 씀). 「개인정보의 안전성 확보조치 기준」 제8조 접속기록은 이 로그 + 기존 `AdminAuditInterceptor` 접속 로그로 최소한 충족 — 운영에서 ADMIN_AUDIT 로그를 1년 이상 보관해야 하는 건 기존과 같음
+  - (처음엔 `admin_pii_access_logs` 테이블·정리 스케줄로 만들었다가 오너 결정으로 같은 브랜치에서 걷어냄 — SQL·엔티티·환경변수 없음)
+- SQL: 없음
+- 환경변수: 없음
+- 테스트: +5 → 227개 통과(main 222). `AdminPiiAccessIntegrationTest` 5(제보·신고·문의·회원 응답에 로그인 닉네임 없음 + 회원 번호, 로그인 닉네임 검색 불가·앱 닉네임/회원 번호/id 검색, 열람 401/403/200 + no-store + 로그에 id 만·값 없음, 없는 회원 404·로그 없음). 기존 `AdminApiIntegrationTest`·`UserModerationIntegrationTest`·`MemberCodeIntegrationTest` 기대값 갱신
+- 프론트: `feat/admin-hide-login-name` — 표시 이름 + 회원 번호로 표시, 회원 카드 제목을 앱 닉네임으로, "로그인 닉네임 보기" 버튼(404면 "서버 업데이트 후 사용 가능"), 처리방침 문구 정확히(운영진도 평소엔 앱 닉네임·회원 번호로 확인)
+- 남은 일
+  - 댓글 관리자 응답(`AdminCommentResponse` — 댓글 브랜치)과 재가입 이력 응답에도 같은 규칙(로그인 닉네임 제거, 회원 번호 추가)
+  - 구버전 관리자 화면이 모두 사라지면 옛 키(`authorNickname`·`reporterNickname`·`userNickname`·`nickname`) 삭제

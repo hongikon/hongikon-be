@@ -104,12 +104,12 @@ class MemberCodeIntegrationTest {
                     .andExpect(jsonPath("$.users[*].id", hasItem(member.getId().intValue())))
                     .andExpect(jsonPath("$.users[?(@.id == " + member.getId() + ")].memberCode").value(code));
         }
-        // id·닉네임 검색도 그대로 되고, 응답에 memberCode 가 실린다
+        // id 검색도 그대로 되고, 응답에 memberCode 가 실린다. 로그인 닉네임으로는 찾지 않는다.
         mockMvc.perform(get("/admin/users").param("q", String.valueOf(member.getId())).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.users[0].id").value(member.getId()))
                 .andExpect(jsonPath("$.users[0].memberCode").value(code));
         mockMvc.perform(get("/admin/users").param("q", member.getNickname()).header("Authorization", bearer(admin)))
-                .andExpect(jsonPath("$.users[0].memberCode").value(code));
+                .andExpect(jsonPath("$.users[*].id", not(hasItem(member.getId().intValue()))));
         mockMvc.perform(get("/admin/users/" + member.getId()).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.memberCode").value(code));
         // 없는 번호
