@@ -555,3 +555,31 @@
 - 머지 충돌(`git merge-tree`, 10-02 오후 갱신): #13 없음. #15·#12 `docs/worklog.md`만(양쪽 유지). #14(main 병합 후 버전) `src/test/resources/application-test.properties` 끝 한 곳 — `push.report-start-cron=-`와 `push.admin-reminder-cron=-` 둘 다 남김. **#14 테스트 `AdminAlertDispatcherTest` 167행이 고정 과거 `startsAt`("2026-10-01T08:00:00.000Z")을 보내 이 PR과 합치면 400** → 뒤에 머지하는 쪽에서 `Instant.now().toString()`으로 바꿀 것. 이렇게 고쳐 main+이 PR+#13+#15+#14 합친 상태 228개 통과
 - 배포 순서: #15 다음(마지막). SQL 없음 → 머지 후 배포만. 앱(`feat/report-schedule`)은 서버 배포 뒤에 OTA — 구서버도 미래 `startsAt`을 받고 지도엔 시작 뒤에만 띄우지만, 승인 즉시 "지도에 올라갔어요"·새 제보 알림을 보내(누르면 지도에 없음) 앱이 먼저 나가면 안 됨
 - 10-02 버그 점검 반영: 지도 목록(`findLiveReports`·`findUpcomingReports`)에 `JOIN FETCH r.user` — 작성자 이름 때문에 작성자 수만큼 추가 쿼리가 나가던 N+1 제거(6→3 쿼리, 테스트 추가). 정각 크롤링이 시작 알림 스케줄러를 막던 단일 스케줄러 스레드 문제는 #14에서 고침(`SCHEDULING_POOL_SIZE`). 테스트 183개 통과
+## 2026-10-02 (밤) — 제보 댓글 (`feat/report-comments`, base main)
+- 왜: 지도 제보에 "지금도 줄 있어요?" 같은 짧은 후속 정보를 남길 곳이 없었음. 사용자 생성 콘텐츠라 App Store 1.2(신고·차단·운영자 조치)와 약관 게시물 규정을 처음부터 맞춤
+- 변경 (새 패키지 `comment/`에 거의 전부, 기존 파일은 3곳만)
+  - API: `GET /reports/{id}/comments?page=&size=&order=`(게스트 가능, ACTIVE 제보만, 최상위 댓글 페이지 + 답글 앞 3개·`replyCount`, `commentCount`=답글 포함 수, 기본 오래된 순·`order=latest`), `GET .../{commentId}/replies`(답글 더 보기), `POST /reports/{id}/comments`(로그인, `parentId` 주면 답글 — 한 단계만, 답글에 답하면 같은 최상위 댓글로, 공백 제거 후 1~200자, 끝난 제보 409, 1분 5개·하루 50개 429), `DELETE /reports/{id}/comments/{commentId}`(본인, DELETED 로 — 공개 답글이 남은 최상위 댓글은 `placeholder: "DELETED"` 자리로 남음), `POST .../{commentId}/flags`(사유는 제보와 같음 + PRIVACY, 본인 400·중복 409, 3개면 자동 숨김)
+  - 관리자: `GET /admin/reports/{id}/comments`(숨김·삭제 포함, 작성자 id·원래 닉네임·사유별 신고 수), `PATCH /admin/comments/{id}` `{status: VISIBLE|HIDDEN|DELETED}`. 복원 뒤에는 복원 이후 신고만 센다
+  - 작성자 표시는 `authorDisplayName`(#11 규칙) + `authorKey`(#13 `AuthorKeys`와 같은 HMAC 값 — `CommentAuthorKeys`, #13 머지 뒤 교체 가능). users.id 는 공개 응답에 없음
+  - 정지 회원: #13 `SuspendedUserInterceptor` 빈이 있으면 댓글 쓰기·신고 경로에 자동 등록(`ReportCommentWebConfig`). #13 과 합쳐 403 확인
+  - 지도 목록 `GET /reports` 항목에 `commentCount`(IN + GROUP BY 1쿼리). `ReportSummaryResponse` 끝에 필드 + `@Builder(toBuilder = true)`
+  - 푸시 `REPORT_COMMENT`: 제보 작성자 "내 제보에 댓글이 달렸어요"(제보별 10분 1번), 답글이면 부모 댓글 작성자 "내 댓글에 답글이 달렸어요"(부모 댓글별 10분 1번, `commentId` 포함). 본인 제외, 두 사람이 같으면 1번, "내 제보 결과 알림"(report_status_enabled) 설정 따름(메모리 묶음)
+  - 삭제: FK ON DELETE CASCADE — 제보 삭제·탈퇴 시 DB 가 댓글·신고를 지움(`UserService` 수정 없음, 테스트로 확인)
+- SQL: `db/create_report_comments_table.sql`(report_comments(`parent_id` 자기 참조 FK 포함), report_comment_flags, IF NOT EXISTS). 로컬 MySQL 26.7 에서 두 번 실행·`ddl-auto=validate` 기동·CASCADE(탈퇴→댓글→답글→신고) 확인
+- 환경변수: 없음(선택 `report.comment.flag-threshold`=3, `report.comment.rate-per-minute`=5, `rate-per-day`=50, `push.report-comment-coalesce-minutes`=10 — 기본값이 코드에 있어 properties 미수정)
+- 테스트: +27 → 197개. #13→#14→#15→#16→#17→#18 + 이 PR 을 합친 상태 280개 통과(가이드의 #14/#17 수정 + 아래 1곳, 정지 회원 403 통합 테스트 포함)
+- 머지 충돌: 텍스트 충돌은 `docs/worklog.md`만. **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 의 쿼리 수 상한 `isLessThanOrEqualTo(3)` → 댓글 수 쿼리 때문에 `4`. #17·이 PR 중 나중에 머지하는 쪽에서 고친다
+- 남은 일: #14 머지 뒤 댓글 자동 숨김도 관리자 알림(AdminAlertEvent), #13 머지 뒤 `CommentAuthorKeys` → `AuthorKeys.of`
+
+## 2026-10-04 — 댓글 내용 필터 (`feat/report-comments`, PR #19)
+- 왜: App Store 1.2 는 "불쾌한 사용자 생성 콘텐츠를 거르는 방법"을 요구. 댓글은 사후 검토(바로 공개)라 신고·숨김만으로는 부족 → 올리는 순간 서버에서 한 번 거름. 제보는 사전 검토(PENDING → 관리자 승인)라 거르지 않음
+- 변경
+  - 새 `common/moderation/ContentFilter`(+ `ContentViolation`): 외부 API 없이 정규식·목록, 결정적. `ReportCommentService.create`(댓글·답글 공통)에서 공백·길이 검사 바로 뒤 호출 → 걸리면 400 + 아래 문구(앱은 400 의 serverMessage 를 그대로 보여 줌). 막힌 글은 저장하지 않아 빈도 제한에도 안 셈
+  - 연락처 → "댓글에 연락처나 오픈채팅 주소는 쓸 수 없어요.": 010/011…·지역번호·070·050X(하이픈·점·공백·괄호, +82, "공일공"), 이메일, 오픈채팅/오픈톡/open.kakao/카톡 아이디·카톡id/텔레·라인·인스타 아이디 등(공백 지운 글에서)
+  - 링크 → "댓글에는 링크를 쓸 수 없어요.": http(s)://, www., `xxx.com/.kr/.co.kr/.net/.io/.me/.ly…`, "naver 닷 com"·"닷컴"·"dot com"·"(.)"·"[dot]", 전각 문자. 한글 바로 뒤 점은 com/net/org/kr 만(문장 끝 "좋아요. Me" 오탐 방지)
+  - 욕설·혐오·성적 표현 → "부적절한 표현이 있어 댓글을 올릴 수 없어요. 표현을 바꿔 다시 시도해 주세요.": `src/main/resources/moderation/banned-words.txt`(약 100개, 한 줄에 하나·# 주석). 낱말마다 소문자·숫자/문장부호/제로폭·한글 채움 문자 제거·한글 사이 영문 제거·반복 줄이기 후 부분 문자열 검사, 한 글자 낱말끼리는 붙여서 봄("시 발", "시1발", "ㅅ ㅂ", "개 새 끼"). 두 글자 이상 낱말끼리는 붙이지 않음("다시 발급", "3시 발표" 통과)
+  - 오탐 막기: `moderation/allowed-words.txt`(시발점·다시발·수박씨·솜씨·등신대·닥쳐오 …)를 먼저 가린 뒤 검사. 보지·자지·새끼·미친·꺼져·졸라·시바·개같 처럼 흔한 낱말에 들어가는 짧은 말은 목록에서 뺌
+  - 목록은 리소스 파일만 고쳐 늘릴 수 있음(재배포 필요). banned-words.txt 가 없거나 비면 기동 실패(필터가 조용히 꺼지는 것 방지)
+  - 개인정보: 댓글 내용은 로그에 안 남김. 차단 시 `댓글 필터 차단 reason=… reportId=…` 만 INFO
+- 테스트: +107 → 304개 통과. `ContentFilterTest`(링크 20·연락처 22·욕설 32 우회 표기 포함·정상 글 28 오탐 확인·목록/허용 목록), 통합 테스트 1개(링크/닷컴/전화/오픈채팅/욕설/답글 → 400·문구 확인·저장 안 됨, 정상 문장 201)
+- 남은 일: 숫자로 쓴 욕("18놈"), 한글로 읽은 전화번호("공일공 일이삼사"는 "공일공"만), 이미지 속 글자는 못 거름 → 신고·자동 숨김이 받침. 운영 신고 데이터 보고 목록 보강. 제보 제목·설명·닉네임에도 쓸지 검토(지금은 사전 검토라 안 씀)

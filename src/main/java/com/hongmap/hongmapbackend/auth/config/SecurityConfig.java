@@ -56,6 +56,8 @@ public class SecurityConfig {
                     auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/status").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/reports").permitAll();
+                    // 제보 댓글 목록은 게스트도 본다(쓰기·삭제·신고는 아래 authenticated).
+                    auth.requestMatchers(HttpMethod.GET, "/reports/*/comments", "/reports/*/comments/*/replies").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/buildings", "/buildings/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();

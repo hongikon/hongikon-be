@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 목록 조회용 — content(본문) 제외한 요약본.
  */
-@Builder
+@Builder(toBuilder = true)
 public record ReportSummaryResponse(
         Long id,
         Long buildingId,
@@ -33,7 +33,9 @@ public record ReportSummaryResponse(
         LocalDateTime endsAt,
         LocalDateTime createdAt,
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
-        String authorDisplayName
+        String authorDisplayName,
+        /** 공개 댓글 수(GET /reports 목록에서만 채움 — ReportCommentCounts, 쿼리 1번). 그 밖의 응답에서는 null */
+        Long commentCount
 ) {
     public static ReportSummaryResponse of(Report report, Long requesterId, List<String> imageUrls) {
         return ReportSummaryResponse.builder()
@@ -55,5 +57,10 @@ public record ReportSummaryResponse(
                 .createdAt(report.getCreatedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
                 .build();
+    }
+
+    /** 같은 내용에 댓글 수만 바꾼 사본. */
+    public ReportSummaryResponse withCommentCount(long count) {
+        return toBuilder().commentCount(count).build();
     }
 }

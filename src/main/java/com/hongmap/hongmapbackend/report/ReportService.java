@@ -43,6 +43,7 @@ public class ReportService {
 
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
+    private final com.hongmap.hongmapbackend.comment.ReportCommentCounts reportCommentCounts;
     private final UserRepository userRepository;
     private final BuildingRepository buildingRepository;
     private final ReportImageService reportImageService;
@@ -150,7 +151,7 @@ public class ReportService {
         List<ReportSummaryResponse> body = reports.stream()
                 .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
                 .toList();
-        return new ReportListResponse(body);
+        return new ReportListResponse(reportCommentCounts.attach(body));
     }
 
     @Transactional
