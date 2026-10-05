@@ -13,15 +13,53 @@ import java.util.Optional;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
 
+    /**
+     * 지도 목록(공개). 작성자 표시 이름·authorKey 를 만들려고 제보마다 users 를 따로 읽던 N+1 을 JOIN FETCH 로 없앤다.
+     * ManyToOne 만 FETCH 하므로 행이 늘지 않고(중복 없음) 페이지(LIMIT)도 SQL 로 걸린다. 사진은 Report.images 의 @BatchSize 로 묶어 읽는다.
+     */
     @Query("""
             SELECT r FROM Report r
+            JOIN FETCH r.user
             WHERE r.status = :status
               AND :now BETWEEN r.startsAt AND r.endsAt
               AND (:buildingId IS NULL OR r.building.id = :buildingId)
-            ORDER BY r.createdAt DESC
+            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<Report> findLiveReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
-                                  @Param("buildingId") Long buildingId);
+                                  @Param("buildingId") Long buildingId, Pageable pageable);
+
+    /** 등록 제한용 — 한 사용자의 특정 상태(승인 대기) 제보 수. */
+    long countByUser_IdAndStatus(Long userId, ReportStatus status);
+
+    /** 아직 시작 전이고 to 안에 시작할 제보(예정). 시작 시각이 이른 순. 작성자를 함께 읽는다(N+1 방지). */
+    @Query("""
+            SELECT r FROM Report r
+            JOIN FETCH r.user
+            WHERE r.status = :status
+              AND r.startsAt > :now AND r.startsAt <= :to
+              AND (:buildingId IS NULL OR r.building.id = :buildingId)
+            ORDER BY r.startsAt ASC, r.id ASC
+            """)
+    List<Report> findUpcomingReports(@Param("status") ReportStatus status, @Param("now") LocalDateTime now,
+                                     @Param("to") LocalDateTime to, @Param("buildingId") Long buildingId);
+
+    /**
+     * (from, to] 사이에 시작한 ACTIVE 제보 중 시작 전에 승인된 것(reviewedAt &lt; startsAt) — 승인 때 새 제보 알림을
+     * 미뤄 둔 제보들이다(ReportStartPushScheduler). 시작 뒤에 승인된 제보는 승인 때 이미 보냈으니 빠진다.
+     * 작성자·건물을 함께 읽는다(트랜잭션 밖 푸시용 값 복사).
+     */
+    @Query("""
+            SELECT r FROM Report r
+            JOIN FETCH r.user
+            JOIN FETCH r.building
+            WHERE r.status = :status
+              AND r.startsAt > :from AND r.startsAt <= :to
+              AND r.endsAt > :to
+              AND r.reviewedAt IS NOT NULL AND r.reviewedAt < r.startsAt
+            ORDER BY r.startsAt ASC, r.id ASC
+            """)
+    List<Report> findStartedAfterEarlyApproval(@Param("status") ReportStatus status,
+                                               @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("""
             SELECT r FROM Report r
@@ -45,16 +83,36 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("SELECT i.imageKey FROM ReportImage i WHERE i.report.user.id = :userId")
     List<String> findImageKeysByUserId(@Param("userId") Long userId);
 
-    /** 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다. */
+    /**
+     * 탈퇴 부정 이용 방지 기록(WithdrawRetentionService)용 — 이 회원의 제보 중 운영진이 위반으로 확정한 것(관리자가 검토해
+     * statuses 로 바꾼, reviewed_at 있음)만 읽는다.
+     */
+    @Query("""
+            SELECT r FROM Report r
+            WHERE r.user.id = :userId AND r.status IN :statuses AND r.reviewedAt IS NOT NULL
+            ORDER BY r.id
+            """)
+    List<Report> findConfirmedViolationsByUserId(@Param("userId") Long userId,
+                                                 @Param("statuses") java.util.Collection<ReportStatus> statuses);
+
+    /**
+     * 관리자 목록. status 가 null 이면 DELETED 를 뺀 전부. 작성자·건물을 함께 읽어 목록 N+1 을 막는다.
+     * createdFrom·createdBefore(UTC, 둘 다 선택)로 등록 시각 범위를 거른다 — [from, before).
+     */
     @Query("""
             SELECT r FROM Report r
             JOIN FETCH r.user
             JOIN FETCH r.building
-            WHERE (:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
-               OR r.status = :status
+            WHERE ((:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
+                   OR r.status = :status)
+              AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
+              AND (:createdBefore IS NULL OR r.createdAt < :createdBefore)
             ORDER BY r.createdAt DESC
             """)
-    List<Report> findForAdmin(@Param("status") ReportStatus status, Pageable pageable);
+    List<Report> findForAdmin(@Param("status") ReportStatus status,
+                              @Param("createdFrom") LocalDateTime createdFrom,
+                              @Param("createdBefore") LocalDateTime createdBefore,
+                              Pageable pageable);
 
     long countByStatus(ReportStatus status);
 
@@ -93,4 +151,14 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /** 리마인드 본문용 — 아직 끝나지 않은 PENDING 제보 중 가장 오래된 것. */
     Optional<Report> findFirstByStatusAndEndsAtAfterOrderByCreatedAtAscIdAsc(ReportStatus status, LocalDateTime now);
+
+    /**
+     * 지금 지도에 보이는 제보 수 — 지도 목록(findLiveReports)과 같은 기준(startsAt ≤ now ≤ endsAt). 관리자 대시보드 '노출 중'.
+     * 끝난 제보도, 승인했지만 아직 시작 전인 예정 제보도 세지 않는다.
+     */
+    @Query("""
+            SELECT COUNT(r) FROM Report r
+            WHERE r.status = :status AND :now BETWEEN r.startsAt AND r.endsAt
+            """)
+    long countLive(@Param("status") ReportStatus status, @Param("now") LocalDateTime now);
 }

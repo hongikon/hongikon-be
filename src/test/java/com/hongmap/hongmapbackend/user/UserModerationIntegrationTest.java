@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -135,10 +138,14 @@ class UserModerationIntegrationTest {
         mockMvc.perform(get("/admin/users").param("q", appName.substring(0, 6)).header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[?(@.id == " + author.getId() + ")].displayName").value(appName))
-                .andExpect(jsonPath("$.users[?(@.id == " + author.getId() + ")].nickname").value("작성자"));
-        // 로그인 닉네임으로도 그대로 찾는다
+                .andExpect(jsonPath("$.users[?(@.id == " + author.getId() + ")].appNickname").value(appName))
+                .andExpect(content().string(not(containsString("작성자"))));
+        // 로그인 닉네임으로는 찾지 않는다(개인정보 최소 처리) — 앱 닉네임 없는 회원은 회원 번호·id 로 찾는다
         mockMvc.perform(get("/admin/users").param("q", "다른학").header("Authorization", bearer(admin)))
-                .andExpect(jsonPath("$.users[?(@.id == " + other.getId() + ")].displayName").value("다***"));
+                .andExpect(jsonPath("$.users[*].id", not(hasItem(other.getId().intValue()))));
+        mockMvc.perform(get("/admin/users").param("q", other.getMemberCode()).header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.users[0].displayName").value("다***"))
+                .andExpect(jsonPath("$.users[0].appNickname").isEmpty());
     }
 
     @Test
@@ -154,7 +161,7 @@ class UserModerationIntegrationTest {
         mockMvc.perform(post("/reports").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content(reportBody()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(SuspendedUserInterceptor.SUSPENDED_MESSAGE));
+                .andExpect(jsonPath("$.message").value(SuspendedUserInterceptor.suspendedMessage("욕설 반복")));
         mockMvc.perform(post("/reports/" + report.getId() + "/flags").header("Authorization", bearer(author))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
                 .andExpect(status().isForbidden());
@@ -226,16 +233,19 @@ class UserModerationIntegrationTest {
     }
 
     @Test
-    void 회원_조회는_id나_닉네임으로_찾는다() throws Exception {
+    void 회원_조회는_id나_회원_번호로_찾고_로그인_닉네임은_싣지_않는다() throws Exception {
         mockMvc.perform(get("/admin/users").param("q", String.valueOf(author.getId())).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.users.length()").value(1))
-                .andExpect(jsonPath("$.users[0].nickname").value("작성자"))
-                .andExpect(jsonPath("$.users[0].status").value("ACTIVE"));
-        mockMvc.perform(get("/admin/users").param("q", "다른").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.users[0].displayName").value("작**"))
+                .andExpect(jsonPath("$.users[0].nickname").value("작**")) // 구버전 화면 호환 키 — 가린 이름
+                .andExpect(jsonPath("$.users[0].status").value("ACTIVE"))
+                .andExpect(content().string(not(containsString("작성자"))));
+        mockMvc.perform(get("/admin/users").param("q", other.getMemberCode().toLowerCase()).header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.users[0].id").value(other.getId()))
                 .andExpect(jsonPath("$.users[0].email").doesNotExist());
         mockMvc.perform(get("/admin/users/" + other.getId()).header("Authorization", bearer(admin)))
-                .andExpect(jsonPath("$.nickname").value(not("작성자")));
+                .andExpect(jsonPath("$.nickname").value(not("작성자")))
+                .andExpect(content().string(not(containsString("다른학생"))));
     }
 
     @Test

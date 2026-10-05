@@ -10,7 +10,9 @@ public enum AdminAlertType {
     /** 새 문의(feedback) */
     FEEDBACK("ADMIN_FEEDBACK", "feedbackId"),
     /** 신고가 report.flag.threshold 건 쌓여 제보가 자동 숨김(ACTIVE → HIDDEN) */
-    REPORT_FLAGGED("ADMIN_REPORT_FLAGGED", "reportId");
+    REPORT_FLAGGED("ADMIN_REPORT_FLAGGED", "reportId"),
+    /** 정지·신고 이력으로 탈퇴 기록(withdraw_retentions)이 남은 계정이 다시 가입함. 자동 정지는 하지 않는다 — 관리자가 회원 카드에서 판단 */
+    MEMBER_REJOINED("ADMIN_MEMBER_REJOINED", "userId");
 
     private final String dataType;
     private final String idKey;

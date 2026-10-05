@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -36,22 +39,44 @@ public class AdminReportService {
     /** 관리자가 옮길 수 있는 상태. PENDING 으로 되돌리는 것은 의미가 없어 막는다. */
     private static final Set<ReportStatus> TARGET_STATUSES =
             EnumSet.of(ReportStatus.ACTIVE, ReportStatus.REJECTED, ReportStatus.HIDDEN, ReportStatus.DELETED);
+    static final String REOPEN_BLOCKED_MESSAGE = "반려·삭제한 제보는 다시 공개할 수 없어요. 작성자에게 다시 올려 달라고 해 주세요.";
 
     private final ReportRepository reportRepository;
     private final ReportFlagRepository reportFlagRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ReportImageService reportImageService;
 
-    @Transactional(readOnly = true)
+    /** 관리자가 고르는 날짜는 한국 날짜다. DB 시각은 UTC(서버 기본 시간대)라 바꿔서 거른다. */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     public AdminReportListResponse list(String status) {
+        return list(status, null, null);
+    }
+
+    /**
+     * from·to: 등록일(한국 날짜, yyyy-MM-dd, 둘 다 포함). 비우면 그쪽 끝은 열어 둔다. 기간 안에서 최신순 최대 200건.
+     * to 가 from 보다 앞이면 400.
+     */
+    @Transactional(readOnly = true)
+    public AdminReportListResponse list(String status, LocalDate from, LocalDate to) {
         ReportStatus filter = parseListFilter(status);
-        List<Report> reports = reportRepository.findForAdmin(filter, PageRequest.of(0, LIST_LIMIT));
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "끝 날짜가 시작 날짜보다 앞이에요.");
+        }
+        LocalDateTime createdFrom = from == null ? null : kstStartOfDayUtc(from);
+        LocalDateTime createdBefore = to == null ? null : kstStartOfDayUtc(to.plusDays(1));
+        List<Report> reports = reportRepository.findForAdmin(filter, createdFrom, createdBefore, PageRequest.of(0, LIST_LIMIT));
         Map<Long, Long> flagCounts = flagCounts(reports);
 
         return new AdminReportListResponse(reports.stream()
                 .map(r -> AdminReportResponse.of(r, flagCounts.getOrDefault(r.getId(), 0L),
                         reportImageService.viewUrls(r.getImageKeys())))
                 .toList());
+    }
+
+    /** 한국 날짜의 0시를 UTC LocalDateTime 으로(예: 10/5 → 10/4 15:00). */
+    private static LocalDateTime kstStartOfDayUtc(LocalDate date) {
+        return date.atStartOfDay(KST).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
     @Transactional(readOnly = true)
@@ -76,12 +101,19 @@ public class AdminReportService {
         }
 
         ReportStatus previous = report.getStatus();
+        // 반려·삭제 때 사진을 S3 에서 지웠고(아래), ReportPushDispatcher 는 반려 → 승인을 "처음 공개"로 보고 새 제보 알림까지
+        // 보낸다 → 사진 없이 다시 공개되고 알림이 또 나가던 문제. 반려 제보는 공개(ACTIVE)·숨김(HIDDEN, 숨김 → 다시 공개 우회)으로,
+        // 삭제 제보는 어디로도 옮길 수 없다. 반려 사유 고치기(REJECTED → REJECTED)와 반려 → 삭제는 된다. 숨김 → 다시 공개는 그대로.
+        if (previous == ReportStatus.DELETED
+                || (previous == ReportStatus.REJECTED && (target == ReportStatus.ACTIVE || target == ReportStatus.HIDDEN))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REOPEN_BLOCKED_MESSAGE);
+        }
         report.moderate(target, note, LocalDateTime.now());
         // 승인·반려 푸시(ReportPushDispatcher)는 커밋 뒤 비동기로 나간다 — 이 응답을 늦추지 않고, 롤백되면 보내지 않는다.
         eventPublisher.publishEvent(new ReportModeratedEvent(
                 report.getId(), report.getUser().getId(), report.getTitle(),
                 report.getBuilding().getName(), report.getFloor(),
-                previous, target, note, report.getEndsAt()));
+                previous, target, note, report.getEndsAt(), report.getStartsAt()));
         // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
         if (target == ReportStatus.REJECTED || target == ReportStatus.DELETED) {
             reportImageService.deleteAfterCommit(report.clearImages());

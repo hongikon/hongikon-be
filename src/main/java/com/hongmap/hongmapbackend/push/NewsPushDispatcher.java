@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.push;
 
+import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.user.TokenType;
 import com.hongmap.hongmapbackend.user.UserDevice;
@@ -8,8 +9,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,6 +33,8 @@ public class NewsPushDispatcher {
 
     static final String DATA_TYPE_NEWS = "NEWS";
     private static final String DEFAULT_SOURCE_LABEL = "홍익대학교";
+    /** 소식 작성일(published_at)은 게시판에 적힌 한국 날짜의 0시라 "오늘"도 한국 날짜로 센다(서버 JVM 은 UTC). */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final UserDeviceRepository userDeviceRepository;
     private final ExpoPushSender expoPushSender;
@@ -55,11 +60,14 @@ public class NewsPushDispatcher {
     /** 소식 하나의 푸시 대상 기기. 매칭 기준은 {@link UserDeviceRepository#findPushTargets} 참고. */
     public List<UserDevice> findTargets(News news) {
         String sourceId = news.getSourceId() != null && !news.getSourceId().isBlank() ? news.getSourceId() : null;
-        return userDeviceRepository.findPushTargets(TokenType.EXPO, sourceId, news.getCategory(), news.getTitle());
+        // sourceId가 없으면 구독 기준은 :sourceId IS NOT NULL에서 걸러지므로 목록 값은 쓰이지 않는다(빈 IN 방지용 자리값).
+        List<String> subscriberSourceIds = sourceId != null ? CrawlerBoards.subscriberSourceIds(sourceId) : List.of("");
+        return userDeviceRepository.findPushTargets(
+                TokenType.EXPO, sourceId, subscriberSourceIds, news.getCategory(), news.getTitle());
     }
 
     private List<ExpoPushMessage> buildMessages(List<News> newsList) {
-        LocalDateTime cutoff = LocalDate.now().minusDays(properties.getNewsMaxAgeDays()).atStartOfDay();
+        LocalDateTime cutoff = publishCutoff(Instant.now(), properties.getNewsMaxAgeDays());
         List<ExpoPushMessage> messages = new ArrayList<>();
 
         for (News news : newsList) {
@@ -101,5 +109,13 @@ public class NewsPushDispatcher {
             return news.getSourceId() + " 공지";
         }
         return DEFAULT_SOURCE_LABEL;
+    }
+
+    /**
+     * 이 시각보다 앞선 작성일의 소식은 푸시하지 않는다 — 한국 날짜 기준 오늘에서 maxAgeDays 일 전 0시.
+     * 예전엔 서버 시간대(UTC) 날짜로 셌기 때문에 KST 00~09시에는 하루가 밀려, 하루 더 지난 글까지 푸시됐다.
+     */
+    static LocalDateTime publishCutoff(Instant now, long maxAgeDays) {
+        return LocalDate.ofInstant(now, KST).minusDays(maxAgeDays).atStartOfDay();
     }
 }

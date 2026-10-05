@@ -5,6 +5,7 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportCategory;
+import com.hongmap.hongmapbackend.report.ReportStatus;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,6 +91,68 @@ class AdminApiIntegrationTest {
     }
 
     @Test
+    void 대시보드_노출중은_지금_지도에_보이는_승인_제보만_센다() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        // 이 클래스는 테스트마다 DB 를 비우지 않아 다른 테스트의 제보가 남는다 — 전후 차이로 본다.
+        long before = reportRepository.countLive(ReportStatus.ACTIVE, now);
+        Report live = pendingReport();
+        live.moderate(ReportStatus.ACTIVE, null, now);
+        reportRepository.save(live);
+        // 승인했지만 끝나는 시각이 지난 제보 — 지도 목록에서 빠지므로 '노출 중'에 넣지 않는다.
+        Report ended = reportRepository.save(Report.builder()
+                .user(normal).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.EVENT).title("끝난 행사")
+                .startsAt(now.minusHours(5)).endsAt(now.minusHours(1))
+                .build());
+        ended.moderate(ReportStatus.ACTIVE, null, now.minusHours(4));
+        reportRepository.save(ended);
+        // 승인했지만 아직 시작 전인 예정 제보 — 시작 시각 전에는 지도에 없으므로 '노출 중'에 넣지 않는다.
+        Report upcoming = reportRepository.save(Report.builder()
+                .user(normal).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.EVENT).title("내일 행사")
+                .startsAt(now.plusHours(20)).endsAt(now.plusHours(23))
+                .build());
+        upcoming.moderate(ReportStatus.ACTIVE, null, now);
+        reportRepository.save(upcoming);
+
+        mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports.active").value((int) before + 1));
+
+        // 이 클래스는 DB 를 비우지 않는다 — 진행 중 제보가 남으면 "지도 목록이 비어 있다"고 보는 다른 테스트가 깨진다.
+        reportRepository.deleteAll(List.of(live, ended, upcoming));
+    }
+
+    @Test
+    void 제보_검토_목록을_등록일_한국날짜로_거른다() throws Exception {
+        Report early = pendingReport();
+        Report boundary = pendingReport();
+        Report late = pendingReport();
+        // DB 시각은 UTC. 한국 10/3 01:00 = UTC 10/2 16:00 — 한국 날짜로는 10/3 이라 10/3 조회에 들어가야 한다.
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 2, 14, 0), early.getId());
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 2, 16, 0), boundary.getId());
+        jdbcTemplate.update("UPDATE reports SET created_at = ? WHERE id = ?", LocalDateTime.of(2026, 10, 4, 1, 0), late.getId());
+
+        mockMvc.perform(get("/admin/reports").param("status", "ALL").param("from", "2026-10-03").param("to", "2026-10-03")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports.length()").value(1))
+                .andExpect(jsonPath("$.reports[0].id").value(boundary.getId()));
+
+        mockMvc.perform(get("/admin/reports").param("status", "ALL").param("from", "2026-10-02").param("to", "2026-10-04")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", early.getId()).exists())
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", boundary.getId()).exists())
+                .andExpect(jsonPath("$.reports[?(@.id == %d)]", late.getId()).exists());
+
+        mockMvc.perform(get("/admin/reports").param("from", "2026-10-05").param("to", "2026-10-01")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 크롤링_수동실행과_백필은_일반사용자에게_막힌다() throws Exception {
         mockMvc.perform(post("/crawler/trigger").header("Authorization", bearer(normal)))
                 .andExpect(status().isForbidden());
@@ -104,7 +168,9 @@ class AdminApiIntegrationTest {
         mockMvc.perform(get("/admin/reports").header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.reports[0].id").value(report.getId()))
                 .andExpect(jsonPath("$.reports[0].buildingName").value(building.getName()))
-                .andExpect(jsonPath("$.reports[0].authorNickname").value("학생"))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value("학*"))
+                .andExpect(jsonPath("$.reports[0].authorNickname").value("학*"))
+                .andExpect(jsonPath("$.reports[0].authorMemberCode").value(normal.getMemberCode()))
                 .andExpect(jsonPath("$.reports[0].flagCount").value(0));
 
         mockMvc.perform(patch("/admin/reports/" + report.getId()).header("Authorization", bearer(admin))
@@ -236,8 +302,10 @@ class AdminApiIntegrationTest {
         String body = """
                 {"buildingId": %d, "floor": 1, "lat": 37.55, "lng": 126.925, "category": "ETC",
                  "customCategoryLabel": "플리마켓", "title": "학관 앞 플리마켓", "content": "3시까지",
-                 "startsAt": "2026-10-01T08:00:00.000Z", "endsAt": "%s"}
+                 "startsAt": "%s", "endsAt": "%s"}
                 """.formatted(building.getId(),
+                // 시작은 "지금"(서버는 10분 전까지 받는다). 예전엔 고정 날짜였는데 예정 제보 검증이 생겨 지난 시각은 400 이다.
+                java.time.Instant.now().minusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.MILLIS).toString(),
                 java.time.Instant.now().plus(java.time.Duration.ofHours(2)).toString());
         mockMvc.perform(post("/reports").header("Authorization", bearer(normal))
                         .contentType(MediaType.APPLICATION_JSON).content(body))

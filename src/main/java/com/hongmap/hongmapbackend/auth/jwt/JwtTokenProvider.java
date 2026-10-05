@@ -10,6 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -66,7 +67,10 @@ public class JwtTokenProvider {
 
     private String generateToken(Long userId, String type, long expirationMillis) {
         Instant now = Instant.now();
+        // jti(무작위 UUID): 같은 유저·같은 초에 만든 토큰도 서로 달라야 세션별 해시가 겹치지 않는다(예전엔 바이트까지 같았음).
+        // 검증은 jti 를 보지 않으므로 jti 없이 발급된 기존 토큰도 만료 전까지 그대로 통과한다.
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim(TOKEN_TYPE_CLAIM, type)
                 .issuedAt(Date.from(now))

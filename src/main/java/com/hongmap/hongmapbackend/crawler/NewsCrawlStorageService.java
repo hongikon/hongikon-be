@@ -14,11 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 크롤링한 게시글 하나를 News 엔티티로 변환해 저장하는 책임만 진다.
@@ -30,6 +34,8 @@ import java.util.Optional;
 public class NewsCrawlStorageService {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+    /** 작성일은 게시판에 적힌 한국 날짜라, 못 읽었을 때 대신 쓰는 "지금"도 한국 시각으로 맞춘다(서버 JVM 은 UTC). */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final NewsRepository newsRepository;
     private final NewsLocationMatcher locationMatcher;
@@ -48,6 +54,53 @@ public class NewsCrawlStorageService {
         return publishedAt != null
                 ? newsRepository.existsBySourceIdAndTitleAndPublishedAt(board.sourceId(), summary.title(), publishedAt)
                 : newsRepository.existsBySourceIdAndTitle(board.sourceId(), summary.title());
+    }
+
+    /**
+     * 목록 한 페이지에서 이미 저장된 글 판단을 한 번에 한다.
+     *
+     * @param knownLinks             이미 저장된 글의 상세 링크(summary.link()) — 상세 요청·저장을 건너뛸 대상
+     * @param linksMissingSourceId   그중 source_id가 비어 있는 것 — {@link #fillMissingSourceId}로 채울 대상
+     */
+    public record KnownArticles(Set<String> knownLinks, List<String> linksMissingSourceId) {
+
+        public boolean isKnown(ArticleSummary summary) {
+            return knownLinks.contains(summary.link());
+        }
+    }
+
+    /**
+     * {@link #alreadyExists}의 페이지 단위 버전. 링크가 고정인 게시판은 source_url IN (...) 한 번으로 끝낸다
+     * (예전: 글마다 exists 1회 + 페이지마다 UPDATE 1회 → 지금: 페이지당 SELECT 1회, UPDATE는 채울 행이 있을 때만).
+     * 링크가 매번 바뀌는 게시판(건축학부)은 제목·작성일 비교를 DB 콜레이션에 맡기려고 기존 글별 판단을 그대로 쓴다
+     * — 두 게시판·페이지당 십여 건이라 비용이 작고, 자바 쪽 문자열 비교로 바꾸면 대소문자·공백 차이로 중복 저장될 수 있다.
+     */
+    @Transactional(readOnly = true)
+    public KnownArticles findKnown(BoardConfig board, List<ArticleSummary> summaries, boolean stableUrl) {
+        if (summaries.isEmpty()) {
+            return new KnownArticles(Set.of(), List.of());
+        }
+        if (!stableUrl) {
+            Set<String> known = new HashSet<>();
+            for (ArticleSummary summary : summaries) {
+                if (alreadyExists(board, summary, false)) {
+                    known.add(summary.link());
+                }
+            }
+            // 링크가 매번 바뀌어 이번 링크는 DB에 없다 — source_id 채우기 대상이 없다(기존 동작과 같음).
+            return new KnownArticles(known, List.of());
+        }
+
+        List<String> links = summaries.stream().map(ArticleSummary::link).distinct().toList();
+        Set<String> known = new HashSet<>();
+        List<String> missingSourceId = new ArrayList<>();
+        for (NewsRepository.SourceUrlState state : newsRepository.findSourceUrlStates(links)) {
+            known.add(state.getSourceUrl());
+            if (state.getSourceId() == null) {
+                missingSourceId.add(state.getSourceUrl());
+            }
+        }
+        return new KnownArticles(known, missingSourceId);
     }
 
     /**
@@ -103,7 +156,7 @@ public class NewsCrawlStorageService {
         String raw = !summary.date().isBlank() ? summary.date() : (detail != null ? detail.date() : "");
         LocalDateTime parsed = parseDate(raw);
         // 날짜를 못 읽은 경우까지 저장을 막을 정도는 아니라고 판단, 크롤링 시각으로 대체한다.
-        return parsed != null ? parsed : LocalDateTime.now();
+        return parsed != null ? parsed : LocalDateTime.now(KST);
     }
 
     /** "yyyy.MM.dd" → 그날 0시. 비어 있거나 형식이 다르면 null. */

@@ -8,6 +8,7 @@ import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 재시도 + 타임아웃 + 요청 간 딜레이를 붙인 Jsoup 요청 래퍼.
@@ -19,6 +20,9 @@ public class CrawlerHttpClient {
 
     private final CrawlerProperties properties;
 
+    /** 실제로 보낸 HTTP 요청 수(재시도 포함, 누적). 실행 요약은 시작·끝 차이로 계산한다(CrawlerService). */
+    private final AtomicLong requestCount = new AtomicLong();
+
     /**
      * URL 하나를 문서로 가져온다.
      * 5xx/네트워크 오류는 지수 백오프로 재시도하고, 4xx는 재시도해도 소용없으므로 즉시 포기한다.
@@ -28,6 +32,7 @@ public class CrawlerHttpClient {
 
         for (int attempt = 0; attempt <= properties.getMaxRetries(); attempt++) {
             try {
+                requestCount.incrementAndGet();
                 return Jsoup.connect(url)
                         .userAgent(properties.getUserAgent())
                         .header("Accept", "text/html,*/*")
@@ -48,6 +53,11 @@ public class CrawlerHttpClient {
         }
 
         throw new CrawlerFetchException("수집 실패 — " + url, lastError);
+    }
+
+    /** 지금까지 보낸 요청 수(재시도 포함). */
+    public long requestCount() {
+        return requestCount.get();
     }
 
     /** 목록/상세 요청 사이에 넣는 고정 딜레이. */

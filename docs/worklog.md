@@ -518,3 +518,239 @@
 
 ## 2026-10-02 — PR #13 UGC 관리 (`feat/ugc-moderation`, base main)
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
+## 2026-10-02 — 내 제보 내역 (`feat/my-reports`, base main)
+- 왜: 작성자가 승인·반려 푸시를 놓치면 자기 제보가 어떻게 됐는지(특히 지도에 안 뜨는 반려·숨김) 확인할 곳이 없었음
+- 변경
+  - **`GET /users/me/reports?page=&size=`**(로그인 필수): 본인 제보만 최신 등록순(`created_at DESC, id DESC`), `PageResponse` 형식(size 기본 20·최대 50). 관리자가 지운 `DELETED` 도 포함(행 자체를 지운 건 당연히 없음)
+    - 필드: id, title, category, customCategoryLabel, buildingId, buildingName, floor, lat, lng, startsAt, endsAt, status, **displayStatus**, moderationNote, reviewedAt, createdAt, imageUrl, imageUrls(presigned GET)
+    - `displayStatus` = 저장 상태 + 시간: PENDING / SCHEDULED(승인·시작 전) / ACTIVE(지도에 표시 중) / ENDED(기간 지남 — 승인 대기 중 끝난 것 포함) / REJECTED / HIDDEN / DELETED
+    - `moderationNote` 는 REJECTED·HIDDEN 일 때만(ACTIVE·DELETED 의 관리자 메모는 내보내지 않음). 작성자 이름·신고자 정보 없음
+  - **`GET /users/me/reports/count`** → `{ total, pending }` (설정 화면 배지용)
+  - 삭제는 기존 `DELETE /reports/{id}` 그대로(본인 것만, 아니면 403, 상태 무관 hard delete + S3 사진 삭제)
+  - 다른 PR(제보 일정 `feat/report-schedule`·#14)이 고치는 `ReportRepository`·`ReportService`·`ReportController` 를 건드리지 않으려고 `MyReportRepository`·`MyReportService`·`MyReportController` 를 새로 둠
+- SQL·환경변수: 없음
+- 테스트: `MyReportIntegrationTest` +5(본인 것만·최신순·상태별 displayStatus·사유 노출 범위, 페이지·상한 50, 개수, 비로그인 401, 남의 제보 삭제 403)
+- 프론트: `feat/my-reports` — 설정 > 계정 "내 제보 내역"(승인 대기 배지), 반려 알림을 누르면 내역으로
+
+- **10-02 추가 (#16)**: 신고 누적 등으로 숨겨진(HIDDEN) 제보는 작성자가 `DELETE /reports/{id}` 로 지울 수 없음(409 "신고로 검토 중인 제보는 운영진 검토가 끝난 뒤에 지울 수 있어요."). 검토 전에 지우면 신고 기록까지 사라져 제재 근거가 남지 않기 때문(약관 제8·10조, App Store 1.2). 반려·재공개 뒤에는 지울 수 있음. 테스트 1개 추가.
+- 10-02 버그 점검 반영: 숨김(HIDDEN) 삭제 잠금을 "마지막 검토 뒤 들어온 신고가 있을 때"로 좁힘 — 운영진이 검토해 숨긴 제보는 작성자가 지울 수 있음(전엔 영영 409). 삭제 시 신고도 명시적으로 지움. 테스트 +1, 177개 통과
+## 2026-10-02 — 예정 제보: 시작 시각 미리 지정 (`feat/report-schedule`, base main)
+- 왜: "내일 11:00~15:00 붕어빵 트럭"처럼 미리 알고 있는 일을 당일에 다시 올려야 했음. 지금은 `startsAt` 검증이 사실상 없고(과거·먼 미래 모두 통과) `endsAt`만 "지금+7일"로 막고 있었음
+- 규칙(서버 UTC 기준, `ReportService.validateSchedule`)
+  - `startsAt`: 지금 − 10분(앱·서버 시계 오차 여유) ~ 지금 + **14일** (`report.startsAt.maxDays`)
+  - `endsAt`: `startsAt`보다 뒤, 진행 기간 최대 **7일** (`report.maxDurationDays`, 여러 날 행사 가능 — 길이는 작성자가 정하고 관리자가 검토), 이미 지났으면 400(`@Future`)
+  - 오류 문구 해요체: "시작 시각이 이미 지났어요…", "시작 시각은 오늘부터 14일 안으로 골라 주세요.", "종료 시각은 시작 시각보다 뒤여야 해요.", "진행 기간은 최대 7일까지 정할 수 있어요.", "종료 시각이 이미 지났어요…"
+  - `report.endsAt.maxDays`(7일) 삭제 — 새 두 값이 대신함
+- 지도: `GET /reports` 기본은 그대로 진행 중(startsAt ≤ 지금 ≤ endsAt)만 → 구버전 앱엔 시작 전 제보가 안 보이고, 시작 시각이 되면 자동으로 뜸. `?include=upcoming`이면 **24시간 안에 시작할** ACTIVE 제보를 시작 순으로 뒤에 덧붙임(응답 형식 그대로, `startsAt > 지금`이면 예정)
+- 관리자: 시작 전에도 승인 가능. 응답엔 원래 `startsAt`/`endsAt`가 있어 앱 관리 화면에서 일정만 보여주면 됨
+- 푸시
+  - 시작 전 승인: 작성자에게 "제보가 승인됐어요" / "붕어빵 트럭\n10/3(토) 11:00부터 지도에 보여요"(KST)
+  - 캠퍼스 새 제보 알림(REPORT_NEW)은 **지도에 실제로 뜨는 시작 시각에** 보냄 — `ReportStartPushScheduler`(매분 30초, `push.report-start-cron`)가 "직전 확인 ~ 지금" 사이에 시작한, 시작 전에 승인된(`reviewed_at < starts_at`) ACTIVE 제보를 찾아 보냄. 승인 때 "내일 11:00 · …"로 미리 보내는 안은 알림을 눌러도 지도에 제보가 없어서 버림
+  - 상태 컬럼 없이 확인 구간만 메모리에 둠(SQL 없음). 서버 시작 시 10분 거슬러 봄 → 같은 제보를 다시 집어도 유저당 30분 빈도 제한이 중복을 막음. 10분 넘게 꺼져 있던 사이 시작한 제보는 알림 없이 지도에만 뜸. 서버 1대 기준
+  - 이미 시작한 제보 승인은 기존과 같음(바로 승인 알림 + 새 제보 알림)
+- `ReportModeratedEvent`에 `startsAt` 추가(기존 9인자 생성자 유지 → 다른 PR 호출부 그대로 컴파일)
+- SQL: 없음. 환경변수: 선택 `REPORT_STARTS_AT_MAX_DAYS`(14), `REPORT_MAX_DURATION_DAYS`(7), `PUSH_REPORT_START_CRON`. 운영 `.env`에 `REPORT_ENDS_AT_MAX_DAYS`가 있으면 지워도 됨(안 쓰임)
+- 여러 날 제보: 지도 조회는 `start ≤ 지금 ≤ end` 그대로라 기간 내내 뜨고(`ix_reports_live(status, ends_at, starts_at)` 사용), 시작 알림 스케줄러는 시작 시각이 확인 구간에 들 때만 집어 기간 중 다시 보내지 않음(테스트로 확인). 승인 알림·`include=upcoming`(24시간 안 시작)도 기간 길이와 무관
+- 테스트: +12 → 182개 통과(`ReportScheduleIntegrationTest` 7, `ReportStartPushSchedulerTest` 3, `ReportPushDispatcherTest` +2). `AdminApiIntegrationTest`의 고정 과거 `startsAt`(2026-10-01)을 지금으로 바꿈
+- 머지 충돌(`git merge-tree`, 10-02 오후 갱신): #13 없음. #15·#12 `docs/worklog.md`만(양쪽 유지). #14(main 병합 후 버전) `src/test/resources/application-test.properties` 끝 한 곳 — `push.report-start-cron=-`와 `push.admin-reminder-cron=-` 둘 다 남김. **#14 테스트 `AdminAlertDispatcherTest` 167행이 고정 과거 `startsAt`("2026-10-01T08:00:00.000Z")을 보내 이 PR과 합치면 400** → 뒤에 머지하는 쪽에서 `Instant.now().toString()`으로 바꿀 것. 이렇게 고쳐 main+이 PR+#13+#15+#14 합친 상태 228개 통과
+- 배포 순서: #15 다음(마지막). SQL 없음 → 머지 후 배포만. 앱(`feat/report-schedule`)은 서버 배포 뒤에 OTA — 구서버도 미래 `startsAt`을 받고 지도엔 시작 뒤에만 띄우지만, 승인 즉시 "지도에 올라갔어요"·새 제보 알림을 보내(누르면 지도에 없음) 앱이 먼저 나가면 안 됨
+- 10-02 버그 점검 반영: 지도 목록(`findLiveReports`·`findUpcomingReports`)에 `JOIN FETCH r.user` — 작성자 이름 때문에 작성자 수만큼 추가 쿼리가 나가던 N+1 제거(6→3 쿼리, 테스트 추가). 정각 크롤링이 시작 알림 스케줄러를 막던 단일 스케줄러 스레드 문제는 #14에서 고침(`SCHEDULING_POOL_SIZE`). 테스트 183개 통과
+## 2026-10-02 (밤) — 제보 댓글 (`feat/report-comments`, base main)
+- 왜: 지도 제보에 "지금도 줄 있어요?" 같은 짧은 후속 정보를 남길 곳이 없었음. 사용자 생성 콘텐츠라 App Store 1.2(신고·차단·운영자 조치)와 약관 게시물 규정을 처음부터 맞춤
+- 변경 (새 패키지 `comment/`에 거의 전부, 기존 파일은 3곳만)
+  - API: `GET /reports/{id}/comments?page=&size=&order=`(게스트 가능, ACTIVE 제보만, 최상위 댓글 페이지 + 답글 앞 3개·`replyCount`, `commentCount`=답글 포함 수, 기본 오래된 순·`order=latest`), `GET .../{commentId}/replies`(답글 더 보기), `POST /reports/{id}/comments`(로그인, `parentId` 주면 답글 — 한 단계만, 답글에 답하면 같은 최상위 댓글로, 공백 제거 후 1~200자, 끝난 제보 409, 1분 5개·하루 50개 429), `DELETE /reports/{id}/comments/{commentId}`(본인, DELETED 로 — 공개 답글이 남은 최상위 댓글은 `placeholder: "DELETED"` 자리로 남음), `POST .../{commentId}/flags`(사유는 제보와 같음 + PRIVACY, 본인 400·중복 409, 3개면 자동 숨김)
+  - 관리자: `GET /admin/reports/{id}/comments`(숨김·삭제 포함, 작성자 id·원래 닉네임·사유별 신고 수), `PATCH /admin/comments/{id}` `{status: VISIBLE|HIDDEN|DELETED}`. 복원 뒤에는 복원 이후 신고만 센다
+  - 작성자 표시는 `authorDisplayName`(#11 규칙) + `authorKey`(#13 `AuthorKeys`와 같은 HMAC 값 — `CommentAuthorKeys`, #13 머지 뒤 교체 가능). users.id 는 공개 응답에 없음
+  - 정지 회원: #13 `SuspendedUserInterceptor` 빈이 있으면 댓글 쓰기·신고 경로에 자동 등록(`ReportCommentWebConfig`). #13 과 합쳐 403 확인
+  - 지도 목록 `GET /reports` 항목에 `commentCount`(IN + GROUP BY 1쿼리). `ReportSummaryResponse` 끝에 필드 + `@Builder(toBuilder = true)`
+  - 푸시 `REPORT_COMMENT`: 제보 작성자 "내 제보에 댓글이 달렸어요"(제보별 10분 1번), 답글이면 부모 댓글 작성자 "내 댓글에 답글이 달렸어요"(부모 댓글별 10분 1번, `commentId` 포함). 본인 제외, 두 사람이 같으면 1번, "내 제보 결과 알림"(report_status_enabled) 설정 따름(메모리 묶음)
+  - 삭제: FK ON DELETE CASCADE — 제보 삭제·탈퇴 시 DB 가 댓글·신고를 지움(`UserService` 수정 없음, 테스트로 확인)
+- SQL: `db/create_report_comments_table.sql`(report_comments(`parent_id` 자기 참조 FK 포함), report_comment_flags, IF NOT EXISTS). 로컬 MySQL 26.7 에서 두 번 실행·`ddl-auto=validate` 기동·CASCADE(탈퇴→댓글→답글→신고) 확인
+- 환경변수: 없음(선택 `report.comment.flag-threshold`=3, `report.comment.rate-per-minute`=5, `rate-per-day`=50, `push.report-comment-coalesce-minutes`=10 — 기본값이 코드에 있어 properties 미수정)
+- 테스트: +27 → 197개. #13→#14→#15→#16→#17→#18 + 이 PR 을 합친 상태 280개 통과(가이드의 #14/#17 수정 + 아래 1곳, 정지 회원 403 통합 테스트 포함)
+- 머지 충돌: 텍스트 충돌은 `docs/worklog.md`만. **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 의 쿼리 수 상한 `isLessThanOrEqualTo(3)` → 댓글 수 쿼리 때문에 `4`. #17·이 PR 중 나중에 머지하는 쪽에서 고친다
+- 남은 일: #14 머지 뒤 댓글 자동 숨김도 관리자 알림(AdminAlertEvent), #13 머지 뒤 `CommentAuthorKeys` → `AuthorKeys.of`
+
+## 2026-10-02 (밤) — 제보 커뮤니티: 🔥·HOT·관심 제보·작성자 알림·조회 수·댓글 👍 (`feat/report-community`, base #19)
+- 왜: 지도 제보에 반응(공감)·구독·인기 목록이 없어 "지금 붐비는 곳"을 알기 어려웠음. 작성자가 제보별로 알림을 끌 방법도 없었음
+- 변경 (새 패키지 `community/`, 기존 파일은 `ReportService` 1줄·`ReportSummaryResponse` 필드·`SecurityConfig` 1줄·#19 댓글 코드)
+  - 🔥 `PUT/DELETE /reports/{id}/fire` — 남의 공개 제보에 한 사람 한 번(내 제보 400, 끝난 제보 409). 최근 60분 🔥 5개 이상이면 `hot`(`REPORT_HOT_THRESHOLD`, `REPORT_HOT_WINDOW_MINUTES`). 🔥 10·50·100 을 처음 넘으면 작성자에게 한 번씩 `REPORT_FIRE` 푸시(조건부 UPDATE 로 중복 없음)
+  - `GET /reports` 항목: `fireCount`·`recentFireCount`·`hot`·`firedByMe`·`followedByMe`·`viewCount`·`notifyEnabled`(작성자만) — 네이티브 쿼리 1번. `GET /reports?sort=hot` 은 params 매핑(`ReportCommunityController`)으로 🔥 있는 제보만 최근 🔥 순 20개
+  - 관심 `PUT/DELETE /reports/{id}/follow`(최대 100개): 시작·끝나기 30분 전 알림(`ReportFollowScheduler`, 매분 20초), 새 댓글 알림(사람마다 30분 묶음), 끝나거나 내려간 제보의 관심 자동 정리. `REPORT_FOLLOW`(kind START/ENDING/COMMENT)
+  - 작성자 "이 제보 알림" `PUT /reports/{id}/notifications {enabled}` — 끄면 댓글·답글·🔥 이정표 알림 안 감. 모든 알림은 "내 제보 결과 알림"(report_status_enabled)도 따름
+  - 조회 수 `POST /reports/{id}/views`(게스트 가능) — 계정 또는 `X-Install-Id` 로 하루(KST) 한 번. 원문 id 대신 날짜를 섞은 HMAC 만 2일 보관, IP 저장 안 함
+  - 댓글 👍 `PUT/DELETE /reports/{id}/comments/{cid}/like`, 응답에 `likeCount`·`likedByMe`, `order=popular`
+  - 🔥·관심·👍 합쳐 1분 20번(429, 메모리). 정지 회원 차단 경로(#13 인터셉터)에 누르기 PUT 추가
+  - 누가 눌렀는지·봤는지 목록은 어떤 응답에도 없음(수와 "내가 눌렀는지"만)
+- SQL: `db/create_report_community_tables.sql`(report_reactions, report_follows, report_engagement, report_view_marks, report_comment_likes — 모든 FK ON DELETE CASCADE, IF NOT EXISTS). 로컬 MySQL 26.7 임시 DB 에서 두 번 실행·`ddl-auto=validate` 기동·네이티브 쿼리(INSERT IGNORE, 통계) 확인
+- 환경변수(모두 선택): `REPORT_HOT_THRESHOLD`(5), `REPORT_HOT_WINDOW_MINUTES`(60), `REPORT_REACTION_RATE_PER_MINUTE`(20), `REPORT_FOLLOW_MAX_PER_USER`(100), `PUSH_REPORT_FOLLOW_CRON`(`20 * * * * *`), `PUSH_REPORT_FOLLOW_ENDING_MINUTES`(30), `PUSH_REPORT_FOLLOW_COMMENT_COALESCE_MINUTES`(30), `REPORT_VIEW_KEY_SECRET`(비우면 JWT_SECRET)
+- 테스트: +13 → 210개(`ReportCommunityIntegrationTest`). #13→#14→#15→#16→#17→#18→#19 + 이 PR 합친 상태 292개 통과(가이드 수정 + 아래 1곳)
+- 머지 충돌: 텍스트는 `docs/worklog.md`만(#14 의 `build.gradle` `user.timezone=UTC` 는 같은 줄이라 자동 병합). **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 쿼리 수 상한 3 → **5**(#19 댓글 수 +1, 이 PR 통계 +1). 나중에 머지하는 쪽에서 고친다
+- 남은 일: #13 머지 뒤 정지 회원의 🔥를 수에서 빼기(지금 브랜치엔 users.status 가 없음), 빈도 제한·알림 묶음을 서버 여러 대면 DB/Redis 로
+
+## 2026-10-04 — 사용자에게 보이는 문구에서 이모지 빼기 (`feat/report-community`)
+- 왜: 앱 문구에 🔥·👍 같은 이모지를 쓰지 않기로 함(공감·좋아요로 부름)
+- 변경: 공감 이정표 푸시 제목 "내 제보에 🔥가 N개 모였어요" → "내 제보에 공감이 N개 모였어요", 400 메시지 "내 제보에는 🔥를…" → "공감을…", "내 댓글에는 👍를…" → "좋아요를…". Swagger 설명(개발자용)은 그대로
+- 테스트: `ReportCommunityIntegrationTest` 기대 문구 수정, 커뮤니티·댓글 테스트 통과
+
+## 2026-10-04 — 댓글 내용 필터 (`feat/report-comments`, PR #19)
+- 왜: App Store 1.2 는 "불쾌한 사용자 생성 콘텐츠를 거르는 방법"을 요구. 댓글은 사후 검토(바로 공개)라 신고·숨김만으로는 부족 → 올리는 순간 서버에서 한 번 거름. 제보는 사전 검토(PENDING → 관리자 승인)라 거르지 않음
+- 변경
+  - 새 `common/moderation/ContentFilter`(+ `ContentViolation`): 외부 API 없이 정규식·목록, 결정적. `ReportCommentService.create`(댓글·답글 공통)에서 공백·길이 검사 바로 뒤 호출 → 걸리면 400 + 아래 문구(앱은 400 의 serverMessage 를 그대로 보여 줌). 막힌 글은 저장하지 않아 빈도 제한에도 안 셈
+  - 연락처 → "댓글에 연락처나 오픈채팅 주소는 쓸 수 없어요.": 010/011…·지역번호·070·050X(하이픈·점·공백·괄호, +82, "공일공"), 이메일, 오픈채팅/오픈톡/open.kakao/카톡 아이디·카톡id/텔레·라인·인스타 아이디 등(공백 지운 글에서)
+  - 링크 → "댓글에는 링크를 쓸 수 없어요.": http(s)://, www., `xxx.com/.kr/.co.kr/.net/.io/.me/.ly…`, "naver 닷 com"·"닷컴"·"dot com"·"(.)"·"[dot]", 전각 문자. 한글 바로 뒤 점은 com/net/org/kr 만(문장 끝 "좋아요. Me" 오탐 방지)
+  - 욕설·혐오·성적 표현 → "부적절한 표현이 있어 댓글을 올릴 수 없어요. 표현을 바꿔 다시 시도해 주세요.": `src/main/resources/moderation/banned-words.txt`(약 100개, 한 줄에 하나·# 주석). 낱말마다 소문자·숫자/문장부호/제로폭·한글 채움 문자 제거·한글 사이 영문 제거·반복 줄이기 후 부분 문자열 검사, 한 글자 낱말끼리는 붙여서 봄("시 발", "시1발", "ㅅ ㅂ", "개 새 끼"). 두 글자 이상 낱말끼리는 붙이지 않음("다시 발급", "3시 발표" 통과)
+  - 오탐 막기: `moderation/allowed-words.txt`(시발점·다시발·수박씨·솜씨·등신대·닥쳐오 …)를 먼저 가린 뒤 검사. 보지·자지·새끼·미친·꺼져·졸라·시바·개같 처럼 흔한 낱말에 들어가는 짧은 말은 목록에서 뺌
+  - 목록은 리소스 파일만 고쳐 늘릴 수 있음(재배포 필요). banned-words.txt 가 없거나 비면 기동 실패(필터가 조용히 꺼지는 것 방지)
+  - 개인정보: 댓글 내용은 로그에 안 남김. 차단 시 `댓글 필터 차단 reason=… reportId=…` 만 INFO
+- 테스트: +107 → 304개 통과. `ContentFilterTest`(링크 20·연락처 22·욕설 32 우회 표기 포함·정상 글 28 오탐 확인·목록/허용 목록), 통합 테스트 1개(링크/닷컴/전화/오픈채팅/욕설/답글 → 400·문구 확인·저장 안 됨, 정상 문장 201)
+- 남은 일: 숫자로 쓴 욕("18놈"), 한글로 읽은 전화번호("공일공 일이삼사"는 "공일공"만), 이미지 속 글자는 못 거름 → 신고·자동 숨김이 받침. 운영 신고 데이터 보고 목록 보강. 제보 제목·설명·닉네임에도 쓸지 검토(지금은 사전 검토라 안 씀)
+
+## 2026-10-04 — 탈퇴 회원 부정 이용 방지 기록 1년 보관 + 이용 제한 고지 (`feat/withdraw-retention`, base main)
+- 왜: 정지되거나 위반 제보로 삭제 처리된 회원이 탈퇴 후 같은 소셜 계정으로 바로 재가입하면 이력이 모두 사라져 운영진이 알 수 없었음. 법무 검토(공정위 2019 불공정약관 심사 지침): 이용 제한 시 사유 고지·이의 제기 기회 필요
+- 범위(운영자 결정, 법무 검토로 두 번 축소 — 개인정보 보호법 제3조·제16조 최소 수집, 제15조 제1항 제6호 정당한 이익의 필요성·비례성)
+  - 대상: 탈퇴 시점 `status = SUSPENDED` 또는 `suspended_at` 있음, 또는 **관리자가 삭제(`DELETED`)한 제보**(`reviewed_at` 있음)가 1건 이상인 회원만. `DELETED`는 관리자만 만들 수 있는 상태(본인 삭제는 행 삭제, 신고 누적은 `HIDDEN`)
+  - 제외: 신고만 받은 제보(자동 숨김 `HIDDEN` 포함), 반려(`REJECTED` — "중복 제보"·"캠퍼스 밖" 같은 단순 반려가 섞임), 남의 제보에 단 신고. 그 밖의 회원은 지금처럼 즉시 삭제, 아무것도 안 남김
+  - **사진은 보관하지 않는다**: 관리자 삭제 시점에 이미 지워지고(`AdminReportService.moderate`, 기존 동작 유지), 탈퇴 때 남은 제보 사진도 지금처럼 사본 없이 모두 삭제
+- 변경 — 탈퇴 기록(`user/retention/WithdrawRetentionService`)
+  - 별도 테이블 `withdraw_retentions`(users FK 없음): `social_type` + `social_id_hash`(HMAC-SHA256 hex, 원문 저장 안 함), 정지 여부·사유·시각, `violation_report_count`, `snapshot`(JSON), `withdrawn_at`, `retain_until`(= 탈퇴 + 1년), `rejoined_user_id`·`rejoined_at`
+  - 스냅숏(`version` 2): 탈퇴마다 정지 정보 + 위반 확정 제보 요약(`id`, `category`, `customCategoryLabel`, `title`, `content` 앞 200자, `status`, `createdAt`, `moderationNote`, `flagCount`, `flagReasons`). 위치·기간·사진·위반 아닌 제보·단 신고·닉네임·이메일·Apple 토큰 없음
+  - 만료 정리: `purgeExpired` 매일 03:40 UTC(`WITHDRAW_RETENTION_PURGE_CRON`) — `retain_until` 지난 행만 삭제(회당 최대 200건)
+  - 재가입 감지: 카카오(`CustomOAuth2UserService`)·Apple(`AppleLoginService`) 신규 가입 직후 같은 HMAC의 보관 중 기록이 있으면 `rejoined_user_id`·`rejoined_at` 연결 + 관리자 알림 `MEMBER_REJOINED`(data.type `ADMIN_MEMBER_REJOINED`, `userId`, 기존 묶음 규칙). 자동 정지 없음, 가입은 막지 않음
+  - 재탈퇴: 같은 계정이면 행을 새로 만들지 않고 이어 붙임(`withdrawals` 추가, 수 합산, 정지 정보는 새 값이 있을 때만 교체, `retain_until` = 새 탈퇴 + 1년, 재가입 연결 해제). 새 이력이 없어도 보관 중 기록이 있으면 갱신
+  - 관리자 API: `GET /admin/users`·`/admin/users/{id}`(및 정지/해제 등 응답) 회원에 `priorHistory`(`withdrawnAt`, `retainUntil`, `rejoinedAt`, `suspendedAt`, `suspendedReason`, `wasSuspendedAtWithdrawal`, `violationReportCount`, 없으면 null). `GET /admin/users/{id}/prior-history` → `{userId, priorHistory, withdrawals[]}`(없으면 404). `docs/admin-api-spec.md` "회원" 절
+- 변경 — 이용 제한 고지
+  - 관리자 정지/해제 → 커밋 뒤 본인에게 푸시(`AccountStatusPushDispatcher`, `UserSuspensionChangedEvent`). 정지: "이용이 제한됐어요" / "사유: …\n이의가 있으면 14일 안에 hongikonsupport@gmail.com 으로 알려 주세요", data.type `ACCOUNT_SUSPENDED`. 해제(정지 중이었을 때만): "이용 제한이 풀렸어요", `ACCOUNT_UNSUSPENDED`. 알림 설정과 무관(서비스 고지), 활성 Expo 기기 없으면 없음, 발송 실패해도 관리자 작업은 성공
+  - 정지 회원 쓰기 403 메시지에 사유 포함: "운영 정책 위반으로 이용이 제한된 계정이에요(사유: …). 제보·신고·문의를 할 수 없어요. 이의 제기: hongikonsupport@gmail.com"(사유 없으면 사유 부분 생략)
+  - `GET /users/me`에 `status`(ACTIVE/SUSPENDED), `suspendedReason`, `suspendedAt` 추가 — 앱 배너용
+- SQL: `db/create_withdraw_retentions_table.sql`(IF NOT EXISTS, 배포 전이라 파일 자체를 최종 형태로 고침) — ddl-auto=validate라 배포 전 실행
+- 환경변수: `WITHDRAW_RETENTION_KEY_SECRET`(선택, 비우면 JWT_SECRET에서 파생 — **운영은 별도 값을 넣고 이후 바꾸지 말 것**, 바꾸면 기존 기록과 대조 불가), `WITHDRAW_RETENTION_PURGE_CRON`(선택, 기본 `0 40 3 * * *`). S3·IAM 설정 변경 없음(사진을 보관하지 않으므로)
+- 테스트: 210 → 222개 전부 통과. `WithdrawRetentionIntegrationTest` 8(신고만 받은·자동 숨김 작성자 기록 없음, 반려만 된 작성자 기록 없음, 정지 회원 해시·1년·정지 정보만, 관리자 삭제 제보 요약만·사진 미보관, 재가입 알림·연결·관리자 API, 첫 가입 무반응, 만료 정리, 재탈퇴 갱신), `AppleLoginIntegrationTest` +1(Apple 재가입), `AccountStatusPushDispatcherTest` 3. `UserModerationIntegrationTest` 403 문구 기대값 변경
+- 남은 일
+  - **FE 개인정보 처리방침 문구 갱신 필요**(보관 대상: 정지 이력·관리자 삭제 제보가 있는 회원만 / 항목: 소셜 계정 식별값의 해시, 정지 정보, 삭제된 제보 요약 / 1년 / 사진은 보관 안 함) — 메인 에이전트가 FE 레포에서 진행 중. 배포 전 문구와 이 구현이 맞는지 확인
+  - FE: 관리 탭 회원 카드에 `priorHistory` 표시, `ADMIN_MEMBER_REJOINED`·`ACCOUNT_SUSPENDED`·`ACCOUNT_UNSUSPENDED` 알림 라우팅, `/users/me` 정지 배너
+  - 한계: 정지 해제(`unsuspend`)가 `suspended_at`을 비우므로 "정지됐다가 해제된 뒤 탈퇴"한 회원은 정지 이력으로 잡히지 않음(관리자 삭제 제보가 있으면 그쪽으로 잡힘). 필요하면 정지 이력 별도 컬럼 검토
+  - 재가입 감지는 가입 시 1회만(기록 연결은 가입 트랜잭션 안). 키 미설정(JWT_SECRET도 없음) 환경에선 기록·감지 모두 꺼짐(WARN 로그)
+
+## 2026-10-04 — 다중 로그인 세션 + refresh 재발급 유예 (`fix/multi-session-refresh`, base main 00f26d1)
+- 왜: "로그인이 만료됐어요"로 반복 로그아웃 제보. access 30분·refresh 14일 설정은 정상이고, 원인은 `refresh_tokens`가 **유저당 1 row**(`uq_refresh_token_user`)라 로그인·재발급마다 그 한 줄을 덮어쓴 것
+  1. 다른 기기·앱+웹·관리자 웹 콘솔에서 로그인하면 기존 세션의 refresh 해시가 바뀜 → 그쪽 다음 재발급 401 → 로그아웃
+  2. **웹 여러 탭**: 탭들이 localStorage 의 같은 refresh 토큰을 공유하는데 프론트 single-flight 는 탭(JS 컨텍스트) 안에서만 동작 → 두 탭이 동시에 재발급하면 먼저 온 쪽이 로테이션, 나중 쪽 401 → 웹 클라이언트가 공유 저장소를 비워 **다른 탭까지 로그아웃**
+  3. 모바일에서 재발급은 서버에서 성공했는데 응답이 유실 → 앱은 옛 토큰으로 재시도 → 401 → 로그아웃
+  - 덤: refresh 토큰에 `jti`가 없어 같은 유저·같은 초에 만든 토큰은 바이트까지 같았음
+- 변경
+  - 세션(로그인 1번으로 시작되는 토큰 사슬)당 1 row. 로그인은 새 row 추가(기존 세션 유지). 유저당 상한 `jwt.max-sessions-per-user`(기본 10) — 넘으면 가장 오래 안 쓴(`updated_at`) 세션부터 삭제, 로그인 때 그 유저의 만료 세션도 정리
+  - 재발급: row 를 `SELECT ... FOR UPDATE`로 잠그고 찾음
+    - 현재 해시 → 로테이션(바뀌기 전 해시를 `previous_token_hash`, `rotated_at=now`)
+    - 직전 해시 + `rotated_at`부터 `jwt.refresh-reuse-grace-seconds`(기본 60초) 안 → 동시 재발급/응답 유실 재시도로 보고 **새 세션 row 를 하나 더 만들어**(fork) 새 토큰 쌍 발급. 같은 row 를 다시 로테이션하면 먼저 받은 쪽 토큰이 previous 로 밀려 유예가 끝난 뒤(다음 재발급은 보통 30분 뒤) 401 이 되므로, 사슬을 갈라 두 쪽 모두 자기 토큰으로 계속 재발급 가능. 안 쓰인 사슬은 만료·정기 정리·상한으로 사라짐
+    - 직전 해시인데 유예 지남 → 401 + 경고 로그(세션은 지우지 않음 — 탈취 의심 시 세션 전체 폐기 방식은 늦게 재시도한 정상 기기 하나 때문에 같은 세션의 다른 쪽까지 로그아웃시켜 이번 수정 목적과 어긋남. 로테이션으로 옛 토큰은 유예 뒤 어차피 못 씀)
+    - 동시 요청 두 번째는 첫 번째 커밋까지 행 잠금에서 기다렸다가 previous 로 찾음 → 둘 다 200
+  - 로그아웃(`/auth/logout`): 그 토큰의 세션 row 만 삭제(현재 해시, 없으면 직전 해시). 다른 기기 로그인 유지. 탈퇴는 기존대로 `deleteByUser_Id`로 전부 삭제
+  - access·refresh 토큰에 `jti`(UUID) 추가. 검증은 jti 를 보지 않아 **배포 전 발급된 토큰도 만료 전까지 그대로 유효**(로그인 유지)
+  - `RefreshTokenCleanup` — 만료된 세션 row 매일 04:40 삭제(`@Scheduled`, 테스트는 `-`로 끔)
+  - Swagger 설명(재발급 유예·로그아웃 범위) 갱신
+- SQL: **`db/alter_refresh_tokens_multi_session.sql` — 배포 전에 실행**(ddl-auto=validate 라 컬럼이 없으면 새 서버가 안 뜸). 재실행 안전(information_schema 확인 후 조건부 DDL)
+  1. `idx_refresh_token_user(user_id)` 추가 → 2. `uq_refresh_token_user` 삭제(FK 때문에 1 먼저) → 3·4. `previous_token_hash varchar(64) NULL`, `rotated_at datetime NULL` → 5. `uq_refresh_token_hash(token_hash)` → 6. `idx_refresh_token_prev_hash` → 7. 확인 SELECT
+  - 옛 서버는 새 컬럼(NULL 허용)을 몰라도 그대로 동작하므로 SQL 먼저 실행해도 안전. 기존 row 는 token_hash 가 지금 쓰는 토큰이라 배포 후 첫 재발급에서 정상 로테이션 → **배포로 로그아웃되는 사용자 없음**
+  - 로컬 MySQL 로 기존 데이터 있는 상태 실행·재실행·같은 유저 2번째 row INSERT·되돌리기 SQL(파일 끝 주석) 확인
+- 환경변수(모두 선택): `JWT_REFRESH_REUSE_GRACE_SECONDS`(기본 60, 0=유예 없음), `JWT_MAX_SESSIONS_PER_USER`(기본 10), `JWT_REFRESH_CLEANUP_CRON`(기본 `0 40 4 * * *`)
+- 테스트: +9 → 231개 통과(main 기준 222). `RefreshTokenSessionIntegrationTest` — 두 기기 로그인 둘 다 재발급 / 로그아웃은 그 세션만 / 유예 안 재사용 → 두 쪽 모두 유예 뒤에도 재발급 / 실제 동시 2요청 둘 다 200 / 유예 지난 직전 토큰 401·현재 토큰 유지 / 세션 상한 10 / 탈퇴 시 전부 삭제 / jti 없는 옛 토큰+옛 row 재발급 / 만료 세션 정리. `AppleLoginIntegrationTest`는 `findByUser_Id`(삭제) 대신 `countByUser_Id`
+- 남은 일
+  - 프론트(웹): 탭 간 single-flight(`navigator.locks` 또는 BroadcastChannel)와 "401 받았는데 저장소 토큰이 그사이 바뀌었으면 비우지 말고 새 토큰으로 재시도" — 서버 유예로 대부분 막히지만 60초 넘게 멈춘 탭은 여전히 401
+  - 모바일 응답 유실 후 60초 넘게 지나 재시도하면 여전히 401(앱이 백그라운드로 간 경우 등). 운영에서 401 경고 로그(`유예가 지난 직전 refresh 토큰 재사용`) 빈도를 보고 유예를 늘릴지 결정
+  - "다른 기기 모두 로그아웃"·세션 목록 API는 없음(필요하면 후속)
+- 리스크: 유예 안에서는 탈취된 직전 토큰으로도 새 세션을 받을 수 있음(60초 창, 해시 저장·HTTPS 전제). 동시 재발급이 MySQL 데드락으로 끝나면 한쪽이 401 이 아닌 500 — 이론상 가능, 드묾. 세션당 row 가 늘어 테이블이 커지지만 상한 10·만료 정리로 유저당 최대 10행
+
+## 2026-10-05 — 관리자 제보 검토: 끝난 제보를 '노출 중'으로 세지 않기, 등록일(날짜) 조회 (`fix/overview-live-count`)
+- 왜: 승인(ACTIVE)한 제보는 끝나는 시각이 지나도 상태가 ACTIVE 로 남고 지도 목록(live)에서만 빠진다. 관리자 대시보드 '노출 중' 수가 끝난 제보까지 세서 실제보다 컸다. 검토 목록을 날짜로 좁혀 보고 싶다는 요청도 있었다
+- 변경
+  - `GET /admin/overview` `reports.active`: `countByStatusAndEndsAtAfter(ACTIVE, now)` — 지도 목록과 같은 기준(endsAt > now)
+  - `GET /admin/reports?from=&to=`: 등록일(한국 날짜 yyyy-MM-dd, 둘 다 포함, 선택). DB 는 UTC 라 한국 0시를 UTC 로 바꿔 [from, to+1) 로 거른다. to < from 이면 400. 기간 안에서 최신순 최대 200건(기존과 같음). 파라미터 없으면 기존과 동일
+  - FE(관리 탭)는 '노출 중'(끝나지 않은 ACTIVE)과 '종료'(끝난 ACTIVE) 탭을 화면에서 나누고, 기간 칩(전체·오늘·7일·30일·날짜 지정)으로 from·to 를 보낸다
+- SQL·환경변수: 없음
+- 테스트: +2 → 224개 통과(대시보드 노출 중 수, 날짜 경계 한국 10/3 01:00 = UTC 10/2 16:00 포함·to<from 400)
+
+## 2026-10-05 — 크롤링 최적화 (`perf/crawler-optimize`, base main)
+- 왜: 매시간 크롤링이 새 글이 없어도 게시판 47개 × 목록 2페이지 = **94회 요청**, 글마다 `exists` 쿼리(평시 ~4,500회) + 페이지마다 `UPDATE` 94회. 죽은 게시판은 매시간 재시도 3회+타임아웃(최대 ~60초). 같은 서버에 게시판 사이 간격 없이 연달아 요청
+- 확인(크롤러 UA로 목록 4건만 요청): 학교 게시판·건축·Imweb 모두 `ETag`/`Last-Modified` 없음(`no-store`) → 조건부 GET 불가, 안 함. 학과 `.do` 게시판은 서브도메인이 달라도 **전부 같은 IP**(203.249.66.153) → 호스트명 기준 병렬화는 학교 서버 한 대를 동시에 때림. 목록 1페이지 응답 0.12~0.39초
+- 변경
+  - 증분 수집: 페이지의 **가장 오래된(마지막) 글**이 이미 저장돼 있으면 다음 페이지를 안 받음. "아는 글이 하나라도 있으면 멈춤"은 상단 고정 공지 때문에 쓰면 안 됨. 실패한 게시판은 다음 성공 때까지 끝까지 훑음(1페이지 저장 뒤 2페이지 실패 → 2페이지 누락 방지). `maxItems` 도달 시에도 다음 페이지 안 받음
+  - 저장된 글 판단을 페이지당 `SELECT sourceUrl, sourceId ... WHERE source_url IN (...)` 1회로. `source_id` 채우기 UPDATE는 빈 행이 있을 때만. 건축학부(링크가 매번 바뀜)는 콜레이션 차이로 중복 저장되지 않게 기존 글별 판단 유지. 저장된 글 상세 미요청·수정글 미갱신은 기존 그대로
+  - 서버(IP)별 묶음끼리만 병렬(기본 2), 같은 서버는 한 스레드가 순차 + **게시판 사이에도 `request-delay-ms`**. 실제로 겹치는 건 건축·도시공학과뿐(학과 .do는 한 서버라 순차)
+  - `CrawlerBoardCircuitBreaker`: 게시판(목록 URL)이 3회 연속 실패하면 6시간 건너뜀 → 지나면 1회 재시도(성공 시 정상화). 서버 메모리 기준
+  - 실행 요약 `CrawlResult` + 로그 한 줄(`크롤링 요약: 게시판 N개(실패·건너뜀), 요청 N회, 신규 N건, Nms`). `GET /admin/overview` `crawler`에 `lastRequestCount`·`lastDurationMs`·`lastFailedBoards`·`lastSkippedBoards` 추가(필드 추가만, 기존 필드 그대로)
+  - 새 소식 푸시는 게시판 설정 순서대로 모아 한 번(기존과 같음). 분류·위치 매칭·푸시 로직 변경 없음
+- 추정(평시 = 새 글 0건, 게시판 47개): 요청 94 → **47회**(−50%), DB 쿼리 ~4,600 → **47회**, 시간 ~45~50초 → **~30초**(목록 0.25초×47 + 같은 서버 간격 0.4초×43). 새 글 1건당 상세 1회는 그대로. 죽은 게시판: 매시간 4회·최대 ~60초 → 3회 실패 뒤 6시간에 1번. 실측은 DB 상태가 필요해 하지 않음(학교 서버에 전체 크롤 반복 X) — 코드 기준 계산 + 목록 응답시간 실측
+- SQL: 없음(새 쿼리는 기존 `source_url` UNIQUE 인덱스 사용)
+- 환경변수(모두 선택, 기본값 있음): `CRAWLER_INCREMENTAL`(true, false면 예전처럼 전 페이지 — 비상 스위치), `CRAWLER_PARALLEL_SERVERS`(2, 1이면 완전 순차), `CRAWLER_FAILURE_THRESHOLD`(3, 0이면 끔), `CRAWLER_FAILURE_COOLDOWN_MINUTES`(360)
+- 테스트: +15 → 237개 통과(기존 222). `CrawlerServiceTest` 9(증분 중단·고정 공지·끄기·페이지당 1회 판단·실패 뒤 전체 훑기·건너뛰기/복구·서버별 순차 병렬·푸시 순서), `CrawlerBoardCircuitBreakerTest` 3, `CrawlerRunTrackerTest` 1, `NewsCrawlStorageServiceTest` +2(H2)
+- 충돌: #18(`fix/crawler-missing-boards`)과 `CrawlerService.java`의 `crawlAll`/`crawlBoard`가 겹침 — #18의 "목록 0건 게시판" WARN과 `firstPageCount`를 이 브랜치에 같은 문구로 넣어 둠 → 충돌 시 **이 브랜치 쪽을 택하면 #18 동작도 유지**. `CrawlerBoards`·`NewsPushDispatcher`는 안 건드림. `docs/worklog.md`는 끝 덧붙임(둘 다 남기기)
+- 남은 일
+  - 관리자 대시보드(FE)에 요청 수·소요 시간·건너뛴 게시판 표시
+  - 서버 여러 대로 늘리면 차단기·증분 실패 기록이 인스턴스별(지금은 1대)
+  - `NewsLocationMatcher.matchBuilding`이 새 글마다 `buildings` 전체 조회 — 새 글 수에만 비례해 그대로 둠(새 게시판 첫 수집 때만 수십 회)
+  - 게시판이 수정된 글을 반영하지 않는 건 기존과 같음(필요하면 별도 갱신 주기)
+## 2026-10-02 — 소식 0건 게시판 10개 수집 (`fix/crawler-missing-boards`, base main)
+- 왜: 앱 구독 게시판 49개(FE `TREE_DATA`) 중 10개가 운영 `/news?sourceId=`에서 0건. 9개는 `CrawlerBoards`에 아예 없었고(구독 PUT도 400), 조소과는 설정돼 있는데 저장된 글이 없었음
+- 원인·조치(사이트는 robots.txt 확인 후 크롤러 UA로 몇 건만 요청해 확인)
+  - 새 게시판: 기초과학과 `science/0401.do`(표 summary `학과공지사항`), 자율전공 → 서울캠퍼스 자율전공 `fm/0401.do`, 디자인엔지니어링전공 `smpd/0401.do`, 바이오헬스융합학부 → 바이오헬스 혁신융합대학사업단 Imweb `biohealth.hongik.ac.kr/22`
+  - 자체 게시판 없음 → 상위 게시판 별칭(`CrawlerBoards.SOURCE_ALIASES`): 디자인경영·예술경영전공 → 디자인예술경영학부, 데이터사이언스 → 산업데이터공학과, 사물인터넷공학 → 전자전기공학부, 지능로봇공학 → 기계시스템디자인공학과. 글은 상위 sourceId로 한 번만 저장하고 `GET /news` 필터·구독 검증·새 소식 푸시 대상에서 펼침
+  - 조소과·기초과학과: URL·마크업·파서 모두 정상, 게시판 자체가 비어 있음("등록된 글이 없습니다"). 글이 올라오면 수집됨
+  - 크롤링 끝에 첫 페이지 목록 0건 게시판을 `WARN 목록 0건 게시판 N개: ...`로 한 줄 기록
+- DB·환경변수: 변화 없음
+- 테스트: 저장한 목록 HTML 픽스처(`src/test/resources/crawler`)로 파서 확인, FE 49개 id 전부 구독 가능 확인, 별칭 조회·푸시·구독 테스트 추가. `./gradlew test` 통과
+- **10-02 추가 (#18)**: 사물인터넷공학전공·지능로봇공학전공은 상위 학부(전자전기공학부·기계시스템디자인공학과) 게시판 연결을 해제(`UNLINKED_APP_SOURCE_IDS`) — 학부 전체 공지까지 받게 되는 걸 막기 위해(사용자 결정). 구독 요청은 그대로 받되(앱 400 방지) 자체 게시판이 생기기 전까지 소식·푸시 없음.
+
+## 2026-10-05 — 관리자 콘솔 로그인 닉네임 가리기 (`feat/admin-hide-login-name`, base main)
+- 왜: 관리자 화면 곳곳(제보 카드 "실명 (앱 표시: 와우)", 회원 카드, 신고 목록, 문의 작성자)에 카카오/Apple 로그인 닉네임 원문이 그대로 보였음. 실명인 경우가 많아 개인정보 보호법 제3조(목적에 필요한 최소한)에 맞춰 평소엔 앱에 보이는 이름 + 공개 회원 번호로만 회원을 가리키고, 원문은 필요할 때 버튼으로만 열람하도록 바꿈(오너 승인)
+- 변경
+  - 관리자 응답에서 로그인 닉네임 원문 제거. 구버전 화면이 깨지지 않게 옛 키는 남기되 **값을 앱 표시 이름으로** 바꿈(새 화면은 새 키를 씀)
+    - `AdminReportResponse`(목록·상태 변경): `authorNickname` = `authorDisplayName`, 끝에 `authorMemberCode` 추가
+    - `AdminReportFlagListResponse.Item`: `reporterNickname` = 표시 이름, `reporterId`·`reporterDisplayName`·`reporterMemberCode` 추가
+    - `FeedbackResponse`(`/admin/feedback` 전용): `userNickname` = 표시 이름, `userDisplayName`·`userMemberCode` 추가
+    - `AdminUserResponse`: `nickname` = `displayName`, 끝에 `appNickname`(없으면 null — 회원 카드 제목은 앱 닉네임, 없으면 "홍**" + "앱 닉네임 없음") 추가. email 은 원래 없음
+    - 댓글 관리자 응답(`AdminCommentResponse`)·재가입 이력(`priorHistory`)은 main 에 아직 없음 → 해당 브랜치에서 같은 규칙 적용 필요(남은 일)
+  - 회원 조회 `GET /admin/users?q=`: 로그인 닉네임 검색 제거. 회원 번호(10자리, 대소문자 무시)·숫자 id·앱 닉네임 일부만. `UserRepository.findTop50ByAppNicknameContainingOrderByIdDesc`. Swagger 설명 갱신
+  - 새 API `GET /admin/users/{id}/login-name` → `{userId, loginNickname, socialType}`. ADMIN 전용(SecurityConfig `/admin/**`, 비로그인 401·일반 403), `Cache-Control: no-store`, 없는 회원 404
+  - 열람 기록: **별도 테이블 없이 서버 로그 한 줄**(오너 결정 — 화면·처리방침에 열람 기록 기능을 드러내지 않음). `ADMIN_AUDIT` 로거에 `admin-login-name-view adminId={} targetUserId={}` (id 만, 닉네임 값은 절대 안 씀). 「개인정보의 안전성 확보조치 기준」 제8조 접속기록은 이 로그 + 기존 `AdminAuditInterceptor` 접속 로그로 최소한 충족 — 운영에서 ADMIN_AUDIT 로그를 1년 이상 보관해야 하는 건 기존과 같음
+  - (처음엔 `admin_pii_access_logs` 테이블·정리 스케줄로 만들었다가 오너 결정으로 같은 브랜치에서 걷어냄 — SQL·엔티티·환경변수 없음)
+- SQL: 없음
+- 환경변수: 없음
+- 테스트: +5 → 227개 통과(main 222). `AdminPiiAccessIntegrationTest` 5(제보·신고·문의·회원 응답에 로그인 닉네임 없음 + 회원 번호, 로그인 닉네임 검색 불가·앱 닉네임/회원 번호/id 검색, 열람 401/403/200 + no-store + 로그에 id 만·값 없음, 없는 회원 404·로그 없음). 기존 `AdminApiIntegrationTest`·`UserModerationIntegrationTest`·`MemberCodeIntegrationTest` 기대값 갱신
+- 프론트: `feat/admin-hide-login-name` — 표시 이름 + 회원 번호로 표시, 회원 카드 제목을 앱 닉네임으로, "로그인 닉네임 보기" 버튼(404면 "서버 업데이트 후 사용 가능"), 처리방침 문구 정확히(운영진도 평소엔 앱 닉네임·회원 번호로 확인)
+- 남은 일
+  - 댓글 관리자 응답(`AdminCommentResponse` — 댓글 브랜치)과 재가입 이력 응답에도 같은 규칙(로그인 닉네임 제거, 회원 번호 추가)
+  - 구버전 관리자 화면이 모두 사라지면 옛 키(`authorNickname`·`reporterNickname`·`userNickname`·`nickname`) 삭제
+
+## 2026-10-05 — 버그 점검 수정 (`fix/be-bughunt-1005`, base main `00f26d1`)
+- 왜: 동시 요청 경합(유니크 키 위반 500), 남용 제한 부재(문의·제보), 입력 범위 미검증(DB 오류 500), 반려·삭제 제보 재공개(사진 없이 공개 + 새 제보 알림 재발송), 지도 목록 N+1, UTC 날짜로 센 "오늘"
+- 변경
+  - 공통: `GlobalExceptionHandler`에 `DataIntegrityViolationException` → 409 "이미 처리된 요청이에요. 잠시 후 다시 확인해 주세요." (로그엔 제약 이름만 — MySQL 메시지에 푸시 토큰·키워드 값이 들어 있음). `common/persistence/UniqueConflictRetry`(유니크 위반 시 REQUIRES_NEW 새 트랜잭션으로 1회 재시도), `common/ratelimit/SlidingWindowRateLimiter`(기존 `acquireQuota` 방식을 공용으로)
+  - 기기 등록: 같은 토큰 동시 등록 → 재시도로 둘 다 성공·행 하나. `DeviceRegisterRequest` `@Size(max=255)` + EXPO 토큰 형식(`ExponentPushToken[…]`/`ExpoPushToken[…]`) → 400
+  - 제보 신고: `ReportFlag`에 `uq_flag` 명시(운영엔 이미 있음, `create_report_flags_table.sql`) + `saveAndFlush` → 동시 중복 신고 409 "이미 신고한 제보예요.". ACTIVE 아닌 제보 404, 본인 제보 400. 응답 `flagCount` → `flagged`(앱 미사용, 다른 사람 신고 수 노출 불필요)
+  - 제보 등록: lat ±90·lng ±180·층 -10~30(0층 400) → 400(전엔 DECIMAL(10,7) 초과로 500), 좌표는 소수 7자리로 맞춰 저장, 고른 건물 중심과 300m 넘게 떨어지면 400. 승인 대기 3건(DB 카운트)·1시간 5건(메모리, 사진 검증까지 통과한 요청만 셈) 넘으면 429
+  - 관리자 제보 처리: REJECTED → ACTIVE/HIDDEN, DELETED → 무엇이든 400 "반려·삭제한 제보는 다시 공개할 수 없어요. 작성자에게 다시 올려 달라고 해 주세요." 반려 사유 수정(REJECTED→REJECTED)·반려→삭제·숨김→다시 공개는 그대로
+  - `GET /reports`: `JOIN FETCH r.user`(작성자 N+1 제거, ManyToOne 이라 중복 행 없음), 최신순 최대 300건
+  - 문의 `POST /feedback`: 접속 IP(+로그인 시 사용자)마다 10분에 5건 → 429. IP 는 `request.getRemoteAddr()`(nginx 가 X-Forwarded-For 덮어씀, `AdminAuditInterceptor`와 같음). 본문 검증 통과한 요청만 셈
+  - 북마크·학과 구독 생성: 이미 있으면 기존 행 반환(멱등, 전엔 409 — 앱은 두 API 모두 안 씀), 경합 재시도. 삭제는 조합 벌크 삭제(중복 행 있어도 500 없음). 학과는 isPrimary 재요청 시 주 학과 전환
+  - 키워드 구독: 앞뒤 공백 제거, 대소문자 무시 중복 409(앱이 409 를 "이미 등록한 키워드예요"로 표시하므로 유지), 유저당 30개(앱 20개) 400, 경합도 409
+  - 알림 설정 첫 저장·게시판 구독 upsert: `UniqueConflictRetry`로 동시 요청 둘 다 성공
+  - KST: `NewsPushDispatcher` 오래된 소식 기준일을 한국 날짜로(KST 00~09시에 하루 밀리던 문제), `NewsCrawlStorageService` 작성일 대체값 `now(KST)`(한 줄 — 크롤러 PR #26 과 겹침 최소화)
+- SQL: `db/alter_add_unique_user_lists.sql` — bookmarks(user_id, news_id)·keyword_subscriptions(user_id, keyword)·user_departments(user_id, department_id) 중복 정리 후 같은 컬럼 조합 유니크 인덱스가 **없을 때만** 추가(재실행 안전, 로컬 MySQL 로 중복 정리·재실행 확인). 배포 전후 아무 때나 실행해도 앱은 뜸(`ddl-auto=validate`는 유니크 비교 안 함), 다만 실행 전까진 경합 시 중복 행이 생길 수 있음 → 배포 직전 실행 권장. RDS 스냅샷 먼저. `report_flags.uq_flag`는 운영에 이미 있어 SQL 없음
+- 환경변수(모두 선택, 기본값): `REPORT_CREATE_LIMIT_PER_HOUR`(5), `REPORT_CREATE_MAX_PENDING`(3), `REPORT_BUILDING_MAX_DISTANCE_METERS`(300), `FEEDBACK_RATE_LIMIT_MAX_REQUESTS`(5), `FEEDBACK_RATE_LIMIT_WINDOW_MINUTES`(10)
+- 테스트: +24 → 246개 통과(기준 222). `UserDeviceRegisterRaceIntegrationTest` 3(스파이로 결정적 경합 + 두 스레드), `GlobalExceptionHandlerTest` 1, `ReportAbuseGuardIntegrationTest` 7, `SlidingWindowRateLimiterTest` 2, `FeedbackRateLimitIntegrationTest` 2, `NewsPushCutoffTest` 2, `NewsCrawlStorageKstTest` 1, `UserListIdempotencyIntegrationTest` 6. 경합 테스트는 수정 전 코드에서 실패 확인. `AdminAlertDispatcherTest` 자동 숨김 테스트는 숨겨진 뒤 4번째 신고가 404 인 것으로 수정
+- 남은 일
+  - 프론트: 관리자 제보 화면 `actionsFor('REJECTED')`에서 '승인' 버튼 제거(삭제만), DELETED 는 이미 버튼 없음. 층 휠 지하를 B10 까지로(지금 B30 까지 고를 수 있음 → 서버 400). `ReportFlagResult.flagCount` 타입을 `flagged`로(앱은 값을 안 읽어 동작 영향 없음). 문의·제보 429 문구는 서버 메시지 그대로 표시됨(`SERVER_MESSAGE_STATUSES`에 429 포함)
+  - 메모리 제한은 서버 1대 기준(재시작 시 초기화, 여러 대면 대수만큼 느슨). 승인 대기 3건 확인은 동시 등록 시 1건 넘칠 수 있음(도배 방지 목적엔 충분)
+  - 캠퍼스 와이파이처럼 IP 하나를 여럿이 쓰면 문의 한도를 함께 씀(10분 5건이라 실제로 걸릴 일은 드묾)
+  - `ReportPushDispatcher`의 "반려 → 승인 = 첫 공개" 분기는 이제 도달하지 않음(남겨 둠)
+
+## 2026-10-05 — 통합 배포 준비: PR #16 #17 #18 #19 #20 #21 #24 #25 #26 #27 #28 을 main 에 합침 (`release/2026-10-05`)
+
+- 열한 개 PR 을 한 브랜치에 차례로 합치며 충돌을 풀었다. 배포 순서·SQL·환경변수는 `docs/deploy-runbook-2026-10-05.md`.
+- 충돌 해결: 회원 검색은 회원 번호(#15)로 찾고 탈퇴 기록 요약(#21)을 붙이며 로그인 닉네임으로는 찾지 않는다(#27).
+  `AdminUserResponse` 는 `memberCode`·`appNickname`·`priorHistory` 를 모두 싣는다. 크롤러는 #26 구현을 쓴다(#18 의 0건 게시판 로그가 이미 들어 있다).
+  제보 생성자는 #28 의 명시 생성자에 #19·#20 의 댓글 수·공감 통계 의존성을 더했다. 지도 목록 300건 상한(#28)을 include=upcoming(#17)·HOT 목록(#20)에도 걸었다.
+- #27 규칙을 #19 에도 적용: 관리자 댓글 응답 `authorNickname` 이 로그인 닉네임 원문이던 것을 앱에 보이는 이름으로 바꾸고 `authorMemberCode` 를 더했다.
+- 테스트: 목록 쿼리 수 상한에 댓글 수·공감 통계(건수와 무관하게 1번씩)를 더했다. 지난 고정 시각(10-01)을 startsAt 으로 쓰던 테스트는 #17 의 과거 시각 검증에 걸려 지금 시각으로 바꿨다. 전체 468개 통과.
+- 대시보드 '노출 중'을 지도 목록과 같은 기준(startsAt ≤ now ≤ endsAt, `countLive`)으로 센다. #25 의 `endsAt > now` 기준은 #17 의 예정 제보(승인했지만 시작 전)까지 '노출 중'으로 셌다. 테스트에 예정 제보를 더했다.

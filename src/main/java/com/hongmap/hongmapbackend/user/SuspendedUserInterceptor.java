@@ -20,8 +20,18 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class SuspendedUserInterceptor implements HandlerInterceptor {
 
+    /** 사유가 없을 때. 이용 제한은 사유와 이의 제기 방법을 함께 알린다(공정위 2019 불공정약관 심사 지침). */
     public static final String SUSPENDED_MESSAGE =
-            "운영 정책 위반으로 이용이 정지된 계정이에요. 제보·신고·문의를 할 수 없어요. 문의: hongikonsupport@gmail.com";
+            "운영 정책 위반으로 이용이 제한된 계정이에요. 제보·신고·문의를 할 수 없어요. 이의 제기: hongikonsupport@gmail.com";
+
+    /** 403 메시지. 사유가 있으면 "(사유: …)" 를 넣는다. 앱은 이 문구를 그대로 보여 준다. */
+    public static String suspendedMessage(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return SUSPENDED_MESSAGE;
+        }
+        return "운영 정책 위반으로 이용이 제한된 계정이에요(사유: " + reason.trim() + "). 제보·신고·문의를 할 수 없어요. "
+                + "이의 제기: hongikonsupport@gmail.com";
+    }
 
     private final UserRepository userRepository;
 
@@ -40,7 +50,9 @@ public class SuspendedUserInterceptor implements HandlerInterceptor {
                 .map(status -> status == UserStatus.SUSPENDED)
                 .orElse(false);
         if (suspended) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, SUSPENDED_MESSAGE);
+            // 정지된 경우에만 사유를 한 번 더 읽는다(평소 쓰기 요청은 상태 한 컬럼만 본다).
+            String reason = userRepository.findSuspendedReasonById(userId).orElse(null);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, suspendedMessage(reason));
         }
         return true;
     }

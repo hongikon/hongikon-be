@@ -16,12 +16,16 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,6 +41,10 @@ import java.util.Set;
  *       유저마다 push.report-new-throttle-minutes(기본 30분)에 한 번까지 — new_report_last_sent_at으로 제한한다.</li>
  * </ul>
  * 승인 시점에 이미 끝난(ends_at 경과) 제보는 지도에 뜨지 않으므로 승인 알림·새 제보 알림 둘 다 보내지 않는다.
+ *
+ * 예정 제보(승인 시점에 starts_at 이 아직 미래): 작성자에게는 "제보가 승인됐어요 · 10/3(금) 11:00부터 지도에 보여요"를
+ * 바로 보내고, 새 제보 알림은 지도에 실제로 뜨는 시작 시각에 ReportStartPushScheduler 가 {@link #dispatchStarted}로 보낸다
+ * (알림을 눌렀을 때 지도에 제보가 있어야 해서다).
  */
 @Slf4j
 @Service
@@ -47,6 +55,9 @@ public class ReportPushDispatcher {
     static final String DATA_TYPE_REPORT_NEW = "REPORT_NEW";
     static final String TITLE_APPROVED = "제보가 지도에 올라갔어요";
     static final String TITLE_REJECTED = "제보가 반려됐어요";
+    static final String TITLE_APPROVED_SCHEDULED = "제보가 승인됐어요";
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter KST_FORMAT = DateTimeFormatter.ofPattern("M/d(E) HH:mm", Locale.KOREAN);
     private static final int MAX_REASON_LENGTH = 80;
     /** 이 상태에서 ACTIVE가 되면 처음 지도에 올라가는 것으로 본다. */
     private static final Set<ReportStatus> FIRST_PUBLISH_FROM = EnumSet.of(ReportStatus.PENDING, ReportStatus.REJECTED);
@@ -71,31 +82,51 @@ public class ReportPushDispatcher {
         if (!properties.isEnabled() || event.status() == event.previousStatus()) {
             return 0;
         }
+        LocalDateTime now = LocalDateTime.now();
         boolean approved = event.status() == ReportStatus.ACTIVE;
-        if (approved && event.endsAt() != null && event.endsAt().isBefore(LocalDateTime.now())) {
+        if (approved && event.endsAt() != null && event.endsAt().isBefore(now)) {
             log.debug("이미 끝난 제보라 승인 푸시 생략: reportId={}", event.reportId());
             return 0;
         }
+        boolean scheduled = approved && event.startsAfter(now);
 
         int accepted = 0;
         if (approved || event.status() == ReportStatus.REJECTED) {
-            accepted += sendStatus(event, approved);
+            accepted += sendStatus(event, approved, scheduled);
         }
-        if (approved && FIRST_PUBLISH_FROM.contains(event.previousStatus())) {
+        // 시작 전 제보의 새 제보 알림은 시작 시각에 ReportStartPushScheduler 가 보낸다.
+        if (approved && !scheduled && FIRST_PUBLISH_FROM.contains(event.previousStatus())) {
             accepted += sendNewReport(event);
         }
         return accepted;
     }
 
-    private int sendStatus(ReportModeratedEvent event, boolean approved) {
+    /**
+     * 시작 전에 승인된 제보가 시작 시각이 되어 지도에 뜰 때 — 미뤄 둔 캠퍼스 새 제보 알림을 보낸다.
+     * 유저당 빈도 제한(new_report_last_sent_at)이 같이 걸려, 스케줄러가 같은 제보를 다시 집어도 30분 안엔 중복되지 않는다.
+     */
+    public int dispatchStarted(ReportModeratedEvent event) {
+        if (!properties.isEnabled()) {
+            return 0;
+        }
+        return sendNewReport(event);
+    }
+
+    /** UTC LocalDateTime → "10/3(금) 11:00" (KST). */
+    static String formatKst(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(KST).format(KST_FORMAT);
+    }
+
+    private int sendStatus(ReportModeratedEvent event, boolean approved, boolean scheduled) {
         boolean enabled = settingRepository.findById(event.authorId())
                 .map(UserNotificationSetting::isReportStatusEnabled)
                 .orElse(UserNotificationSetting.DEFAULT_REPORT_STATUS_ENABLED);
         if (!enabled) {
             return 0;
         }
-        String title = approved ? TITLE_APPROVED : TITLE_REJECTED;
-        String body = approved ? event.title() : event.title() + "\n사유: " + truncate(event.note());
+        String title = scheduled ? TITLE_APPROVED_SCHEDULED : approved ? TITLE_APPROVED : TITLE_REJECTED;
+        String body = scheduled ? event.title() + "\n" + formatKst(event.startsAt()) + "부터 지도에 보여요"
+                : approved ? event.title() : event.title() + "\n사유: " + truncate(event.note());
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", DATA_TYPE_REPORT_STATUS);
         data.put("reportId", event.reportId());

@@ -7,6 +7,7 @@ import com.hongmap.hongmapbackend.feedback.dto.FeedbackResponse;
 import com.hongmap.hongmapbackend.feedback.dto.FeedbackStatusRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,11 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class FeedbackController {
 
     private final FeedbackService feedbackService;
+    private final FeedbackRateLimiter feedbackRateLimiter;
 
-    @Operation(summary = "문의하기", description = "로그인 선택. 토큰이 있으면 작성자로 연결된다.")
+    @Operation(summary = "문의하기", description = "로그인 선택. 토큰이 있으면 작성자로 연결된다. "
+            + "접속 IP·사용자마다 10분에 5건까지(넘으면 429).")
     @PostMapping("/feedback")
     public ResponseEntity<Void> create(@AuthenticationPrincipal Long userId,
-                                       @Valid @RequestBody FeedbackCreateRequest request) {
+                                       @Valid @RequestBody FeedbackCreateRequest request,
+                                       HttpServletRequest httpRequest) {
+        // 본문 검증(@Valid)을 통과한 요청만 센다 — 빈 내용으로 400 받은 시도가 한도를 깎지 않게.
+        feedbackRateLimiter.acquire(httpRequest.getRemoteAddr(), userId);
         feedbackService.create(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

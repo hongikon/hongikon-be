@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Tag(name = SwaggerConfig.TAG_ADMIN)
@@ -39,7 +40,8 @@ public class AdminOverviewController {
 
         AdminOverviewResponse.Reports reports = new AdminOverviewResponse.Reports(
                 reportRepository.countByStatus(ReportStatus.PENDING),
-                reportRepository.countByStatus(ReportStatus.ACTIVE),
+                // 승인(ACTIVE)이어도 끝났거나 아직 시작 전(예정)이면 지도에 없다 — 실제로 지도에 보이는 것만 '노출 중'으로 센다.
+                reportRepository.countLive(ReportStatus.ACTIVE, LocalDateTime.now()),
                 reportRepository.countByStatus(ReportStatus.HIDDEN),
                 reportRepository.countByStatus(ReportStatus.REJECTED));
 

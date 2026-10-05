@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.bookmark;
 
 import com.hongmap.hongmapbackend.bookmark.dto.BookmarkListResponse;
+import com.hongmap.hongmapbackend.common.persistence.UniqueConflictRetry;
 import com.hongmap.hongmapbackend.bookmark.dto.BookmarkResponse;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
@@ -19,6 +20,7 @@ public class BookmarkService {
     private final BookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final NewsRepository newsRepository;
+    private final UniqueConflictRetry uniqueConflictRetry;
 
     @Transactional(readOnly = true)
     public BookmarkListResponse getMyBookmarks(Long userId) {
@@ -28,10 +30,18 @@ public class BookmarkService {
         return new BookmarkListResponse(bookmarks);
     }
 
-    @Transactional
+    /**
+     * 멱등: 이미 북마크했으면 그 북마크를 그대로 돌려준다(전엔 409). 같은 요청이 동시에 두 번 와 uq_bookmark_user_news 에
+     * 걸리면 새 트랜잭션에서 한 번 더 시도해 먼저 들어간 행을 돌려준다(UniqueConflictRetry). 트랜잭션은 그쪽이 연다.
+     */
     public BookmarkResponse create(Long userId, Long newsId) {
-        if (bookmarkRepository.existsByUser_IdAndNews_Id(userId, newsId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 북마크한 소식입니다.");
+        return uniqueConflictRetry.execute("bookmark-create", () -> createOnce(userId, newsId));
+    }
+
+    private BookmarkResponse createOnce(Long userId, Long newsId) {
+        var existing = bookmarkRepository.findFirstByUser_IdAndNews_IdOrderByIdAsc(userId, newsId);
+        if (existing.isPresent()) {
+            return BookmarkResponse.of(existing.get());
         }
 
         User user = userRepository.findById(userId)
@@ -46,11 +56,14 @@ public class BookmarkService {
         return BookmarkResponse.of(saved);
     }
 
+    /**
+     * 유니크 키가 생기기 전에 중복 행이 들어간 유저도 있을 수 있어, 한 건만 찾는 조회(중복이면 IncorrectResultSize 500) 대신
+     * 그 조합을 한 번에 전부 지운다. 지운 게 없으면 404.
+     */
     @Transactional
     public void delete(Long userId, Long newsId) {
-        Bookmark bookmark = bookmarkRepository.findByUser_IdAndNews_Id(userId, newsId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "북마크하지 않은 소식입니다."));
-
-        bookmarkRepository.delete(bookmark);
+        if (bookmarkRepository.deleteAllByUserIdAndNewsId(userId, newsId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "북마크하지 않은 소식입니다.");
+        }
     }
 }

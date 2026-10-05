@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,11 +22,13 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 유저-소식 북마크. (user_id, news_id) 조합으로 유일 — 중복 북마크 방지는
- * 서비스 레이어에서 existsByUser_IdAndNews_Id로 체크.
+ * 유저-소식 북마크. (user_id, news_id) 조합으로 유일 — 운영 DB 에 UNIQUE(user_id, news_id) 가 있다
+ * (db/cleanup_arch_duplicate_news.sql 참고, 없으면 db/alter_add_unique_user_lists.sql 이 만든다).
+ * 엔티티에도 적어 H2 테스트 스키마에 걸리게 하고, 서비스는 "이미 있으면 그대로 돌려줌" + 경합 재시도로 멱등하게 만든다.
  */
 @Entity
-@Table(name = "bookmarks")
+@Table(name = "bookmarks",
+        uniqueConstraints = @UniqueConstraint(name = "uq_bookmark_user_news", columnNames = {"user_id", "news_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

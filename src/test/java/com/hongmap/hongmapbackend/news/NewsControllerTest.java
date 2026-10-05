@@ -109,6 +109,25 @@ class NewsControllerTest {
     }
 
     @Test
+    void 자체_게시판이_없는_전공_id로_찾으면_상위_게시판_글을_준다() throws Exception {
+        newsRepository.save(News.builder()
+                .title("융합전공 신청 안내")
+                .category(category)
+                .sourceId("디자인예술경영학부")
+                .sourceUrl("https://example.com/" + category + "/iim")
+                .publishedAt(LocalDateTime.of(2026, 9, 30, 0, 0))
+                .build());
+
+        // 디자인경영전공·예술경영전공은 디자인예술경영학부 게시판을 같이 본다(CrawlerBoards.SOURCE_ALIASES).
+        for (String major : new String[]{"디자인경영전공", "예술경영전공", "디자인예술경영학부"}) {
+            mockMvc.perform(get("/news").param("category", category).param("sourceId", major))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].sourceId").value("디자인예술경영학부"));
+        }
+    }
+
+    @Test
     void keyword는_제목_부분_일치로_찾고_다른_필터와_AND로_조합된다() throws Exception {
         mockMvc.perform(get("/news").param("category", category).param("keyword", "수강"))
                 .andExpect(status().isOk())
