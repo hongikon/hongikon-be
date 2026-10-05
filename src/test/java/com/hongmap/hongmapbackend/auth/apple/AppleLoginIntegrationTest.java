@@ -41,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@org.springframework.test.context.event.RecordApplicationEvents
 class AppleLoginIntegrationTest {
 
     private static final AppleTestKeys APPLE = new AppleTestKeys("it-kid");
@@ -53,6 +54,9 @@ class AppleLoginIntegrationTest {
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     @Autowired PendingAppleRevocationRepository pendingRevocationRepository;
     @Autowired AppleRevocationService appleRevocationService;
+
+    @Autowired com.hongmap.hongmapbackend.user.retention.WithdrawRetentionService withdrawRetentionService;
+    @Autowired org.springframework.test.context.event.ApplicationEvents applicationEvents;
 
     @MockitoBean AppleJwksSource jwksSource;
     @MockitoSpyBean AppleAuthClient appleAuthClient;
@@ -235,5 +239,31 @@ class AppleLoginIntegrationTest {
         doReturn(AppleAuthClient.RevokeResult.REVOKED).when(appleAuthClient).revoke("r.retry-me", "com.hongikon.app");
         appleRevocationService.retryPending();
         assertThat(pendingRevocationRepository.count()).isZero();
+    }
+
+    @Test
+    void 정지된_채_탈퇴한_Apple_계정이_다시_가입하면_탈퇴_기록에_연결되고_관리자_알림이_발행된다() throws Exception {
+        String sub = newSub();
+        login(body(APPLE.token().subject(sub).build()));
+        User first = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
+        first.suspend("도배");
+        userRepository.save(first);
+        userService.withdraw(first.getId());
+
+        MvcResult again = login(body(APPLE.token().subject(sub).build()));
+
+        assertThat(again.getResponse().getStatus()).isEqualTo(200); // 가입은 막지 않는다
+        User rejoined = userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, sub).orElseThrow();
+        assertThat(rejoined.getId()).isNotEqualTo(first.getId());
+        assertThat(rejoined.isSuspended()).isFalse(); // 자동 정지 없음
+        assertThat(withdrawRetentionService.findActiveForUser(rejoined.getId())).hasValueSatisfying(record -> {
+            assertThat(record.getSocialType()).isEqualTo(SocialType.APPLE);
+            assertThat(record.getSocialIdHash()).isNotEqualTo(sub);
+            assertThat(record.isWasSuspended()).isTrue();
+        });
+        assertThat(applicationEvents.stream(com.hongmap.hongmapbackend.admin.AdminAlertEvent.class)
+                .filter(e -> e.type() == com.hongmap.hongmapbackend.admin.AdminAlertType.MEMBER_REJOINED
+                        && rejoined.getId().equals(e.targetId())))
+                .hasSize(1);
     }
 }

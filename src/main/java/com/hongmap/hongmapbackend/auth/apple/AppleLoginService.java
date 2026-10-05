@@ -6,6 +6,7 @@ import com.hongmap.hongmapbackend.auth.token.RefreshTokenService;
 import com.hongmap.hongmapbackend.user.SocialType;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
+import com.hongmap.hongmapbackend.user.retention.WithdrawRetentionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,6 +33,7 @@ public class AppleLoginService {
     private final UserRepository userRepository;
     private final RefreshTokenService refreshTokenService;
     private final AppleTokenCipher tokenCipher;
+    private final WithdrawRetentionService withdrawRetentionService;
 
     public TokenResponse login(AppleLoginRequest request) {
         AppleIdentity identity = verifier.verify(request.identityToken(), request.nonce());
@@ -63,13 +65,17 @@ public class AppleLoginService {
                 // 이메일은 받지 않는다(앱도 EMAIL scope를 요청하지 않음). 서비스에 쓰는 곳이 없어 최소 수집.
                 .nickname(nicknameOf(fullName, identity.subject()))
                 .build();
+        User saved;
         try {
-            return userRepository.save(user);
+            saved = userRepository.save(user);
         } catch (DataIntegrityViolationException e) {
             // 같은 사용자의 첫 로그인 요청이 동시에 두 번 들어온 경우 — 먼저 저장된 행을 쓴다.
             return userRepository.findBySocialTypeAndSocialId(SocialType.APPLE, identity.subject())
                     .orElseThrow(() -> e);
         }
+        // 정지·신고 이력으로 탈퇴 기록이 남은 계정의 재가입이면 관리자 알림 + 기록 연결(가입은 막지 않음)
+        withdrawRetentionService.onSignup(saved);
+        return saved;
     }
 
     /**

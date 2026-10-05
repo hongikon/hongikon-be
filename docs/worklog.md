@@ -605,3 +605,29 @@
   - 개인정보: 댓글 내용은 로그에 안 남김. 차단 시 `댓글 필터 차단 reason=… reportId=…` 만 INFO
 - 테스트: +107 → 304개 통과. `ContentFilterTest`(링크 20·연락처 22·욕설 32 우회 표기 포함·정상 글 28 오탐 확인·목록/허용 목록), 통합 테스트 1개(링크/닷컴/전화/오픈채팅/욕설/답글 → 400·문구 확인·저장 안 됨, 정상 문장 201)
 - 남은 일: 숫자로 쓴 욕("18놈"), 한글로 읽은 전화번호("공일공 일이삼사"는 "공일공"만), 이미지 속 글자는 못 거름 → 신고·자동 숨김이 받침. 운영 신고 데이터 보고 목록 보강. 제보 제목·설명·닉네임에도 쓸지 검토(지금은 사전 검토라 안 씀)
+
+## 2026-10-04 — 탈퇴 회원 부정 이용 방지 기록 1년 보관 + 이용 제한 고지 (`feat/withdraw-retention`, base main)
+- 왜: 정지되거나 위반 제보로 삭제 처리된 회원이 탈퇴 후 같은 소셜 계정으로 바로 재가입하면 이력이 모두 사라져 운영진이 알 수 없었음. 법무 검토(공정위 2019 불공정약관 심사 지침): 이용 제한 시 사유 고지·이의 제기 기회 필요
+- 범위(운영자 결정, 법무 검토로 두 번 축소 — 개인정보 보호법 제3조·제16조 최소 수집, 제15조 제1항 제6호 정당한 이익의 필요성·비례성)
+  - 대상: 탈퇴 시점 `status = SUSPENDED` 또는 `suspended_at` 있음, 또는 **관리자가 삭제(`DELETED`)한 제보**(`reviewed_at` 있음)가 1건 이상인 회원만. `DELETED`는 관리자만 만들 수 있는 상태(본인 삭제는 행 삭제, 신고 누적은 `HIDDEN`)
+  - 제외: 신고만 받은 제보(자동 숨김 `HIDDEN` 포함), 반려(`REJECTED` — "중복 제보"·"캠퍼스 밖" 같은 단순 반려가 섞임), 남의 제보에 단 신고. 그 밖의 회원은 지금처럼 즉시 삭제, 아무것도 안 남김
+  - **사진은 보관하지 않는다**: 관리자 삭제 시점에 이미 지워지고(`AdminReportService.moderate`, 기존 동작 유지), 탈퇴 때 남은 제보 사진도 지금처럼 사본 없이 모두 삭제
+- 변경 — 탈퇴 기록(`user/retention/WithdrawRetentionService`)
+  - 별도 테이블 `withdraw_retentions`(users FK 없음): `social_type` + `social_id_hash`(HMAC-SHA256 hex, 원문 저장 안 함), 정지 여부·사유·시각, `violation_report_count`, `snapshot`(JSON), `withdrawn_at`, `retain_until`(= 탈퇴 + 1년), `rejoined_user_id`·`rejoined_at`
+  - 스냅숏(`version` 2): 탈퇴마다 정지 정보 + 위반 확정 제보 요약(`id`, `category`, `customCategoryLabel`, `title`, `content` 앞 200자, `status`, `createdAt`, `moderationNote`, `flagCount`, `flagReasons`). 위치·기간·사진·위반 아닌 제보·단 신고·닉네임·이메일·Apple 토큰 없음
+  - 만료 정리: `purgeExpired` 매일 03:40 UTC(`WITHDRAW_RETENTION_PURGE_CRON`) — `retain_until` 지난 행만 삭제(회당 최대 200건)
+  - 재가입 감지: 카카오(`CustomOAuth2UserService`)·Apple(`AppleLoginService`) 신규 가입 직후 같은 HMAC의 보관 중 기록이 있으면 `rejoined_user_id`·`rejoined_at` 연결 + 관리자 알림 `MEMBER_REJOINED`(data.type `ADMIN_MEMBER_REJOINED`, `userId`, 기존 묶음 규칙). 자동 정지 없음, 가입은 막지 않음
+  - 재탈퇴: 같은 계정이면 행을 새로 만들지 않고 이어 붙임(`withdrawals` 추가, 수 합산, 정지 정보는 새 값이 있을 때만 교체, `retain_until` = 새 탈퇴 + 1년, 재가입 연결 해제). 새 이력이 없어도 보관 중 기록이 있으면 갱신
+  - 관리자 API: `GET /admin/users`·`/admin/users/{id}`(및 정지/해제 등 응답) 회원에 `priorHistory`(`withdrawnAt`, `retainUntil`, `rejoinedAt`, `suspendedAt`, `suspendedReason`, `wasSuspendedAtWithdrawal`, `violationReportCount`, 없으면 null). `GET /admin/users/{id}/prior-history` → `{userId, priorHistory, withdrawals[]}`(없으면 404). `docs/admin-api-spec.md` "회원" 절
+- 변경 — 이용 제한 고지
+  - 관리자 정지/해제 → 커밋 뒤 본인에게 푸시(`AccountStatusPushDispatcher`, `UserSuspensionChangedEvent`). 정지: "이용이 제한됐어요" / "사유: …\n이의가 있으면 14일 안에 hongikonsupport@gmail.com 으로 알려 주세요", data.type `ACCOUNT_SUSPENDED`. 해제(정지 중이었을 때만): "이용 제한이 풀렸어요", `ACCOUNT_UNSUSPENDED`. 알림 설정과 무관(서비스 고지), 활성 Expo 기기 없으면 없음, 발송 실패해도 관리자 작업은 성공
+  - 정지 회원 쓰기 403 메시지에 사유 포함: "운영 정책 위반으로 이용이 제한된 계정이에요(사유: …). 제보·신고·문의를 할 수 없어요. 이의 제기: hongikonsupport@gmail.com"(사유 없으면 사유 부분 생략)
+  - `GET /users/me`에 `status`(ACTIVE/SUSPENDED), `suspendedReason`, `suspendedAt` 추가 — 앱 배너용
+- SQL: `db/create_withdraw_retentions_table.sql`(IF NOT EXISTS, 배포 전이라 파일 자체를 최종 형태로 고침) — ddl-auto=validate라 배포 전 실행
+- 환경변수: `WITHDRAW_RETENTION_KEY_SECRET`(선택, 비우면 JWT_SECRET에서 파생 — **운영은 별도 값을 넣고 이후 바꾸지 말 것**, 바꾸면 기존 기록과 대조 불가), `WITHDRAW_RETENTION_PURGE_CRON`(선택, 기본 `0 40 3 * * *`). S3·IAM 설정 변경 없음(사진을 보관하지 않으므로)
+- 테스트: 210 → 222개 전부 통과. `WithdrawRetentionIntegrationTest` 8(신고만 받은·자동 숨김 작성자 기록 없음, 반려만 된 작성자 기록 없음, 정지 회원 해시·1년·정지 정보만, 관리자 삭제 제보 요약만·사진 미보관, 재가입 알림·연결·관리자 API, 첫 가입 무반응, 만료 정리, 재탈퇴 갱신), `AppleLoginIntegrationTest` +1(Apple 재가입), `AccountStatusPushDispatcherTest` 3. `UserModerationIntegrationTest` 403 문구 기대값 변경
+- 남은 일
+  - **FE 개인정보 처리방침 문구 갱신 필요**(보관 대상: 정지 이력·관리자 삭제 제보가 있는 회원만 / 항목: 소셜 계정 식별값의 해시, 정지 정보, 삭제된 제보 요약 / 1년 / 사진은 보관 안 함) — 메인 에이전트가 FE 레포에서 진행 중. 배포 전 문구와 이 구현이 맞는지 확인
+  - FE: 관리 탭 회원 카드에 `priorHistory` 표시, `ADMIN_MEMBER_REJOINED`·`ACCOUNT_SUSPENDED`·`ACCOUNT_UNSUSPENDED` 알림 라우팅, `/users/me` 정지 배너
+  - 한계: 정지 해제(`unsuspend`)가 `suspended_at`을 비우므로 "정지됐다가 해제된 뒤 탈퇴"한 회원은 정지 이력으로 잡히지 않음(관리자 삭제 제보가 있으면 그쪽으로 잡힘). 필요하면 정지 이력 별도 컬럼 검토
+  - 재가입 감지는 가입 시 1회만(기록 연결은 가입 트랜잭션 안). 키 미설정(JWT_SECRET도 없음) 환경에선 기록·감지 모두 꺼짐(WARN 로그)

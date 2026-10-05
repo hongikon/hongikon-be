@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.admin;
 
 import com.hongmap.hongmapbackend.admin.dto.AdminUserListResponse;
+import com.hongmap.hongmapbackend.admin.dto.AdminUserPriorHistoryResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserResponse;
 import com.hongmap.hongmapbackend.admin.dto.UserSuspendRequest;
 import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
@@ -38,6 +39,16 @@ public class AdminUserController {
     @GetMapping("/{id}")
     public AdminUserResponse get(@PathVariable Long id) {
         return adminUserService.get(id);
+    }
+
+    @Operation(summary = "재가입 회원의 탈퇴 전 이력",
+            description = "정지 이력·위반 확정(관리자 삭제) 제보로 탈퇴 기록(1년 보관)이 남은 계정이 다시 가입한 경우의 스냅숏"
+                    + "(정지 정보, 위반 확정 제보 요약). 기록이 없으면 404.")
+    @GetMapping("/{id}/prior-history")
+    public AdminUserPriorHistoryResponse priorHistory(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
+        AdminUserPriorHistoryResponse response = adminUserService.priorHistory(id);
+        log.info("탈퇴 전 이력 조회: adminId={}, userId={}", adminId, id);
+        return response;
     }
 
     @Operation(summary = "이용 정지", description = "정지된 회원은 로그인·조회는 되지만 제보·신고·문의·닉네임 변경이 403 으로 막힙니다. 사유 필수.")

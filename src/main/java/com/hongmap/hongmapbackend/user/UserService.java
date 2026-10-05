@@ -13,6 +13,7 @@ import com.hongmap.hongmapbackend.notification.UserNotificationSettingRepository
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
+import com.hongmap.hongmapbackend.user.retention.WithdrawRetentionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,8 @@ import java.util.List;
  * 시간 한정 정보라 작성자 탈퇴 시 함께 삭제한다(익명화 대신 삭제로 결정).
  * Apple 로그인 사용자는 커밋 뒤 Apple 토큰도 폐기한다(App Store 가이드라인 5.1.1(v)). 폐기 실패는 탈퇴를 막지 않고
  * 재시도 대기열(apple_pending_revocations)에 들어간다.
+ * 정지 이력이 있거나 관리자가 삭제한(위반 확정) 제보가 있는 회원은 지우기 전에 부정 이용 방지 기록을 1년 분리 보관한다(WithdrawRetentionService,
+ * 개인정보 처리방침). 그 밖의 회원은 아무것도 남지 않는다.
  */
 @Slf4j
 @Service
@@ -53,11 +56,17 @@ public class UserService {
     private final UserDeviceRepository userDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AppleRevocationService appleRevocationService;
+    // 탈퇴 기록(withdraw_retentions)은 users 를 FK 로 참조하지 않는다(rejoined_user_id 는 일반 컬럼 — 재탈퇴 시 서비스가 비움).
+    private final WithdrawRetentionService withdrawRetentionService;
 
     @Transactional
     public void withdraw(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+
+        // 부정 이용 방지 기록(정지 이력·관리자가 삭제한 위반 제보가 있는 회원만, 1년 분리 보관 — WithdrawRetentionService).
+        // 제보를 지우기 전에 스냅숏을 떠야 하므로 맨 앞에서 부른다. 대상이 아니면 아무것도 남기지 않는다. 사진은 보관하지 않는다.
+        withdrawRetentionService.retainOnWithdraw(user);
 
         // 제보 사진(S3)은 DB 에서 제보를 지우기 전에 키를 모아 두고, 커밋된 뒤 지운다(실패는 로그, 수명 주기 규칙이 마저 정리).
         List<String> imageKeys = reportRepository.findImageKeysByUserId(userId);

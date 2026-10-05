@@ -24,6 +24,10 @@ public interface ReportFlagRepository extends JpaRepository<ReportFlag, Long> {
 
     void deleteByReport_User_Id(Long userId);
 
+    /** 탈퇴 기록용 — 이 회원이 쓴 제보에 달린 신고. 행: [reportId(Long), reason(String)] */
+    @Query("SELECT f.report.id, f.reason FROM ReportFlag f WHERE f.report.user.id = :userId ORDER BY f.id")
+    List<Object[]> findReasonsOnReportsOfUser(@Param("userId") Long userId);
+
     @Query("SELECT f FROM ReportFlag f JOIN FETCH f.user WHERE f.report.id = :reportId ORDER BY f.createdAt DESC")
     List<ReportFlag> findWithUserByReportId(@Param("reportId") Long reportId);
 
