@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,10 +91,10 @@ class AdminApiIntegrationTest {
     }
 
     @Test
-    void 대시보드_노출중은_끝나지_않은_승인_제보만_센다() throws Exception {
+    void 대시보드_노출중은_지금_지도에_보이는_승인_제보만_센다() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         // 이 클래스는 테스트마다 DB 를 비우지 않아 다른 테스트의 제보가 남는다 — 전후 차이로 본다.
-        long before = reportRepository.countByStatusAndEndsAtAfter(ReportStatus.ACTIVE, now);
+        long before = reportRepository.countLive(ReportStatus.ACTIVE, now);
         Report live = pendingReport();
         live.moderate(ReportStatus.ACTIVE, null, now);
         reportRepository.save(live);
@@ -106,10 +107,22 @@ class AdminApiIntegrationTest {
                 .build());
         ended.moderate(ReportStatus.ACTIVE, null, now.minusHours(4));
         reportRepository.save(ended);
+        // 승인했지만 아직 시작 전인 예정 제보 — 시작 시각 전에는 지도에 없으므로 '노출 중'에 넣지 않는다.
+        Report upcoming = reportRepository.save(Report.builder()
+                .user(normal).building(building).floor(1)
+                .lat(new BigDecimal("37.5500000")).lng(new BigDecimal("126.9250000"))
+                .category(ReportCategory.EVENT).title("내일 행사")
+                .startsAt(now.plusHours(20)).endsAt(now.plusHours(23))
+                .build());
+        upcoming.moderate(ReportStatus.ACTIVE, null, now);
+        reportRepository.save(upcoming);
 
         mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reports.active").value((int) before + 1));
+
+        // 이 클래스는 DB 를 비우지 않는다 — 진행 중 제보가 남으면 "지도 목록이 비어 있다"고 보는 다른 테스트가 깨진다.
+        reportRepository.deleteAll(List.of(live, ended, upcoming));
     }
 
     @Test

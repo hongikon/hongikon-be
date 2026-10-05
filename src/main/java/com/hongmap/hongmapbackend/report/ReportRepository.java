@@ -152,6 +152,13 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     /** 리마인드 본문용 — 아직 끝나지 않은 PENDING 제보 중 가장 오래된 것. */
     Optional<Report> findFirstByStatusAndEndsAtAfterOrderByCreatedAtAscIdAsc(ReportStatus status, LocalDateTime now);
 
-    /** 아직 끝나지 않은 제보 수 — 지도 목록(findLiveReports)과 같은 기준(endsAt > now). 관리자 대시보드 '노출 중'. */
-    long countByStatusAndEndsAtAfter(ReportStatus status, LocalDateTime now);
+    /**
+     * 지금 지도에 보이는 제보 수 — 지도 목록(findLiveReports)과 같은 기준(startsAt ≤ now ≤ endsAt). 관리자 대시보드 '노출 중'.
+     * 끝난 제보도, 승인했지만 아직 시작 전인 예정 제보도 세지 않는다.
+     */
+    @Query("""
+            SELECT COUNT(r) FROM Report r
+            WHERE r.status = :status AND :now BETWEEN r.startsAt AND r.endsAt
+            """)
+    long countLive(@Param("status") ReportStatus status, @Param("now") LocalDateTime now);
 }
