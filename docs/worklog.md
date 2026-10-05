@@ -760,3 +760,18 @@
 
 - 관리자는 제보 등록 때 "[관리] 새 제보 승인 대기"를 받고, 직접 승인한 뒤 일반 "새 제보 · 장소"(REPORT_NEW)를 또 받았다.
 - `claimNewReportRecipients` 에서 관리자 알림을 켠 관리자(role=ADMIN, admin_alerts_enabled=true)를 뺀다. 관리자 알림을 끈 관리자는 일반 사용자처럼 받는다. DB 변경 없음.
+
+## 2026-10-05 — 운영 배포 기록 (#22, #15/#23, #29, #30, #31)
+- 배포 방식: SQL을 운영 DB에 먼저 실행한 뒤 코드 배포(prod는 ddl-auto=validate). 배포 전 이미지 태그와 DB 스냅샷으로 롤백 지점 확보.
+- 10-04: #22(기기 토큰 중복 INSERT 500 수정), #15/#23(회원 번호 member_code). #15는 base가 main이 아니어서 #23으로 다시 올림.
+- 10-05 통합 릴리스 #29(#16~#21, #24~#28): 구성 PR이 자동 종료되도록 merge commit으로 머지.
+  - 실행한 SQL: create_report_comments_table, create_report_community_tables, create_withdraw_retentions_table, alter_refresh_tokens_multi_session
+  - alter_add_unique_user_lists는 운영 DB에 유니크 인덱스가 이미 있어 실행하지 않음(중복 0건 확인)
+  - 환경변수 추가: WITHDRAW_RETENTION_KEY_SECRET (한번 정하면 변경 금지, 바꾸면 기존 보관 기록 식별 불가)
+- #30 제보 사진 S3 업로드, #31 .gitignore에 *.p8 추가
+- 제보 사진 S3 설정: 전용 버킷(reports/ 경로만 사용, 30일 후 자동 삭제), CORS(PUT/GET, 서비스 도메인만), 최소 권한 IAM 정책을 EC2 인스턴스 역할로 연결, IMDSv2 필수 + hop limit 2(컨테이너에서 자격 증명 사용). 환경변수 AWS_S3_BUCKET, AWS_REGION. 미설정 시 사진 기능은 비활성(업로드 503).
+- 검증: 앱에서 사진 업로드, DB 저장, 앱 표시, S3 저장 확인. 로그에 접근 거부 오류 없음.
+- 애플 로그인: 백엔드(/auth/apple, 탈퇴 시 토큰 revoke) 운영 반영됨. 잘못된 토큰에 401 응답 확인. iOS 실기기 로그인/탈퇴 테스트는 FE 새 빌드 후 진행 예정.
+- 알려진 사항: 지도 목록은 시작 시각 이후에만 노출(예정 제보는 include=upcoming 48시간). 서버 시간대는 UTC.
+- 아직 운영 미배포: #32(관리자 중복 알림 수정)
+- 남은 일: 스모크 테스트 일부(로그인 유지, 댓글/반응, 관리자 탭), 애플 로그인 iOS 실기기 테스트, retained/ 366일 보관 규칙 사용 여부 확인(FE), PR #12 정리
