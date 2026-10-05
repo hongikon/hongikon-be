@@ -3,11 +3,13 @@ package com.hongmap.hongmapbackend.comment;
 import com.hongmap.hongmapbackend.comment.dto.AdminCommentListResponse;
 import com.hongmap.hongmapbackend.comment.dto.AdminCommentResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentFlagResponse;
+import com.hongmap.hongmapbackend.comment.dto.CommentLikeResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentListResponse;
 import com.hongmap.hongmapbackend.comment.dto.CommentResponse;
 import com.hongmap.hongmapbackend.common.dto.PageResponse;
 import com.hongmap.hongmapbackend.common.moderation.ContentFilter;
 import com.hongmap.hongmapbackend.common.moderation.ContentViolation;
+import com.hongmap.hongmapbackend.community.CommunityActionLimiter;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportRepository;
 import com.hongmap.hongmapbackend.report.ReportStatus;
@@ -30,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,8 @@ import java.util.Set;
  *   <li>사후 검토: 바로 공개, 신고가 report.comment.flag-threshold(기본 3)개 쌓이면 자동 숨김.
  *       관리자 검토(reviewedAt) 뒤의 신고만 센다 — 복원한 댓글을 옛 신고로 다시 숨기지 않는다.</li>
  *   <li>답글: 한 단계만. 답글에 답하면 같은 최상위 댓글에 붙는다. 목록은 최상위 댓글 단위 페이지 + 답글 앞쪽 3개·답글 수.</li>
+ *   <li>👍: 로그인 필수, 남의 공개 댓글·답글에만, 한 사람 한 번(끄면 행 삭제). 🔥·관심과 합쳐 1분 20번(429).
+ *       목록 order=popular 면 최상위 댓글을 👍 많은 순(같으면 최신 순)으로.</li>
  *   <li>삭제: 작성자 본인은 DELETED 로 바꾼다(행은 신고 검토·빈도 제한 근거로 남고 제보·탈퇴와 함께 DB 에서 지워진다).
  *       공개 답글이 남은 최상위 댓글은 목록에 "삭제된 댓글"(placeholder) 자리로 남고, 없으면 목록에서 빠진다.</li>
  * </ul>
@@ -70,6 +75,8 @@ public class ReportCommentService {
     private final CommentAuthorKeys authorKeys;
     private final ContentFilter contentFilter;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReportCommentLikeRepository likeRepository;
+    private final CommunityActionLimiter actionLimiter;
 
     @Value("${report.comment.flag-threshold:3}")
     private long flagThreshold;
@@ -84,15 +91,20 @@ public class ReportCommentService {
 
     /**
      * 최상위 댓글 한 페이지 + 각 댓글의 공개 답글 앞쪽 {@value #INLINE_REPLIES}개와 답글 수.
-     * order: "oldest"(기본, 오래된 순) / "latest"(최신 순 — 시트 미리보기용). 답글은 늘 오래된 순.
-     * 쿼리: 최상위 1 + count 1 + 답글 묶음 1 + 전체 댓글 수 1(제보 확인 1 별도).
+     * order: "oldest"(기본, 오래된 순) / "latest"(최신 순 — 시트 미리보기용) / "popular"(👍 많은 순, 같으면 최신 순).
+     * 답글은 늘 오래된 순.
+     * 쿼리: 최상위 1 + count 1 + 답글 묶음 1 + 전체 댓글 수 1 + 👍 수 1(+ 로그인이면 내 👍 1)(제보 확인 1 별도).
      */
     @Transactional(readOnly = true)
     public CommentListResponse list(Long requesterId, Long reportId, int page, int size, String order) {
         requireVisibleReport(reportId);
-        Sort sort = "latest".equalsIgnoreCase(order) ? Sort.by(Sort.Direction.DESC, "id") : Sort.by("id");
-        Page<ReportComment> roots = commentRepository.findThreadRoots(
-                reportId, PageRequest.of(Math.max(page, 0), pageSize(size), sort));
+        Page<ReportComment> roots;
+        if ("popular".equalsIgnoreCase(order)) {
+            roots = commentRepository.findThreadRootsByLikes(reportId, PageRequest.of(Math.max(page, 0), pageSize(size)));
+        } else {
+            Sort sort = "latest".equalsIgnoreCase(order) ? Sort.by(Sort.Direction.DESC, "id") : Sort.by("id");
+            roots = commentRepository.findThreadRoots(reportId, PageRequest.of(Math.max(page, 0), pageSize(size), sort));
+        }
 
         Map<Long, List<ReportComment>> repliesByParent = new HashMap<>();
         if (!roots.isEmpty()) {
@@ -108,7 +120,7 @@ public class ReportCommentService {
             return CommentResponse.of(root, requesterId, authorKeys.of(root.getUser().getId()), inline, replies.size());
         }).toList();
         long commentCount = commentRepository.countByReport_IdAndStatus(reportId, ReportCommentStatus.VISIBLE);
-        return CommentListResponse.of(roots, content, commentCount);
+        return CommentListResponse.of(roots, attachLikes(content, requesterId), commentCount);
     }
 
     /** 한 최상위 댓글의 공개 답글(오래된 순). "답글 N개 더 보기"용. */
@@ -121,7 +133,9 @@ public class ReportCommentService {
         }
         var result = commentRepository.findByParent_IdAndStatus(commentId, ReportCommentStatus.VISIBLE,
                 PageRequest.of(Math.max(page, 0), pageSize(size), Sort.by("id")));
-        return PageResponse.of(result.map(c -> toResponse(c, requesterId)));
+        PageResponse<CommentResponse> pageResponse = PageResponse.of(result.map(c -> toResponse(c, requesterId)));
+        return new PageResponse<>(attachLikes(pageResponse.content(), requesterId), pageResponse.page(),
+                pageResponse.size(), pageResponse.totalElements(), pageResponse.totalPages(), pageResponse.hasNext());
     }
 
     @Transactional
@@ -215,6 +229,36 @@ public class ReportCommentService {
         return new CommentFlagResponse(flagRepository.countByComment_Id(commentId), hidden);
     }
 
+    /** 👍 누르기(on=true)·끄기. 남의 공개 댓글만(내 댓글 400, 공개 중이 아니면 404). */
+    @Transactional
+    public CommentLikeResponse setLike(Long userId, Long reportId, Long commentId, boolean on) {
+        requireVisibleReport(reportId);
+        ReportComment comment = requireComment(reportId, commentId);
+        if (comment.getStatus() != ReportCommentStatus.VISIBLE) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다.");
+        }
+        if (comment.getUser().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내 댓글에는 좋아요를 누를 수 없어요.");
+        }
+        if (!actionLimiter.tryAcquire(userId)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "너무 자주 누르고 있어요. 잠시 뒤에 다시 시도해 주세요.");
+        }
+        if (on) {
+            if (!likeRepository.existsByComment_IdAndUser_Id(commentId, userId)) {
+                User user = userRepository.findById(userId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다."));
+                try {
+                    likeRepository.saveAndFlush(new ReportCommentLike(comment, user));
+                } catch (DataIntegrityViolationException e) {
+                    // 동시에 두 번 — 이미 눌린 상태로 본다.
+                }
+            }
+        } else {
+            likeRepository.deleteMine(commentId, userId);
+        }
+        return new CommentLikeResponse(on, likeRepository.countByComment_Id(commentId));
+    }
+
     // ---------- 관리자 ----------
 
     @Transactional(readOnly = true)
@@ -244,6 +288,29 @@ public class ReportCommentService {
     private CommentResponse toResponse(ReportComment comment, Long requesterId) {
         return CommentResponse.of(comment, requesterId, authorKeys.of(comment.getUser().getId()),
                 comment.isReply() ? null : List.of(), 0);
+    }
+
+    /** 댓글(과 붙은 답글)에 👍 수·내 👍를 붙인다. 쿼리: 수 1 + (로그인이면) 내 👍 1. */
+    private List<CommentResponse> attachLikes(List<CommentResponse> comments, Long requesterId) {
+        if (comments.isEmpty()) {
+            return comments;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (CommentResponse c : comments) {
+            ids.add(c.id());
+            if (c.replies() != null) {
+                c.replies().forEach(r -> ids.add(r.id()));
+            }
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : likeRepository.countByCommentIds(ids)) {
+            counts.put((Long) row[0], (Long) row[1]);
+        }
+        Set<Long> mine = requesterId == null ? Set.of() : new HashSet<>(likeRepository.findLikedCommentIds(ids, requesterId));
+        return comments.stream().map(c -> c.withLikes(counts.getOrDefault(c.id(), 0L), mine.contains(c.id()),
+                c.replies() == null ? null : c.replies().stream()
+                        .map(r -> r.withLikes(counts.getOrDefault(r.id(), 0L), mine.contains(r.id()), r.replies()))
+                        .toList())).toList();
     }
 
     private static int pageSize(int size) {

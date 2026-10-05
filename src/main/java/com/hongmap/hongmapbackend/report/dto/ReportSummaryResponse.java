@@ -35,7 +35,21 @@ public record ReportSummaryResponse(
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
         String authorDisplayName,
         /** 공개 댓글 수(GET /reports 목록에서만 채움 — ReportCommentCounts, 쿼리 1번). 그 밖의 응답에서는 null */
-        Long commentCount
+        Long commentCount,
+        /** 🔥 수(GET /reports 목록에서만 채움 — ReportCommunityStats). 그 밖의 응답에서는 null */
+        Long fireCount,
+        /** 최근 report.hot.window-minutes(기본 60분) 안의 🔥 수 */
+        Long recentFireCount,
+        /** recentFireCount 가 report.hot.threshold(기본 5) 이상이면 true */
+        Boolean hot,
+        /** 요청한 사람이 🔥를 눌렀는지(게스트는 false) */
+        Boolean firedByMe,
+        /** 요청한 사람이 관심 제보로 등록했는지(게스트는 false) */
+        Boolean followedByMe,
+        /** 조회 수(사람·기기마다 하루 한 번, 익명 집계) */
+        Long viewCount,
+        /** 작성자 본인에게만: "이 제보 알림" 켜짐 여부. 남의 제보·게스트에게는 null */
+        Boolean notifyEnabled
 ) {
     public static ReportSummaryResponse of(Report report, Long requesterId, List<String> imageUrls) {
         return ReportSummaryResponse.builder()
@@ -57,6 +71,13 @@ public record ReportSummaryResponse(
                 .createdAt(report.getCreatedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
                 .build();
+    }
+
+    /** 같은 내용에 커뮤니티 값(🔥·관심·조회·작성자 알림)을 채운 사본. */
+    public ReportSummaryResponse withCommunity(long fireCount, long recentFireCount, boolean hot, boolean firedByMe,
+                                               boolean followedByMe, long viewCount, Boolean notifyEnabled) {
+        return toBuilder().fireCount(fireCount).recentFireCount(recentFireCount).hot(hot).firedByMe(firedByMe)
+                .followedByMe(followedByMe).viewCount(viewCount).notifyEnabled(notifyEnabled).build();
     }
 
     /** 같은 내용에 댓글 수만 바꾼 사본. */

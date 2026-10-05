@@ -571,6 +571,28 @@
 - 머지 충돌: 텍스트 충돌은 `docs/worklog.md`만. **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 의 쿼리 수 상한 `isLessThanOrEqualTo(3)` → 댓글 수 쿼리 때문에 `4`. #17·이 PR 중 나중에 머지하는 쪽에서 고친다
 - 남은 일: #14 머지 뒤 댓글 자동 숨김도 관리자 알림(AdminAlertEvent), #13 머지 뒤 `CommentAuthorKeys` → `AuthorKeys.of`
 
+## 2026-10-02 (밤) — 제보 커뮤니티: 🔥·HOT·관심 제보·작성자 알림·조회 수·댓글 👍 (`feat/report-community`, base #19)
+- 왜: 지도 제보에 반응(공감)·구독·인기 목록이 없어 "지금 붐비는 곳"을 알기 어려웠음. 작성자가 제보별로 알림을 끌 방법도 없었음
+- 변경 (새 패키지 `community/`, 기존 파일은 `ReportService` 1줄·`ReportSummaryResponse` 필드·`SecurityConfig` 1줄·#19 댓글 코드)
+  - 🔥 `PUT/DELETE /reports/{id}/fire` — 남의 공개 제보에 한 사람 한 번(내 제보 400, 끝난 제보 409). 최근 60분 🔥 5개 이상이면 `hot`(`REPORT_HOT_THRESHOLD`, `REPORT_HOT_WINDOW_MINUTES`). 🔥 10·50·100 을 처음 넘으면 작성자에게 한 번씩 `REPORT_FIRE` 푸시(조건부 UPDATE 로 중복 없음)
+  - `GET /reports` 항목: `fireCount`·`recentFireCount`·`hot`·`firedByMe`·`followedByMe`·`viewCount`·`notifyEnabled`(작성자만) — 네이티브 쿼리 1번. `GET /reports?sort=hot` 은 params 매핑(`ReportCommunityController`)으로 🔥 있는 제보만 최근 🔥 순 20개
+  - 관심 `PUT/DELETE /reports/{id}/follow`(최대 100개): 시작·끝나기 30분 전 알림(`ReportFollowScheduler`, 매분 20초), 새 댓글 알림(사람마다 30분 묶음), 끝나거나 내려간 제보의 관심 자동 정리. `REPORT_FOLLOW`(kind START/ENDING/COMMENT)
+  - 작성자 "이 제보 알림" `PUT /reports/{id}/notifications {enabled}` — 끄면 댓글·답글·🔥 이정표 알림 안 감. 모든 알림은 "내 제보 결과 알림"(report_status_enabled)도 따름
+  - 조회 수 `POST /reports/{id}/views`(게스트 가능) — 계정 또는 `X-Install-Id` 로 하루(KST) 한 번. 원문 id 대신 날짜를 섞은 HMAC 만 2일 보관, IP 저장 안 함
+  - 댓글 👍 `PUT/DELETE /reports/{id}/comments/{cid}/like`, 응답에 `likeCount`·`likedByMe`, `order=popular`
+  - 🔥·관심·👍 합쳐 1분 20번(429, 메모리). 정지 회원 차단 경로(#13 인터셉터)에 누르기 PUT 추가
+  - 누가 눌렀는지·봤는지 목록은 어떤 응답에도 없음(수와 "내가 눌렀는지"만)
+- SQL: `db/create_report_community_tables.sql`(report_reactions, report_follows, report_engagement, report_view_marks, report_comment_likes — 모든 FK ON DELETE CASCADE, IF NOT EXISTS). 로컬 MySQL 26.7 임시 DB 에서 두 번 실행·`ddl-auto=validate` 기동·네이티브 쿼리(INSERT IGNORE, 통계) 확인
+- 환경변수(모두 선택): `REPORT_HOT_THRESHOLD`(5), `REPORT_HOT_WINDOW_MINUTES`(60), `REPORT_REACTION_RATE_PER_MINUTE`(20), `REPORT_FOLLOW_MAX_PER_USER`(100), `PUSH_REPORT_FOLLOW_CRON`(`20 * * * * *`), `PUSH_REPORT_FOLLOW_ENDING_MINUTES`(30), `PUSH_REPORT_FOLLOW_COMMENT_COALESCE_MINUTES`(30), `REPORT_VIEW_KEY_SECRET`(비우면 JWT_SECRET)
+- 테스트: +13 → 210개(`ReportCommunityIntegrationTest`). #13→#14→#15→#16→#17→#18→#19 + 이 PR 합친 상태 292개 통과(가이드 수정 + 아래 1곳)
+- 머지 충돌: 텍스트는 `docs/worklog.md`만(#14 의 `build.gradle` `user.timezone=UTC` 는 같은 줄이라 자동 병합). **의미 충돌 1곳**: #17 `ReportScheduleIntegrationTest` 쿼리 수 상한 3 → **5**(#19 댓글 수 +1, 이 PR 통계 +1). 나중에 머지하는 쪽에서 고친다
+- 남은 일: #13 머지 뒤 정지 회원의 🔥를 수에서 빼기(지금 브랜치엔 users.status 가 없음), 빈도 제한·알림 묶음을 서버 여러 대면 DB/Redis 로
+
+## 2026-10-04 — 사용자에게 보이는 문구에서 이모지 빼기 (`feat/report-community`)
+- 왜: 앱 문구에 🔥·👍 같은 이모지를 쓰지 않기로 함(공감·좋아요로 부름)
+- 변경: 공감 이정표 푸시 제목 "내 제보에 🔥가 N개 모였어요" → "내 제보에 공감이 N개 모였어요", 400 메시지 "내 제보에는 🔥를…" → "공감을…", "내 댓글에는 👍를…" → "좋아요를…". Swagger 설명(개발자용)은 그대로
+- 테스트: `ReportCommunityIntegrationTest` 기대 문구 수정, 커뮤니티·댓글 테스트 통과
+
 ## 2026-10-04 — 댓글 내용 필터 (`feat/report-comments`, PR #19)
 - 왜: App Store 1.2 는 "불쾌한 사용자 생성 콘텐츠를 거르는 방법"을 요구. 댓글은 사후 검토(바로 공개)라 신고·숨김만으로는 부족 → 올리는 순간 서버에서 한 번 거름. 제보는 사전 검토(PENDING → 관리자 승인)라 거르지 않음
 - 변경

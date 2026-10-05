@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.comment;
 
+import com.hongmap.hongmapbackend.community.ReportCommunityService;
 import com.hongmap.hongmapbackend.notification.UserNotificationSetting;
 import com.hongmap.hongmapbackend.notification.UserNotificationSettingRepository;
 import com.hongmap.hongmapbackend.push.ExpoPushMessage;
@@ -32,7 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>받는 사람: 제보 작성자("내 제보에 댓글이 달렸어요"), 답글이면 부모 댓글 작성자("내 댓글에 답글이 달렸어요").
  *       본인이 쓴 것은 알리지 않고, 두 사람이 같으면 답글 알림 한 번만 보낸다.</li>
- *   <li>설정: 기존 "내 제보 결과 알림"(report_status_enabled)을 따른다 — 끈 사람은 받지 않는다(행이 없으면 켜짐).</li>
+ *   <li>설정: 기존 "내 제보 결과 알림"(report_status_enabled)을 따른다 — 끈 사람은 받지 않는다(행이 없으면 켜짐).
+ *       제보 작성자가 그 제보의 "이 제보 알림"을 끄면(report_engagement.author_notify_enabled) 작성자에게는 보내지 않는다.</li>
  *   <li>묶음: 같은 제보(제보 작성자 알림)·같은 부모 댓글(답글 알림)에는 push.report-comment-coalesce-minutes(기본 10분)에 한 번만. 그 사이 댓글은 앱에서 보면 된다.
  *       서버 한 대(EC2) 기준 메모리 기록이라 재시작하면 초기화된다(최악이 알림 한 번 더).</li>
  * </ul>
@@ -51,6 +53,7 @@ public class ReportCommentPushDispatcher {
     private final UserNotificationSettingRepository settingRepository;
     private final ExpoPushSender expoPushSender;
     private final PushProperties properties;
+    private final ReportCommunityService communityService;
     private final Duration coalesceWindow;
     private final Map<String, Instant> lastSentByReport = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
@@ -59,11 +62,13 @@ public class ReportCommentPushDispatcher {
                                        UserNotificationSettingRepository settingRepository,
                                        ExpoPushSender expoPushSender,
                                        PushProperties properties,
+                                       ReportCommunityService communityService,
                                        @Value("${push.report-comment-coalesce-minutes:10}") long coalesceMinutes) {
         this.userDeviceRepository = userDeviceRepository;
         this.settingRepository = settingRepository;
         this.expoPushSender = expoPushSender;
         this.properties = properties;
+        this.communityService = communityService;
         this.coalesceWindow = Duration.ofMinutes(coalesceMinutes);
     }
 
@@ -84,15 +89,18 @@ public class ReportCommentPushDispatcher {
         }
         int accepted = 0;
         Long parentAuthor = event.parentAuthorId();
+        Long reportAuthor = event.reportAuthorId();
         boolean reply = event.parentCommentId() != null;
+        // 작성자가 이 제보의 알림을 껐으면 작성자에게는 댓글·답글 알림을 보내지 않는다.
+        boolean authorMuted = reportAuthor != null && !communityService.isAuthorNotifyEnabled(event.reportId());
         // 1) 답글이면 부모 댓글 작성자에게 "내 댓글에 답글이 달렸어요"(부모 댓글마다 묶음).
-        if (reply && parentAuthor != null && !parentAuthor.equals(event.commenterId())) {
+        if (reply && parentAuthor != null && !parentAuthor.equals(event.commenterId())
+                && !(authorMuted && parentAuthor.equals(reportAuthor))) {
             accepted += send(parentAuthor, "comment:" + event.parentCommentId(), TITLE_REPLY, event, true);
         }
         // 2) 제보 작성자에게 "내 제보에 댓글이 달렸어요"(제보마다 묶음). 방금 답글 알림을 받은 사람이면 한 번만.
-        Long reportAuthor = event.reportAuthorId();
         boolean alreadyNotified = reply && reportAuthor != null && reportAuthor.equals(parentAuthor);
-        if (reportAuthor != null && !reportAuthor.equals(event.commenterId()) && !alreadyNotified) {
+        if (reportAuthor != null && !reportAuthor.equals(event.commenterId()) && !alreadyNotified && !authorMuted) {
             accepted += send(reportAuthor, "report:" + event.reportId(), TITLE, event, false);
         }
         return accepted;
