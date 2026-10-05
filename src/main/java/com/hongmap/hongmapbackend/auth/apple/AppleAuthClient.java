@@ -89,6 +89,10 @@ public class AppleAuthClient {
             form.add("client_secret", createClientSecret(clientId));
             form.add("code", authorizationCode);
             form.add("grant_type", "authorization_code");
+            // 웹 로그인(Services ID)은 authorize 때 보낸 redirect_uri 를 교환에도 똑같이 보내야 한다(앱은 없다).
+            if (properties.isWebClient(clientId)) {
+                form.add("redirect_uri", properties.getWebRedirectUri());
+            }
             TokenResponse response = restClient.post()
                     .uri(properties.getTokenUrl())
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)

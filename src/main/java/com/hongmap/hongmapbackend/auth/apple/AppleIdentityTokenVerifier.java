@@ -57,7 +57,7 @@ public class AppleIdentityTokenVerifier {
 
     @Autowired
     public AppleIdentityTokenVerifier(AppleJwksSource jwksSource, AppleProperties properties) {
-        this(jwksSource, properties.getClientIds(), Clock.systemUTC());
+        this(jwksSource, properties.allClientIds(), Clock.systemUTC());
     }
 
     AppleIdentityTokenVerifier(AppleJwksSource jwksSource, List<String> allowedClientIds, Clock clock) {

@@ -65,7 +65,8 @@ class AppleAuthClientTest {
 
     private static AppleProperties properties(String teamId, String keyId, String privateKey) {
         return new AppleProperties(List.of("com.hongikon.app"), teamId, keyId, privateKey,
-                "https://appleid.apple.com/auth/keys", TOKEN_URL, REVOKE_URL, 1000, 1000);
+                "https://appleid.apple.com/auth/keys", TOKEN_URL, REVOKE_URL, 1000, 1000,
+                "com.hongikon.web", "https://hongikon.com/auth/apple/callback");
     }
 
     private AppleAuthClient configuredClient() {
@@ -110,6 +111,31 @@ class AppleAuthClientTest {
         assertThat(secret.getPayload().getSubject()).isEqualTo("com.hongikon.app");
         assertThat(secret.getPayload().getAudience()).containsExactly("https://appleid.apple.com");
         assertThat(secret.getPayload().getExpiration()).isAfter(java.util.Date.from(NOW));
+    }
+
+    @Test
+    void 웹_로그인은_교환에_redirect_uri_를_함께_보낸다() {
+        AtomicReference<Map<String, String>> sent = new AtomicReference<>();
+        server.expect(requestTo(TOKEN_URL))
+                .andExpect(request -> sent.set(form((MockClientHttpRequest) request)))
+                .andRespond(withSuccess("""
+                        {"access_token":"a.b.c","token_type":"Bearer","expires_in":3600,"refresh_token":"r.web"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(configuredClient().exchangeForRefreshToken("web-code", "com.hongikon.web")).contains("r.web");
+        assertThat(sent.get())
+                .containsEntry("client_id", "com.hongikon.web")
+                .containsEntry("redirect_uri", "https://hongikon.com/auth/apple/callback");
+
+        // 앱(번들 ID) 교환에는 redirect_uri 를 보내지 않는다.
+        server.reset();
+        server.expect(requestTo(TOKEN_URL))
+                .andExpect(request -> sent.set(form((MockClientHttpRequest) request)))
+                .andRespond(withSuccess("""
+                        {"access_token":"a.b.c","token_type":"Bearer","expires_in":3600,"refresh_token":"r.app"}
+                        """, MediaType.APPLICATION_JSON));
+        configuredClient().exchangeForRefreshToken("app-code", "com.hongikon.app");
+        assertThat(sent.get()).doesNotContainKey("redirect_uri");
     }
 
     @Test

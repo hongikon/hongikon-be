@@ -776,3 +776,10 @@
 - 아직 운영 미배포: #32(관리자 중복 알림 수정)
 - 남은 일: 스모크 테스트 일부(로그인 유지, 댓글/반응, 관리자 탭), 애플 로그인 iOS 실기기 테스트, retained/ 366일 보관 규칙 사용 여부 확인(FE), PR #12 정리
 - 예정 제보 범위를 다시 48시간 → 3일(72시간)으로 늘렸다(10-05 요청). DB 변경 없음.
+
+## 2026-10-05 — 웹(hongikon.com) Apple 로그인 받기 (`feat/apple-web-login`)
+
+- `app.apple.web-client-id`(APPLE_WEB_CLIENT_ID, 기본 com.hongikon.web)·`app.apple.web-redirect-uri`(기본 https://hongikon.com/auth/apple/callback) 추가.
+- identity token aud 로 웹 Services ID 도 허용(`AppleProperties.allClientIds`). 웹 로그인의 authorization code 교환에는 redirect_uri 를 함께 보낸다
+  (안 보내면 교환이 실패해 탈퇴 때 Apple 토큰을 폐기할 수 없다 — 5.1.1(v)). 앱 교환은 그대로.
+- Apple Developer 에서 Services ID(com.hongikon.web)를 만들고 Sign in with Apple 켜기·Primary App ID com.hongikon.app·도메인 hongikon.com·Return URL 등록이 필요하다. DB 변경 없음.
