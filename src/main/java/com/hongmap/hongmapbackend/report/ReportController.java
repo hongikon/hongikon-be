@@ -67,7 +67,7 @@ public class ReportController {
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
     @Operation(summary = "실시간 제보 목록 조회", description = "지금 진행 중인(startsAt ≤ 지금 ≤ endsAt) 승인된 제보를 건물 id로 필터링해 조회합니다. "
-            + "include=upcoming 이면 24시간 안에 시작할 예정 제보를 시작 시각 순으로 뒤에 덧붙입니다(항목의 startsAt 이 지금보다 뒤면 예정).")
+            + "include=upcoming 이면 48시간 안에 시작할 예정 제보를 시작 시각 순으로 뒤에 덧붙입니다(항목의 startsAt 이 지금보다 뒤면 예정).")
     @GetMapping("/reports")
     public ReportListResponse getLiveReports(
             @AuthenticationPrincipal Long userId,

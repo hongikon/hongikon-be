@@ -36,7 +36,7 @@ import java.util.List;
  * 진행 기간 상한(일)은 report.maxDurationDays 설정값으로 관리.
  *
  * 예정 제보: startsAt 을 미래로 잡아 미리 올릴 수 있다(예: 내일 11:00~15:00 붕어빵 트럭).
- * 지도(GET /reports)에는 시작 시각이 된 뒤에야 뜨고, include=upcoming 이면 24시간 안에 시작할 제보를 따로 붙여 준다.
+ * 지도(GET /reports)에는 시작 시각이 된 뒤에야 뜨고, include=upcoming 이면 48시간 안에 시작할 제보를 따로 붙여 준다.
  * 등록 남용 제한(report.create.*)·건물과의 거리 상한(report.building-max-distance-meters)도 여기서 본다.
  */
 @Service
@@ -68,7 +68,8 @@ public class ReportService {
     /** 시작 시각을 "지금"으로 보낸 앱과 서버 시계가 조금 어긋나도 받아 주는 여유. */
     static final Duration STARTS_AT_PAST_GRACE = Duration.ofMinutes(10);
     /** include=upcoming 으로 함께 내려주는 예정 제보 범위(지금부터). */
-    static final Duration UPCOMING_WINDOW = Duration.ofHours(24);
+    /** 내일모레 아침 행사도 미리 보이게 이틀(48시간) 앞까지(10-05 요청, 처음엔 24시간). */
+    static final Duration UPCOMING_WINDOW = Duration.ofHours(48);
 
     @Value("${report.startsAt.maxDays}")
     private long startsAtMaxDays;
@@ -208,7 +209,7 @@ public class ReportService {
 
     /**
      * 지도용 목록. 기본은 지금 진행 중(startsAt ≤ now ≤ endsAt)인 ACTIVE 제보만.
-     * includeUpcoming 이면 24시간 안에 시작할 ACTIVE 제보를 시작 시각 순으로 뒤에 붙인다(앱의 "예정" 표시용 —
+     * includeUpcoming 이면 48시간 안에 시작할 ACTIVE 제보를 시작 시각 순으로 뒤에 붙인다(앱의 "예정" 표시용 —
      * 항목의 startsAt 이 지금보다 뒤면 예정이다). 시작 전 제보는 기본 목록에 절대 섞이지 않는다.
      */
     @Transactional(readOnly = true)
