@@ -13,6 +13,8 @@ public interface UserNotificationSettingRepository extends JpaRepository<UserNot
     /**
      * 새 제보 푸시를 받을 유저를 "선점"한다: 새 제보 알림을 켰고(범위 일치), 작성자가 아니며,
      * 마지막 발송이 cutoff 이전(또는 없음)인 유저의 new_report_last_sent_at을 now로 바꾼다.
+     * 관리자 알림을 켠 관리자는 뺀다 — 같은 제보를 등록 때 "[관리] 새 제보 승인 대기"로 이미 받았고 직접 승인까지 해,
+     * 승인 뒤 "새 제보" 알림이 한 번 더 오면 중복이다(10-05 제보). 관리자 알림을 끈 관리자는 일반 사용자처럼 받는다.
      * 조회 후 갱신이 아니라 조건부 UPDATE 한 번이라, 승인이 동시에 두 건 들어와도 같은 유저를 두 번 고르지 않는다
      * (두 번째 UPDATE는 행 잠금을 기다린 뒤 조건을 다시 보고 건너뛴다). 선점한 유저는 last_sent_at = now로 찾는다.
      */
@@ -25,6 +27,8 @@ public interface UserNotificationSettingRepository extends JpaRepository<UserNot
               AND s.newReportsScope = :scope
               AND s.userId <> :authorId
               AND (s.newReportLastSentAt IS NULL OR s.newReportLastSentAt < :cutoff)
+              AND (s.adminAlertsEnabled = false OR s.userId NOT IN (
+                    SELECT u.id FROM User u WHERE u.role = com.hongmap.hongmapbackend.user.UserRole.ADMIN))
             """)
     int claimNewReportRecipients(
             @Param("scope") NewReportScope scope,

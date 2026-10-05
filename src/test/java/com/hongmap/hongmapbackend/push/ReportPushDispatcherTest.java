@@ -197,6 +197,28 @@ class ReportPushDispatcherTest {
     }
 
     @Test
+    void 관리자_알림을_켠_관리자는_새_제보_알림을_다시_받지_않는다() {
+        User author = user();
+        // 관리자 알림 켜짐(기본) — 등록 때 '승인 대기'로 이미 받았으니 승인 뒤 '새 제보'는 빠진다.
+        User admin = user();
+        String adminToken = device(admin, TokenType.EXPO, true);
+        optInNewReports(admin);
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE id = ?", admin.getId());
+        // 관리자 알림을 끈 관리자는 일반 사용자처럼 받는다.
+        User quietAdmin = user();
+        String quietToken = device(quietAdmin, TokenType.EXPO, true);
+        optInNewReports(quietAdmin);
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE id = ?", quietAdmin.getId());
+        jdbcTemplate.update("UPDATE user_notification_settings SET admin_alerts_enabled = false WHERE user_id = ?",
+                quietAdmin.getId());
+
+        dispatcher.dispatch(event(author, ReportStatus.PENDING, ReportStatus.ACTIVE, null));
+
+        assertThat(newReportsTo(adminToken)).isZero();
+        assertThat(newReportsTo(quietToken)).isEqualTo(1);
+    }
+
+    @Test
     void 새_제보_알림은_유저당_빈도_제한이_있다() {
         User author = user();
         User optedIn = user();
