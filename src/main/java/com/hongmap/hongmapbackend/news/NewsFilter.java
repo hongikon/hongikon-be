@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.news;
 
+import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -13,6 +14,7 @@ import java.util.List;
  * @param departmentId 학과 id 일치
  * @param buildingId   건물 id 일치
  * @param sourceIds    수집 게시판 id(news.source_id) 중 하나와 일치(IN). 프론트 구독 필터링용 — 예: ["학사", "장학"]
+ *                     자체 게시판이 없는 별칭(예: 데이터사이언스전공)은 상위 게시판 id로 바꿔 찾는다(CrawlerBoards.SOURCE_ALIASES).
  * @param keyword      제목 부분 일치(LIKE %keyword%). %, _ 는 와일드카드가 아닌 글자 그대로 찾는다.
  */
 public record NewsFilter(
@@ -26,11 +28,10 @@ public record NewsFilter(
     private static final char LIKE_ESCAPE = '!';
 
     public NewsFilter {
-        sourceIds = sourceIds == null ? List.of() : sourceIds.stream()
+        sourceIds = sourceIds == null ? List.of() : CrawlerBoards.resolveStoredSourceIds(sourceIds.stream()
                 .filter(id -> id != null && !id.isBlank())
                 .map(String::trim)
-                .distinct()
-                .toList();
+                .toList());
         keyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
     }
 
