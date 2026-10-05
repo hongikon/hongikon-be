@@ -286,7 +286,10 @@ class ReportCommentIntegrationTest {
                 .andExpect(jsonPath("$.comments[0].id").value(keep))
                 .andExpect(jsonPath("$.comments[1].status").value("HIDDEN"))
                 .andExpect(jsonPath("$.comments[1].authorId").value(commenter.getId()))
-                .andExpect(jsonPath("$.comments[1].authorNickname").value("김철수"))
+                // 로그인 닉네임 원문(김철수)은 싣지 않는다 — 앱에 보이는 이름(가린 이름)과 회원 번호만.
+                .andExpect(jsonPath("$.comments[1].authorNickname").value("김**"))
+                .andExpect(jsonPath("$.comments[1].authorDisplayName").value("김**"))
+                .andExpect(jsonPath("$.comments[1].authorMemberCode").value(commenter.getMemberCode()))
                 .andExpect(jsonPath("$.comments[1].flagCount").value(1))
                 .andExpect(jsonPath("$.comments[1].flagReasons.INAPPROPRIATE").value(1));
 
