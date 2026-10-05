@@ -518,3 +518,19 @@
 
 ## 2026-10-02 — PR #13 UGC 관리 (`feat/ugc-moderation`, base main)
 - 10-02 버그 점검 반영: main 병합(#11 앱 닉네임 필요). 관리자 회원 조회(`GET /admin/users?q=`)가 로그인 닉네임만 찾아 앱에 보이는 이름(앱 닉네임)으로는 못 찾던 문제 — 둘 다 찾고 응답에 `displayName` 추가(테스트 추가). 테스트 186개 통과
+## 2026-10-02 — 내 제보 내역 (`feat/my-reports`, base main)
+- 왜: 작성자가 승인·반려 푸시를 놓치면 자기 제보가 어떻게 됐는지(특히 지도에 안 뜨는 반려·숨김) 확인할 곳이 없었음
+- 변경
+  - **`GET /users/me/reports?page=&size=`**(로그인 필수): 본인 제보만 최신 등록순(`created_at DESC, id DESC`), `PageResponse` 형식(size 기본 20·최대 50). 관리자가 지운 `DELETED` 도 포함(행 자체를 지운 건 당연히 없음)
+    - 필드: id, title, category, customCategoryLabel, buildingId, buildingName, floor, lat, lng, startsAt, endsAt, status, **displayStatus**, moderationNote, reviewedAt, createdAt, imageUrl, imageUrls(presigned GET)
+    - `displayStatus` = 저장 상태 + 시간: PENDING / SCHEDULED(승인·시작 전) / ACTIVE(지도에 표시 중) / ENDED(기간 지남 — 승인 대기 중 끝난 것 포함) / REJECTED / HIDDEN / DELETED
+    - `moderationNote` 는 REJECTED·HIDDEN 일 때만(ACTIVE·DELETED 의 관리자 메모는 내보내지 않음). 작성자 이름·신고자 정보 없음
+  - **`GET /users/me/reports/count`** → `{ total, pending }` (설정 화면 배지용)
+  - 삭제는 기존 `DELETE /reports/{id}` 그대로(본인 것만, 아니면 403, 상태 무관 hard delete + S3 사진 삭제)
+  - 다른 PR(제보 일정 `feat/report-schedule`·#14)이 고치는 `ReportRepository`·`ReportService`·`ReportController` 를 건드리지 않으려고 `MyReportRepository`·`MyReportService`·`MyReportController` 를 새로 둠
+- SQL·환경변수: 없음
+- 테스트: `MyReportIntegrationTest` +5(본인 것만·최신순·상태별 displayStatus·사유 노출 범위, 페이지·상한 50, 개수, 비로그인 401, 남의 제보 삭제 403)
+- 프론트: `feat/my-reports` — 설정 > 계정 "내 제보 내역"(승인 대기 배지), 반려 알림을 누르면 내역으로
+
+- **10-02 추가 (#16)**: 신고 누적 등으로 숨겨진(HIDDEN) 제보는 작성자가 `DELETE /reports/{id}` 로 지울 수 없음(409 "신고로 검토 중인 제보는 운영진 검토가 끝난 뒤에 지울 수 있어요."). 검토 전에 지우면 신고 기록까지 사라져 제재 근거가 남지 않기 때문(약관 제8·10조, App Store 1.2). 반려·재공개 뒤에는 지울 수 있음. 테스트 1개 추가.
+- 10-02 버그 점검 반영: 숨김(HIDDEN) 삭제 잠금을 "마지막 검토 뒤 들어온 신고가 있을 때"로 좁힘 — 운영진이 검토해 숨긴 제보는 작성자가 지울 수 있음(전엔 영영 409). 삭제 시 신고도 명시적으로 지움. 테스트 +1, 177개 통과
