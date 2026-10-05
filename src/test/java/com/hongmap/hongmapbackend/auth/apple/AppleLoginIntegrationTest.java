@@ -100,7 +100,7 @@ class AppleLoginIntegrationTest {
         String accessToken = JsonPath.read(json, "$.accessToken");
         assertThat(jwtTokenProvider.getUserId(accessToken)).isEqualTo(user.getId());
         assertThat(jwtTokenProvider.isAccessToken(accessToken)).isTrue();
-        assertThat(refreshTokenRepository.findByUser_Id(user.getId())).isPresent();
+        assertThat(refreshTokenRepository.countByUser_Id(user.getId())).isEqualTo(1L);
         assertThat(JsonPath.<java.util.Map<String, Object>>read(json, "$")).containsOnlyKeys("accessToken", "refreshToken");
     }
 

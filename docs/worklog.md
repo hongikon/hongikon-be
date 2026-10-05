@@ -631,3 +631,32 @@
   - FE: 관리 탭 회원 카드에 `priorHistory` 표시, `ADMIN_MEMBER_REJOINED`·`ACCOUNT_SUSPENDED`·`ACCOUNT_UNSUSPENDED` 알림 라우팅, `/users/me` 정지 배너
   - 한계: 정지 해제(`unsuspend`)가 `suspended_at`을 비우므로 "정지됐다가 해제된 뒤 탈퇴"한 회원은 정지 이력으로 잡히지 않음(관리자 삭제 제보가 있으면 그쪽으로 잡힘). 필요하면 정지 이력 별도 컬럼 검토
   - 재가입 감지는 가입 시 1회만(기록 연결은 가입 트랜잭션 안). 키 미설정(JWT_SECRET도 없음) 환경에선 기록·감지 모두 꺼짐(WARN 로그)
+
+## 2026-10-04 — 다중 로그인 세션 + refresh 재발급 유예 (`fix/multi-session-refresh`, base main 00f26d1)
+- 왜: "로그인이 만료됐어요"로 반복 로그아웃 제보. access 30분·refresh 14일 설정은 정상이고, 원인은 `refresh_tokens`가 **유저당 1 row**(`uq_refresh_token_user`)라 로그인·재발급마다 그 한 줄을 덮어쓴 것
+  1. 다른 기기·앱+웹·관리자 웹 콘솔에서 로그인하면 기존 세션의 refresh 해시가 바뀜 → 그쪽 다음 재발급 401 → 로그아웃
+  2. **웹 여러 탭**: 탭들이 localStorage 의 같은 refresh 토큰을 공유하는데 프론트 single-flight 는 탭(JS 컨텍스트) 안에서만 동작 → 두 탭이 동시에 재발급하면 먼저 온 쪽이 로테이션, 나중 쪽 401 → 웹 클라이언트가 공유 저장소를 비워 **다른 탭까지 로그아웃**
+  3. 모바일에서 재발급은 서버에서 성공했는데 응답이 유실 → 앱은 옛 토큰으로 재시도 → 401 → 로그아웃
+  - 덤: refresh 토큰에 `jti`가 없어 같은 유저·같은 초에 만든 토큰은 바이트까지 같았음
+- 변경
+  - 세션(로그인 1번으로 시작되는 토큰 사슬)당 1 row. 로그인은 새 row 추가(기존 세션 유지). 유저당 상한 `jwt.max-sessions-per-user`(기본 10) — 넘으면 가장 오래 안 쓴(`updated_at`) 세션부터 삭제, 로그인 때 그 유저의 만료 세션도 정리
+  - 재발급: row 를 `SELECT ... FOR UPDATE`로 잠그고 찾음
+    - 현재 해시 → 로테이션(바뀌기 전 해시를 `previous_token_hash`, `rotated_at=now`)
+    - 직전 해시 + `rotated_at`부터 `jwt.refresh-reuse-grace-seconds`(기본 60초) 안 → 동시 재발급/응답 유실 재시도로 보고 **새 세션 row 를 하나 더 만들어**(fork) 새 토큰 쌍 발급. 같은 row 를 다시 로테이션하면 먼저 받은 쪽 토큰이 previous 로 밀려 유예가 끝난 뒤(다음 재발급은 보통 30분 뒤) 401 이 되므로, 사슬을 갈라 두 쪽 모두 자기 토큰으로 계속 재발급 가능. 안 쓰인 사슬은 만료·정기 정리·상한으로 사라짐
+    - 직전 해시인데 유예 지남 → 401 + 경고 로그(세션은 지우지 않음 — 탈취 의심 시 세션 전체 폐기 방식은 늦게 재시도한 정상 기기 하나 때문에 같은 세션의 다른 쪽까지 로그아웃시켜 이번 수정 목적과 어긋남. 로테이션으로 옛 토큰은 유예 뒤 어차피 못 씀)
+    - 동시 요청 두 번째는 첫 번째 커밋까지 행 잠금에서 기다렸다가 previous 로 찾음 → 둘 다 200
+  - 로그아웃(`/auth/logout`): 그 토큰의 세션 row 만 삭제(현재 해시, 없으면 직전 해시). 다른 기기 로그인 유지. 탈퇴는 기존대로 `deleteByUser_Id`로 전부 삭제
+  - access·refresh 토큰에 `jti`(UUID) 추가. 검증은 jti 를 보지 않아 **배포 전 발급된 토큰도 만료 전까지 그대로 유효**(로그인 유지)
+  - `RefreshTokenCleanup` — 만료된 세션 row 매일 04:40 삭제(`@Scheduled`, 테스트는 `-`로 끔)
+  - Swagger 설명(재발급 유예·로그아웃 범위) 갱신
+- SQL: **`db/alter_refresh_tokens_multi_session.sql` — 배포 전에 실행**(ddl-auto=validate 라 컬럼이 없으면 새 서버가 안 뜸). 재실행 안전(information_schema 확인 후 조건부 DDL)
+  1. `idx_refresh_token_user(user_id)` 추가 → 2. `uq_refresh_token_user` 삭제(FK 때문에 1 먼저) → 3·4. `previous_token_hash varchar(64) NULL`, `rotated_at datetime NULL` → 5. `uq_refresh_token_hash(token_hash)` → 6. `idx_refresh_token_prev_hash` → 7. 확인 SELECT
+  - 옛 서버는 새 컬럼(NULL 허용)을 몰라도 그대로 동작하므로 SQL 먼저 실행해도 안전. 기존 row 는 token_hash 가 지금 쓰는 토큰이라 배포 후 첫 재발급에서 정상 로테이션 → **배포로 로그아웃되는 사용자 없음**
+  - 로컬 MySQL 로 기존 데이터 있는 상태 실행·재실행·같은 유저 2번째 row INSERT·되돌리기 SQL(파일 끝 주석) 확인
+- 환경변수(모두 선택): `JWT_REFRESH_REUSE_GRACE_SECONDS`(기본 60, 0=유예 없음), `JWT_MAX_SESSIONS_PER_USER`(기본 10), `JWT_REFRESH_CLEANUP_CRON`(기본 `0 40 4 * * *`)
+- 테스트: +9 → 231개 통과(main 기준 222). `RefreshTokenSessionIntegrationTest` — 두 기기 로그인 둘 다 재발급 / 로그아웃은 그 세션만 / 유예 안 재사용 → 두 쪽 모두 유예 뒤에도 재발급 / 실제 동시 2요청 둘 다 200 / 유예 지난 직전 토큰 401·현재 토큰 유지 / 세션 상한 10 / 탈퇴 시 전부 삭제 / jti 없는 옛 토큰+옛 row 재발급 / 만료 세션 정리. `AppleLoginIntegrationTest`는 `findByUser_Id`(삭제) 대신 `countByUser_Id`
+- 남은 일
+  - 프론트(웹): 탭 간 single-flight(`navigator.locks` 또는 BroadcastChannel)와 "401 받았는데 저장소 토큰이 그사이 바뀌었으면 비우지 말고 새 토큰으로 재시도" — 서버 유예로 대부분 막히지만 60초 넘게 멈춘 탭은 여전히 401
+  - 모바일 응답 유실 후 60초 넘게 지나 재시도하면 여전히 401(앱이 백그라운드로 간 경우 등). 운영에서 401 경고 로그(`유예가 지난 직전 refresh 토큰 재사용`) 빈도를 보고 유예를 늘릴지 결정
+  - "다른 기기 모두 로그아웃"·세션 목록 API는 없음(필요하면 후속)
+- 리스크: 유예 안에서는 탈취된 직전 토큰으로도 새 세션을 받을 수 있음(60초 창, 해시 저장·HTTPS 전제). 동시 재발급이 MySQL 데드락으로 끝나면 한쪽이 401 이 아닌 500 — 이론상 가능, 드묾. 세션당 row 가 늘어 테이블이 커지지만 상한 10·만료 정리로 유저당 최대 10행

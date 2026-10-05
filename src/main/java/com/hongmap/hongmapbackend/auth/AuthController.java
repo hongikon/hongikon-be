@@ -52,14 +52,16 @@ public class AuthController {
     }
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
-    @Operation(summary = "토큰 재발급", description = "refresh 토큰을 검증한 뒤 새 access/refresh 토큰을 발급합니다(refresh 토큰은 재발급마다 로테이션됩니다).")
+    @Operation(summary = "토큰 재발급", description = "refresh 토큰을 검증한 뒤 새 access/refresh 토큰을 발급합니다(refresh 토큰은 재발급마다 로테이션됩니다). "
+            + "직전 토큰을 60초 안에 다시 보내면(동시 재발급·응답 유실 재시도) 401 대신 새 토큰을 줍니다.")
     @PostMapping("/reissue")
     public TokenResponse reissue(@Valid @RequestBody RefreshTokenRequest request) {
         return refreshTokenService.reissue(request.refreshToken());
     }
 
     @Tag(name = SwaggerConfig.TAG_AUTH_MYPAGE)
-    @Operation(summary = "로그아웃", description = "전달받은 refresh 토큰을 서버에서 무효화합니다. 이미 만료/무효한 토큰이어도 성공으로 응답합니다.")
+    @Operation(summary = "로그아웃", description = "전달받은 refresh 토큰의 세션(이 기기·브라우저)만 서버에서 무효화합니다. "
+            + "같은 계정의 다른 기기 로그인은 유지됩니다. 이미 만료/무효한 토큰이어도 성공으로 응답합니다.")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         refreshTokenService.revoke(request.refreshToken());
