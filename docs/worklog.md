@@ -895,3 +895,11 @@
 - **DB 변경**: `db/alter_reports_content_2000.sql`(길이만 늘림, 재실행 안전). 실행 전에도 서버는 뜨지만 500자 넘는 본문 저장이 실패한다.
 - 테스트: `AppNicknameIntegrationTest.liveReportListIncludesContentUpTo2000Chars`(2000자 저장·목록 노출, 2001자 400).
 
+
+### 이미지 업로드 (chore/image-publish)
+
+- GitHub Actions `publish-image.yml`: `dev`·`main` push 마다 `./gradlew build -x test` → `docker build` → `ghcr.io/<owner>/hongikon-be` 에 올린다(로그인 `GITHUB_TOKEN`, 배포는 안 함).
+  태그 `sha-<7자리>` + 브랜치 이름(`dev`/`main`), `latest` 는 `main` 만. 같은 브랜치 이전 실행은 취소.
+- jar 에 로컬 전용 `application-local.properties` 가 들어 있으면 올리지 않고 실패하게 막았다(`.gitignore` 대상이라 CI 체크아웃에는 없음 — 실수로 커밋될 때 대비).
+- 추적되는 `src/main/resources`(`application.properties`·`application-prod.properties`·금칙어 목록) 점검: 비밀값 없음. 비밀은 전부 `${ENV}` 로만 받고, 기본값은 공개 도메인·외부 API 주소·`localhost` 뿐.
+- `docs/ci-cd.md` 3절(업로드·태그 규칙) 추가.
