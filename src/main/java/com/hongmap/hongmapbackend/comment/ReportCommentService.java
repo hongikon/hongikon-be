@@ -345,7 +345,11 @@ public class ReportCommentService {
         boolean notify = target != ReportCommentStatus.VISIBLE && previous != ReportCommentStatus.DELETED
                 && (target != previous || autoHiddenPending);
         if (notify) {
-            String trimmed = reason == null || reason.isBlank() ? null : reason.strip();
+            // 관리자는 사유를 비워 두는 일이 많다 — 비었으면 이 댓글에 가장 많이 들어온 신고 사유를 쓴다(신고 없이 직접 숨겼거나
+            // '기타'뿐이면 null → 알림은 "운영 정책 위반").
+            String trimmed = reason == null || reason.isBlank()
+                    ? topFlagReasonLabel(flagReasons(List.of(comment)).get(commentId))
+                    : reason.strip();
             eventPublisher.publishEvent(new ReportCommentModeratedEvent(commentId, comment.getReport().getId(),
                     comment.getUser().getId(), comment.getReport().getTitle(), target, trimmed, false));
         }
@@ -414,6 +418,30 @@ public class ReportCommentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다.");
         }
         return comment;
+    }
+
+    /** 신고 사유 코드 → 작성자 알림에 쓰는 문구. ETC 는 뜻이 없어 넣지 않는다. */
+    static final Map<String, String> FLAG_REASON_LABELS = Map.of(
+            "FALSE_INFO", "허위 정보",
+            "SPAM", "스팸·광고",
+            "INAPPROPRIATE", "욕설·비하 등 부적절한 내용",
+            "PRIVACY", "개인정보 노출");
+
+    /** 가장 많이 들어온 신고 사유의 문구(같으면 FLAG_REASONS 순서가 앞선 것). 없거나 ETC 뿐이면 null. */
+    static String topFlagReasonLabel(Map<String, Long> counts) {
+        if (counts == null || counts.isEmpty()) {
+            return null;
+        }
+        String best = null;
+        long bestCount = 0;
+        for (String code : FLAG_REASONS) {
+            long count = counts.getOrDefault(code, 0L);
+            if (FLAG_REASON_LABELS.containsKey(code) && count > bestCount) {
+                best = code;
+                bestCount = count;
+            }
+        }
+        return best == null ? null : FLAG_REASON_LABELS.get(best);
     }
 
     private Map<Long, Map<String, Long>> flagReasons(List<ReportComment> comments) {
