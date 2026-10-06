@@ -21,6 +21,8 @@ public record MyReportResponse(
         String title,
         String category,
         String customCategoryLabel,
+        /** 장소 설명(작성자가 고칠 수 있는 "제4공학관(T동) 근처" 등). 없으면 null — 앱이 좌표로 가까운 건물을 보여 준다 */
+        String placeLabel,
         Long buildingId,
         String buildingName,
         Integer floor,
@@ -47,6 +49,7 @@ public record MyReportResponse(
                 .title(report.getTitle())
                 .category(report.getCategory().name())
                 .customCategoryLabel(report.getCustomCategoryLabel())
+                .placeLabel(report.getPlaceLabel())
                 .buildingId(report.getBuilding().getId())
                 .buildingName(report.getBuilding().getName())
                 .floor(report.getFloor())
