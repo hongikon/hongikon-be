@@ -783,3 +783,26 @@
 - identity token aud 로 웹 Services ID 도 허용(`AppleProperties.allClientIds`). 웹 로그인의 authorization code 교환에는 redirect_uri 를 함께 보낸다
   (안 보내면 교환이 실패해 탈퇴 때 Apple 토큰을 폐기할 수 없다 — 5.1.1(v)). 앱 교환은 그대로.
 - Apple Developer 에서 Services ID(com.hongikon.web)를 만들고 Sign in with Apple 켜기·Primary App ID com.hongikon.app·도메인 hongikon.com·Return URL 등록이 필요하다. DB 변경 없음.
+
+## 2026-10-06 — 댓글 신고 검토 보강 (`feat/comment-moderation`, base main `0b7746f`)
+
+- 관리자 알림 `AdminAlertType.COMMENT_FLAGGED`(data.type `ADMIN_COMMENT_FLAGGED`, `reportId`·`commentId`): 마지막 검토 뒤 첫 신고, 신고 누적 자동 숨김 때
+  발행(ReportCommentService 의 TODO 해소). 기존 `AdminAlertThrottle` 로 종류별 120초 묶음("신고된 댓글 N건 검토 필요").
+  본문은 제보 제목만 — 댓글 내용·신고자·사유는 싣지 않는다. `AdminAlertEvent` 에 `commentId`·`autoHidden` 을 더하고 기존 6인자 생성자는 남겼다.
+- `GET /admin/comments?filter=flagged`: 검토 뒤 신고가 있는 공개·자동 숨김 댓글(작성자가 지운 것 제외), 최근 신고 순 200건. 항목은 관리자 댓글 응답 필드
+  (표시 이름·회원 번호만) + `reportTitle`·`reportStatus`·`pendingFlagCount`·`lastFlaggedAt`. 쿼리 4번(목록·수·사유별·검토 뒤 신고), N+1 없음.
+  `GET /admin/overview` 에 `comments.flaggedPending` 추가.
+- 검토 완료(유지): 별도 API 없이 기존 `PATCH /admin/comments/{id}` 에 `status=VISIBLE`(이미 공개 중) — 원래도 `reviewedAt` 을 남기므로 그 전 신고는
+  자동 숨김·목록에서 빠진다. 문서화와 테스트만 더했다.
+- 작성자 알림(이용약관 제10조): 관리자 숨김·삭제, 자동 숨김이 커밋된 뒤 `ReportCommentModeratedEvent` → `CommentModerationPushDispatcher`(@Async, AFTER_COMMIT)가
+  "댓글이 운영 정책에 따라 숨겨졌어요/삭제됐어요" + 사유(관리자 `reason`, 없으면 "운영 정책 위반"; 자동 숨김은 "운영진 확인 전까지") + 14일 이의 제기 안내.
+  data.type `COMMENT_MODERATED`(`reportId`·`commentId`·`status`). 제보 결과 알림과 같은 `report_status_enabled` 설정을 따른다(끄면 안 감).
+  자동 숨김된 댓글을 관리자가 숨김으로 확정하면 사유와 함께 한 번 더 알린다. 작성자가 스스로 지운 댓글·같은 상태 재지정·복원은 알리지 않는다.
+  PATCH 에 `reason`(선택, 200자) 추가 — DB 에 남기지 않고 로그에도 "있음/없음"만 남긴다(개인정보).
+- 신고 빈도 제한: `CommentFlagLimiter`(SlidingWindowRateLimiter, 10분 10번, `report.comment.flag-rate-per-10-minutes`) → 429
+  "신고를 너무 자주 하고 있어요. 잠시 뒤에 다시 시도해 주세요." 검증을 다 통과한 신고만 센다(잘못된 사유·중복 409 는 안 깎음). 서버 메모리 기준.
+- `CommentResponse.flaggedByMe`: 목록·답글 페이지마다 쿼리 1번(`findFlaggedCommentIds`)으로 붙인다. 자리 표시·게스트는 false.
+- 신고 API 가 제보 공개 여부를 확인한다(`requireVisibleReport` — 비공개 제보 댓글은 404). 잘못된 사유 400 메시지에 받은 값을 되비추지 않는다.
+- 테스트: `CommentModerationIntegrationTest`(신규 7개), `AdminAlertDispatcherTest` 2개 추가. 전체 479개 통과.
+- DB 변경 없음(새 컬럼·테이블 없음, 기존 `reviewed_at`·`report_comment_flags.created_at` 사용) — 배포 전 SQL 없음.
+
