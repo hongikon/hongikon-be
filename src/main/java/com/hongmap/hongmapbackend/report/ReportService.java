@@ -167,6 +167,7 @@ public class ReportService {
                 .lng(lng)
                 .category(category)
                 .customCategoryLabel(category == ReportCategory.ETC ? request.customCategoryLabel() : null)
+                .placeLabel(request.placeLabel() == null || request.placeLabel().isBlank() ? null : request.placeLabel().strip())
                 .title(request.title())
                 .content(request.content())
                 .startsAt(request.startsAt())

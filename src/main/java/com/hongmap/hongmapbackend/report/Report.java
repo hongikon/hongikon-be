@@ -79,6 +79,13 @@ public class Report {
     @Column(name = "custom_category_label", length = 50)
     private String customCategoryLabel;
 
+    /**
+     * 장소 설명(최대 60자). 앱이 지도 핀 근처 건물로 "제4공학관(T동) 근처"처럼 채워 주고, 작성자가 "T동 1층 로비 앞"처럼 고칠 수 있다.
+     * 없으면(예전 앱) 앱이 좌표로 가까운 건물을 찾아 보여 준다. db/alter_reports_add_place_label.sql
+     */
+    @Column(name = "place_label", length = 60)
+    private String placeLabel;
+
     @Column(name = "title", nullable = false, length = 100)
     private String title;
 

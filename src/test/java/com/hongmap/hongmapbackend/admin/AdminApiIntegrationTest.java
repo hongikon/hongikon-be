@@ -351,7 +351,7 @@ class AdminApiIntegrationTest {
         String body = """
                 {"buildingId": %d, "floor": 1, "lat": 37.55, "lng": 126.925, "category": "ETC",
                  "customCategoryLabel": "플리마켓", "title": "학관 앞 플리마켓", "content": "3시까지",
-                 "startsAt": "%s", "endsAt": "%s"}
+                 "placeLabel": "  학관 1층 로비 앞  ", "startsAt": "%s", "endsAt": "%s"}
                 """.formatted(building.getId(),
                 // 시작은 "지금"(서버는 10분 전까지 받는다). 예전엔 고정 날짜였는데 예정 제보 검증이 생겨 지난 시각은 400 이다.
                 java.time.Instant.now().minusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.MILLIS).toString(),
@@ -360,6 +360,12 @@ class AdminApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
-                .andExpect(jsonPath("$.customCategoryLabel").value("플리마켓"));
+                .andExpect(jsonPath("$.customCategoryLabel").value("플리마켓"))
+                // 장소 설명은 앞뒤 공백을 지워 저장한다. 60자를 넘기면 400.
+                .andExpect(jsonPath("$.placeLabel").value("학관 1층 로비 앞"));
+        mockMvc.perform(post("/reports").header("Authorization", bearer(normal))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("  학관 1층 로비 앞  ", "가".repeat(61))))
+                .andExpect(status().isBadRequest());
     }
 }
