@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -44,8 +45,10 @@ import java.util.regex.Pattern;
  *       user_notification_settings.report_status_enabled = false인 유저만 빼고 보낸다(행이 없으면 켜짐).</li>
  *   <li>REPORT_NEW — 제보가 처음 지도에 올라갈 때(PENDING·REJECTED → ACTIVE) 새 제보 알림을 켠 다른 유저에게.
  *       숨김 해제(HIDDEN → ACTIVE)는 "새" 제보가 아니라 보내지 않는다. 기본 꺼짐이라 행이 있고 켠 유저만 받는다.
- *       유저마다 push.report-new-throttle-minutes(기본 30분)에 한 번까지 — new_report_last_sent_at으로 제한한다.
- *       범위가 KEYWORDS 인 유저는 이 일반 알림을 받지 않는다.</li>
+ *       유저마다 push.report-new-throttle-minutes(기본 30분)에 한 번까지 — new_report_last_sent_at으로 제한하고,
+ *       방해 금지 시간(push.report-new-quiet-start ~ quiet-end, KST 기본 23~8시)에는 보내지 않는다.
+ *       그렇게 못 받은 제보는 버리지 않고 NewReportDigestScheduler 가 빈도 제한·방해 금지가 풀린 뒤 "새 제보 N건"으로 모아 보낸다.
+ *       범위가 KEYWORDS 인 유저는 이 일반 알림(다이제스트 포함)을 받지 않는다.</li>
  *   <li>REPORT_NEW(제보 키워드) — 위 일반 알림보다 먼저, 새 제보 알림을 켠 유저(범위 무관) 중 제보 키워드
  *       (report_keyword_subscriptions)가 제목·본문·장소 설명·직접 입력 분류·건물명에 들어간(대소문자·공백 무시) 유저에게
  *       빈도 제한 없이 "[간식] 새 제보 · 홍문관 1층" 으로 보낸다. 보낸 유저는 report_keyword_push_log 에 남겨 같은 제보로
@@ -79,6 +82,7 @@ public class ReportPushDispatcher {
     private final ReportKeywordPushLogRepository reportKeywordPushLogRepository;
     private final ExpoPushSender expoPushSender;
     private final PushProperties properties;
+    private final Clock clock;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -95,7 +99,7 @@ public class ReportPushDispatcher {
         if (!properties.isEnabled() || event.status() == event.previousStatus()) {
             return 0;
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         boolean approved = event.status() == ReportStatus.ACTIVE;
         if (approved && event.endsAt() != null && event.endsAt().isBefore(now)) {
             log.debug("이미 끝난 제보라 승인 푸시 생략: reportId={}", event.reportId());
@@ -116,7 +120,8 @@ public class ReportPushDispatcher {
 
     /**
      * 시작 전에 승인된 제보가 시작 시각이 되어 지도에 뜰 때 — 미뤄 둔 캠퍼스 새 제보 알림을 보낸다.
-     * 유저당 빈도 제한(new_report_last_sent_at)이 같이 걸려, 스케줄러가 같은 제보를 다시 집어도 30분 안엔 중복되지 않는다.
+     * 스케줄러가 reports.published_at 을 먼저 채운(선점한) 제보만 여기로 보내 같은 제보로 두 번 오지 않는다.
+     * 빈도 제한·방해 금지 시간도 같이 걸리고, 그래서 못 받은 유저에게는 다이제스트가 나중에 보낸다.
      */
     public int dispatchStarted(ReportModeratedEvent event) {
         if (!properties.isEnabled()) {
@@ -157,7 +162,7 @@ public class ReportPushDispatcher {
 
     /** 제보 키워드 알림(빈도 제한 없음)을 먼저, 그다음 범위 CAMPUS 유저의 일반 새 제보 알림을 보낸다. */
     private int sendNewReport(ReportModeratedEvent event) {
-        LocalDateTime keywordSentAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        LocalDateTime keywordSentAt = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
         int accepted = sendKeywordMatches(event, keywordSentAt);
         return accepted + sendCampusNewReport(event, keywordSentAt);
     }
@@ -209,9 +214,14 @@ public class ReportPushDispatcher {
     private int sendCampusNewReport(ReportModeratedEvent event, LocalDateTime keywordSentAt) {
         // DB(datetime(6))에 저장되는 값과 정확히 같아야 선점한 행을 다시 찾을 수 있어 마이크로초로 자른다.
         // 키워드 알림 유저에게 찍은 시각과 겹치면 그 유저까지 대상 기기로 읽히므로 반드시 다른 값을 쓴다.
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
         if (!now.isAfter(keywordSentAt)) {
             now = keywordSentAt.plus(1, ChronoUnit.MICROS);
+        }
+        // 방해 금지 시간(KST 23~8시 기본)에는 일반 알림을 보내지 않는다 — 끝난 뒤 다이제스트(NewReportDigestScheduler)가 모아 보낸다.
+        if (properties.isReportNewQuietTime(now)) {
+            log.debug("방해 금지 시간이라 새 제보 일반 푸시 생략: reportId={}", event.reportId());
+            return 0;
         }
         LocalDateTime cutoff = now.minusMinutes(properties.getReportNewThrottleMinutes());
         int claimed = settingRepository.claimNewReportRecipients(
@@ -220,7 +230,7 @@ public class ReportPushDispatcher {
             return 0;
         }
 
-        String title = "새 제보 · " + place(event);
+        String title = newReportTitle(place(event));
         Map<String, Object> data = Map.of("type", DATA_TYPE_REPORT_NEW, "reportId", event.reportId());
         List<ExpoPushMessage> messages = new ArrayList<>();
         for (String token : expoTokens(userDeviceRepository.findNewReportTargets(TokenType.EXPO, now))) {
@@ -284,6 +294,11 @@ public class ReportPushDispatcher {
             }
         }
         return tokens;
+    }
+
+    /** 일반 새 제보 알림 제목 "새 제보 · 홍문관 1층" — 다이제스트의 1건짜리도 같은 형식. */
+    static String newReportTitle(String place) {
+        return "새 제보 · " + place;
     }
 
     /** "제2공학관 3층" / "B1층" 형태. 건물명·층이 둘 다 없으면 "캠퍼스". */

@@ -918,3 +918,29 @@
   `ReportKeywordPushTest` 9개(공백·대소문자·본문·장소·분류·건물명 매칭, "외 N", KEYWORDS 범위 일반 알림 제외, 빈도 제한 우회, 재실행 중복 없음, 작성자·정지·알림 끈 유저 제외),
   `UserWithdrawIntegrationTest` 에 새 테이블 추가. 전체 512개 통과.
 - **DB 변경**: 배포 전에 `db/create_report_keyword_subscriptions.sql` 실행(`report_keyword_subscriptions` + `report_keyword_push_log`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다.
+
+## 2026-10-06 — 새 제보 알림 모아 보내기 (feat/new-report-digest)
+
+- 캠퍼스(범위 `CAMPUS`) 새 제보 일반 알림의 30분 빈도 제한이 그 사이 제보를 **버리던** 것을 다이제스트로 바꿨다. 이제 놓치는 제보 없이 나중에 모아서 온다.
+- 즉시 알림(`ReportPushDispatcher` — 승인 즉시 공개·예정 제보 시작 두 경로 그대로):
+  - 빈도 제한이 풀렸고(마지막 발송 30분 이상 전·없음) 방해 금지 시간이 아닌 유저 → 지금처럼 `"새 제보 · 홍문관 1층"` / 본문 = 제보 제목.
+  - 빈도 제한 중이거나 방해 금지 시간(KST 23~8시 기본) → 지금은 안 보내고 다이제스트로 넘긴다.
+  - 제보 키워드 알림은 빈도 제한·방해 금지 시간과 무관하게 바로 간다(기존과 같음, `new_report_last_sent_at` 도 갱신).
+- 다이제스트(`NewReportDigestScheduler`, 5분마다, 방해 금지 시간엔 쉼 → 08:00 첫 회차에 밤사이 제보를 모아 보냄):
+  - 대상: 새 제보 알림 켬·범위 CAMPUS·빈도 제한 풀림·활성 기기 있음(관리자 알림을 켠 관리자 제외 — 일반 알림과 같은 기준). KEYWORDS 범위는 받지 않는다.
+  - 유저별 구간 = (max(마지막 새 제보 알림 시각, 지금 − 12시간), 지금 − 1분]. 받은 적 없으면 마지막 설정 변경 시각부터.
+    캠퍼스 새 제보 알림을 새로 켜면(꺼짐·KEYWORDS → 켬·CAMPUS) 마지막 발송 시각을 비워 꺼져 있던 동안의 제보가 몰려오지 않게 했다.
+  - 담는 제보: 그 구간에 새 제보로 공개됐고 지금도 지도에 떠 있는(ACTIVE, 끝나지 않음) 제보 중 내 제보·키워드 알림으로 이미 받은 제보(`report_keyword_push_log`) 제외. 숨김·반려·삭제는 빠진다.
+  - 1건: `"새 제보 · 홍문관 1층"` / `"붕어빵 트럭"`. 여러 건: `"새 제보 3건"` / `"커피 트럭 외 2건"`(대표 제목 40자 넘으면 말줄임). data `{type: "REPORT_NEW", reportId: 가장 최근 제보}` — 앱 탭 처리 변경 없음.
+  - 조건부 UPDATE 로 유저를 선점(`new_report_last_sent_at`)하고 보낸다 — 서버 여러 대·즉시 알림과 겹쳐도, 재실행해도 두 번 안 간다(ShedLock 없음, 기존 선점 패턴).
+    선점 시각을 지금 − 1분으로 찍어 커밋 직전 승인된 제보를 구간만 지나쳐 버리는 일을 막는다.
+  - 쿼리: 후보 유저 1 + 후보 제보 1 + 키워드 발송 기록 1 → 자바에서 유저별 계산 → 선점·선점 확인·기기 조회(500명 단위). 로그에는 건수만.
+- "공개 시각" 기준으로 `reports.published_at` 을 새로 둔다. `reviewed_at` 은 숨김 해제·재승인 때마다 바뀌어(→ 이미 받은 제보가 "새" 제보로 다시 묶임) 쓸 수 없었다.
+  - 승인 대기 → 승인 때 이미 시작한 제보면 승인 시각(`AdminReportService.moderate`), 예정 제보는 시작 알림을 보내는 순간(`ReportStartPushScheduler`).
+  - 예정 제보 스케줄러는 `published_at` 을 비어 있을 때만 채운(조건부 UPDATE) 쪽만 보낸다 — 재시작 lookback·서버 여러 대에서도 같은 제보 시작 알림이 한 번만.
+- 설정(`application.properties`): `push.report-new-quiet-start`(기본 23)·`push.report-new-quiet-end`(기본 8) — KST 시, 시작=끝이면 방해 금지 끔.
+  `push.report-new-digest-cron`(기본 `0 */5 * * * *`). 기존 `push.report-new-throttle-minutes`(30) 그대로. 테스트 프로필은 방해 금지 끔·다이제스트 정기 실행 끔.
+- `java.time.Clock` 빈(`ClockConfig`, UTC) 추가 — 디스패처·다이제스트가 쓰고 테스트가 바꿔 끼운다.
+- 테스트: `NewReportDigestTest` 10개(빈도 제한 중 제보가 다이제스트로 모두 도착·재실행 중복 없음, 1건/3건 형식·말줄임, 방해 금지 중 즉시·다이제스트 없음 → 8시 회차에 모아 보냄·키워드는 바로,
+  방해 금지 설정값, 키워드로 받은 제보 제외, 끝난·숨긴·내 제보·공개 전 제보 제외와 KEYWORDS·알림 끈 유저 제외, 승인 시 published_at·숨김 해제 불변, 예정 제보 published_at 선점 1회, 알림 새로 켜면 마지막 발송 시각 비움). 전체 522개 통과.
+- **DB 변경**: 배포 전에 `db/alter_reports_add_published_at.sql` 실행(`reports.published_at datetime(6) NULL` + 인덱스 `(status, published_at)`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다. 기존 행은 NULL(백필 불필요).

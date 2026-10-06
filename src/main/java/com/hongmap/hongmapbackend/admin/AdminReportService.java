@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
@@ -108,7 +109,14 @@ public class AdminReportService {
                 || (previous == ReportStatus.REJECTED && (target == ReportStatus.ACTIVE || target == ReportStatus.HIDDEN))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REOPEN_BLOCKED_MESSAGE);
         }
-        report.moderate(target, note, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        report.moderate(target, note, now);
+        // 승인 대기 → 승인이 "새 제보" 공개다(반려 → 승인은 위에서 막힘, 숨김 해제·재승인은 새 제보가 아님). 이미 시작한 제보면
+        // 지금 공개된 것으로 남긴다 — 새 제보 알림 다이제스트(NewReportDigestScheduler)의 기준. 예정 제보는 시작 알림 때 남긴다.
+        if (previous == ReportStatus.PENDING && target == ReportStatus.ACTIVE
+                && (report.getStartsAt() == null || !report.getStartsAt().isAfter(now))) {
+            report.markPublished(now);
+        }
         // 승인·반려 푸시(ReportPushDispatcher)는 커밋 뒤 비동기로 나간다 — 이 응답을 늦추지 않고, 롤백되면 보내지 않는다.
         eventPublisher.publishEvent(new ReportModeratedEvent(
                 report.getId(), report.getUser().getId(), report.getTitle(),

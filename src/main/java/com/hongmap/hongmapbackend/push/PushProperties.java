@@ -4,12 +4,18 @@ import lombok.Getter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+
 /**
  * application.properties의 push.* 값 바인딩.
  */
 @Getter
 @ConfigurationProperties(prefix = "push")
 public class PushProperties {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     /** false면 새 소식 푸시를 아예 보내지 않는다(대상 조회도 안 함). */
     private final boolean enabled;
@@ -42,9 +48,19 @@ public class PushProperties {
      */
     private final int adminAlertWindowSeconds;
 
+    /**
+     * 캠퍼스 새 제보 알림(즉시·다이제스트) 방해 금지 시간 — KST 시(0~23), 시작 시 이상 ~ 끝 시 미만. 시작 &gt; 끝이면 자정을 넘긴다
+     * (기본 23~8시). 시작 = 끝이면 방해 금지 끔. 이 사이에 뜬 제보는 끝난 뒤 첫 다이제스트 회차에 모아 보낸다.
+     * 제보 키워드 알림은 이 시간과 빈도 제한을 받지 않는다.
+     */
+    private final int reportNewQuietStart;
+
+    private final int reportNewQuietEnd;
+
     public PushProperties(boolean enabled, String expoUrl, String expoAccessToken, int connectTimeoutMs, int readTimeoutMs,
                           int newsMaxAgeDays, @DefaultValue("30") int reportNewThrottleMinutes,
-                          @DefaultValue("120") int adminAlertWindowSeconds) {
+                          @DefaultValue("120") int adminAlertWindowSeconds,
+                          @DefaultValue("23") int reportNewQuietStart, @DefaultValue("8") int reportNewQuietEnd) {
         this.enabled = enabled;
         this.expoUrl = expoUrl;
         this.expoAccessToken = expoAccessToken;
@@ -53,5 +69,18 @@ public class PushProperties {
         this.newsMaxAgeDays = newsMaxAgeDays;
         this.reportNewThrottleMinutes = reportNewThrottleMinutes;
         this.adminAlertWindowSeconds = adminAlertWindowSeconds;
+        this.reportNewQuietStart = reportNewQuietStart;
+        this.reportNewQuietEnd = reportNewQuietEnd;
+    }
+
+    /** utcNow(서버 기준 UTC)가 새 제보 알림 방해 금지 시간(KST)인지. */
+    public boolean isReportNewQuietTime(LocalDateTime utcNow) {
+        if (reportNewQuietStart == reportNewQuietEnd) {
+            return false;
+        }
+        int hour = utcNow.atOffset(ZoneOffset.UTC).atZoneSameInstant(KST).getHour();
+        return reportNewQuietStart < reportNewQuietEnd
+                ? hour >= reportNewQuietStart && hour < reportNewQuietEnd
+                : hour >= reportNewQuietStart || hour < reportNewQuietEnd;
     }
 }

@@ -7,6 +7,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 
 public interface UserNotificationSettingRepository extends JpaRepository<UserNotificationSetting, Long> {
 
@@ -48,7 +50,55 @@ public interface UserNotificationSettingRepository extends JpaRepository<UserNot
     @Transactional
     @Modifying(clearAutomatically = true)
     @Query("UPDATE UserNotificationSetting s SET s.newReportLastSentAt = :sentAt WHERE s.userId IN :userIds")
-    int markNewReportSent(@Param("userIds") java.util.Collection<Long> userIds, @Param("sentAt") LocalDateTime sentAt);
+    int markNewReportSent(@Param("userIds") Collection<Long> userIds, @Param("sentAt") LocalDateTime sentAt);
+
+    /**
+     * 새 제보 다이제스트 후보 유저(NewReportDigestScheduler) — 일반 새 제보 알림 대상과 같은 기준(새 제보 알림 켬, 범위 일치,
+     * 관리자 알림을 켠 관리자 제외)에 빈도 제한이 풀렸고(cutoff 이전·없음) 활성 기기가 있는 유저. 유저별 다이제스트 구간 계산용
+     * 마지막 발송 시각·설정 변경 시각을 같이 읽는다.
+     */
+    @Query("""
+            SELECT new com.hongmap.hongmapbackend.notification.NewReportDigestRecipient(
+                s.userId, s.newReportLastSentAt, s.updatedAt)
+            FROM UserNotificationSetting s
+            WHERE s.newReportsEnabled = true
+              AND s.newReportsScope = :scope
+              AND (s.newReportLastSentAt IS NULL OR s.newReportLastSentAt < :cutoff)
+              AND (s.adminAlertsEnabled = false OR s.userId NOT IN (
+                    SELECT u.id FROM User u WHERE u.role = com.hongmap.hongmapbackend.user.UserRole.ADMIN))
+              AND s.userId IN (
+                    SELECT d.user.id FROM UserDevice d WHERE d.active = true AND d.tokenType = :tokenType)
+            ORDER BY s.userId ASC
+            """)
+    List<NewReportDigestRecipient> findDigestRecipients(
+            @Param("scope") NewReportScope scope,
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("tokenType") com.hongmap.hongmapbackend.user.TokenType tokenType
+    );
+
+    /**
+     * 다이제스트를 보낼 유저를 선점한다 — claimNewReportRecipients 와 같은 조건부 UPDATE(아직 빈도 제한이 풀려 있고 범위가 맞을 때만
+     * now 로). 서버 여러 대·즉시 알림과 동시에 돌아도 같은 유저를 두 번 고르지 않는다. 선점한 유저는 last_sent_at = now 로 찾는다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            UPDATE UserNotificationSetting s
+            SET s.newReportLastSentAt = :now
+            WHERE s.userId IN :userIds
+              AND s.newReportsEnabled = true
+              AND s.newReportsScope = :scope
+              AND (s.newReportLastSentAt IS NULL OR s.newReportLastSentAt < :cutoff)
+            """)
+    int claimDigestRecipients(
+            @Param("userIds") Collection<Long> userIds,
+            @Param("scope") NewReportScope scope,
+            @Param("now") LocalDateTime now,
+            @Param("cutoff") LocalDateTime cutoff
+    );
+
+    @Query("SELECT s.userId FROM UserNotificationSetting s WHERE s.userId IN :userIds AND s.newReportLastSentAt = :claimedAt")
+    List<Long> findUserIdsClaimedAt(@Param("userIds") Collection<Long> userIds, @Param("claimedAt") LocalDateTime claimedAt);
 
     void deleteByUserId(Long userId);
 }

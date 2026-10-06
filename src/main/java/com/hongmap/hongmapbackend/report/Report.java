@@ -124,6 +124,15 @@ public class Report {
     private LocalDateTime reviewedAt;
 
     /**
+     * "새 제보"로 처음 지도에 뜬 시각(UTC) — 승인(PENDING → ACTIVE) 때 이미 시작했으면 승인 시각, 예정 제보면 시작 알림을 보낸 시각.
+     * 새 제보 알림 다이제스트(NewReportDigestScheduler)가 이 값으로 "마지막 알림 뒤 새로 뜬 제보"를 고른다.
+     * reviewed_at 과 달리 숨김 해제·재승인으로 바뀌지 않는다. null 이면 아직 새 제보로 공개되지 않았다(또는 이 컬럼 전 제보).
+     * db/alter_reports_add_published_at.sql
+     */
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
+    /**
      * 승인 대기(PENDING) 리마인드 푸시(AdminReportReminder)에 이 제보가 들어간 횟수. 최대 2(30분·2시간 기준).
      * 스케줄러가 조건부 UPDATE로 올려 선점하므로 서버가 여러 대이거나 재시작해도 같은 단계를 두 번 보내지 않는다.
      */
@@ -163,6 +172,13 @@ public class Report {
         List<String> removed = getImageKeys();
         images.clear();
         return removed;
+    }
+
+    /** 새 제보로 처음 공개된 시각을 남긴다. 이미 있으면 그대로 둔다(숨김 해제·재승인은 "새" 제보가 아니다). */
+    public void markPublished(LocalDateTime publishedAt) {
+        if (this.publishedAt == null) {
+            this.publishedAt = publishedAt;
+        }
     }
 
     /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */
