@@ -799,3 +799,7 @@
 
 - `GET /admin/overview` 의 `reports.upcoming`: 승인(ACTIVE)했고 아직 시작 전인 예정 제보 수. DB 변경 없음.
 
+
+## 2026-10-06 — 브랜치 전략 `main` ← `dev` ← 작업 브랜치
+
+- `dev` 브랜치를 만들었다(origin/main 기준). 앞으로 작업 PR 은 base `dev`, 릴리스는 `dev → main`. 규칙은 `docs/branching.md`.
