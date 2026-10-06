@@ -18,6 +18,7 @@ import java.util.List;
  * @param replyCount  최상위 댓글에만: 공개 답글 수. 답글 항목에서는 0
  * @param likeCount   👍 수(자리 표시는 0)
  * @param likedByMe   요청한 사람이 👍를 눌렀는지(비로그인이면 false)
+ * @param flaggedByMe 요청한 사람이 이 댓글을 신고했는지(비로그인·자리 표시면 false). 앱이 다시 열어도 "신고함"을 유지하게
  */
 public record CommentResponse(
         Long id,
@@ -34,14 +35,15 @@ public record CommentResponse(
         List<CommentResponse> replies,
         long replyCount,
         long likeCount,
-        boolean likedByMe
+        boolean likedByMe,
+        boolean flaggedByMe
 ) {
     public static CommentResponse of(ReportComment comment, Long requesterId, String authorKey,
                                      List<CommentResponse> replies, long replyCount) {
         if (comment.getStatus() != ReportCommentStatus.VISIBLE) {
             // 자리 표시: 내용·작성자를 싣지 않는다.
             return new CommentResponse(comment.getId(), comment.getReport().getId(), comment.getParentId(), null,
-                    comment.getStatus().name(), null, false, null, false, comment.getCreatedAt(), replies, replyCount, 0, false);
+                    comment.getStatus().name(), null, false, null, false, comment.getCreatedAt(), replies, replyCount, 0, false, false);
         }
         Long authorId = comment.getUser().getId();
         return new CommentResponse(
@@ -58,13 +60,16 @@ public record CommentResponse(
                 replies,
                 replyCount,
                 0,
+                false,
                 false);
     }
 
-    /** 같은 내용에 👍 값과 답글 목록을 바꾼 사본. 자리 표시는 늘 0·false. */
-    public CommentResponse withLikes(long likeCount, boolean likedByMe, List<CommentResponse> replies) {
+    /** 같은 내용에 👍 값·내 신고 여부와 답글 목록을 바꾼 사본. 자리 표시는 늘 0·false. */
+    public CommentResponse withViewerState(long likeCount, boolean likedByMe, boolean flaggedByMe,
+                                           List<CommentResponse> replies) {
         boolean placeholderRow = placeholder != null;
         return new CommentResponse(id, reportId, parentId, content, placeholder, authorDisplayName, authorOfficial, authorKey, isMine,
-                createdAt, replies, replyCount, placeholderRow ? 0 : likeCount, !placeholderRow && likedByMe);
+                createdAt, replies, replyCount, placeholderRow ? 0 : likeCount, !placeholderRow && likedByMe,
+                !placeholderRow && flaggedByMe);
     }
 }

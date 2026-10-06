@@ -254,6 +254,51 @@ class AdminAlertDispatcherTest {
     }
 
     @Test
+    void 댓글_신고는_검토_뒤_첫_신고와_자동_숨김에만_알리고_내용과_신고자는_싣지_않는다() throws Exception {
+        User admin = admin();
+        device(admin, TokenType.EXPO, true);
+        User commenter = user();
+        Report report = activeReport(user());
+        Long commentId = reportCommentId(report, commenter, "010-1234-5678 로 연락 주세요");
+
+        User firstFlagger = user();
+        flagComment(report, commentId, firstFlagger);
+        awaitMine(m -> true);
+        assertThat(mine()).singleElement().satisfies(m -> {
+            assertThat(m.title()).isEqualTo("[관리] 신고된 댓글 검토 필요");
+            assertThat(m.body()).isEqualTo("'붕어빵 트럭' 제보의 댓글");
+            assertThat(m.toString()).doesNotContain("010-1234-5678").doesNotContain("SPAM");
+            assertThat(m.data()).isEqualTo(Map.of("type", "ADMIN_COMMENT_FLAGGED", "reportId", report.getId(),
+                    "commentId", commentId, "count", 1));
+        });
+
+        // 2번째 신고는 알리지 않고, 3번째(자동 숨김)는 묶음 간격 뒤 "자동 숨김"으로 알린다.
+        flagComment(report, commentId, user());
+        Thread.sleep(1100);
+        flagComment(report, commentId, user());
+        awaitMine(m -> m.title().contains("자동 숨김"));
+        Thread.sleep(1200);
+        assertThat(mine()).hasSize(2);
+        assertThat(mine().get(1).title()).isEqualTo("[관리] 신고 누적으로 댓글 자동 숨김");
+        assertThat(mine().get(1).data()).containsEntry("commentId", commentId);
+    }
+
+    @Test
+    void 댓글_신고가_몰리면_N건으로_묶는다() {
+        User admin = admin();
+        device(admin, TokenType.EXPO, true);
+        dispatcher.offer(AdminAlertEvent.commentFlagged(1L, 11L, 900L, "첫 제보", false));
+        dispatcher.offer(AdminAlertEvent.commentFlagged(2L, 12L, 901L, "둘째 제보", true));
+        dispatcher.offer(AdminAlertEvent.commentFlagged(3L, 13L, 902L, "셋째 제보", false));
+        AdminAlertThrottle.Batch batch = new AdminAlertThrottle.Batch(
+                com.hongmap.hongmapbackend.admin.AdminAlertType.COMMENT_FLAGGED, 2,
+                AdminAlertEvent.commentFlagged(3L, 13L, 902L, "셋째 제보", false), null);
+        assertThat(AdminAlertDispatcher.title(batch)).isEqualTo("[관리] 신고된 댓글 2건 검토 필요");
+        assertThat(AdminAlertDispatcher.body(batch)).isEqualTo("최근: '셋째 제보' 제보의 댓글");
+        assertThat(mine()).hasSize(1);
+    }
+
+    @Test
     void 설정_API로_관리자_알림을_끄고_켤_수_있다() throws Exception {
         User admin = admin();
         device(admin, TokenType.EXPO, true);
@@ -279,6 +324,19 @@ class AdminAlertDispatcherTest {
     }
 
     // ---------- 픽스처 ----------
+
+    private Long reportCommentId(Report report, User author, String content) {
+        jdbcTemplate.update("INSERT INTO report_comments (report_id, user_id, content, status, created_at) VALUES (?, ?, ?, 'VISIBLE', ?)",
+                report.getId(), author.getId(), content, java.sql.Timestamp.valueOf(LocalDateTime.now()));
+        return jdbcTemplate.queryForObject("SELECT MAX(id) FROM report_comments WHERE report_id = ?", Long.class, report.getId());
+    }
+
+    private void flagComment(Report report, Long commentId, User flagger) throws Exception {
+        mockMvc.perform(post("/reports/" + report.getId() + "/comments/" + commentId + "/flags")
+                        .header("Authorization", bearer(flagger))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"SPAM\"}"))
+                .andExpect(status().isCreated());
+    }
 
     private List<ExpoPushMessage> mine() {
         synchronized (sent) {

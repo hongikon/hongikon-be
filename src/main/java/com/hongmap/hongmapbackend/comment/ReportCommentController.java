@@ -33,7 +33,7 @@ public class ReportCommentController {
     private final ReportCommentService commentService;
 
     @Operation(summary = "제보 댓글 목록", description = "지도에 공개된 제보의 최상위 댓글 페이지(기본 오래된 순, order=latest 면 최신 순, order=popular 면 👍 많은 순). "
-            + "항목마다 공개 답글 앞쪽 3개(replies)와 답글 수(replyCount), 👍 수(likeCount)·내 👍(likedByMe). 지워졌지만 답글이 남은 댓글은 placeholder=DELETED 자리로 온다. "
+            + "항목마다 공개 답글 앞쪽 3개(replies)와 답글 수(replyCount), 👍 수(likeCount)·내 👍(likedByMe)·내 신고(flaggedByMe). 지워졌지만 답글이 남은 댓글은 placeholder=DELETED 자리로 온다. "
             + "page 0부터, size 기본 20·최대 50. commentCount 가 답글 포함 공개 댓글 수. 공개되지 않은 제보는 404.")
     @GetMapping("/reports/{reportId}/comments")
     public CommentListResponse list(@AuthenticationPrincipal Long userId,
@@ -74,7 +74,7 @@ public class ReportCommentController {
     }
 
     @Operation(summary = "댓글 신고", description = "reason: FALSE_INFO / SPAM / INAPPROPRIATE / PRIVACY / ETC. 같은 댓글 중복 신고 409, "
-            + "내 댓글 400. 신고가 3개 쌓이면 자동으로 숨겨진다(hidden=true).")
+            + "내 댓글 400, 공개되지 않은 제보·댓글 404, 10분에 10번 넘으면 429. 신고가 3개 쌓이면 자동으로 숨겨진다(hidden=true).")
     @PostMapping("/reports/{reportId}/comments/{commentId}/flags")
     public ResponseEntity<CommentFlagResponse> flag(@AuthenticationPrincipal Long userId,
                                                     @PathVariable Long reportId,

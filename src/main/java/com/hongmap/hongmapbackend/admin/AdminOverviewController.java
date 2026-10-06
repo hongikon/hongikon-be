@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.admin;
 
 import com.hongmap.hongmapbackend.admin.dto.AdminOverviewResponse;
+import com.hongmap.hongmapbackend.comment.ReportCommentRepository;
 import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
 import com.hongmap.hongmapbackend.crawler.CrawlerRunTracker;
 import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
@@ -27,10 +28,11 @@ public class AdminOverviewController {
     private final Optional<BuildProperties> buildProperties;
     private final ReportRepository reportRepository;
     private final FeedbackRepository feedbackRepository;
+    private final ReportCommentRepository commentRepository;
     private final CrawlerRunTracker crawlerRunTracker;
     private final EntityManager entityManager;
 
-    @Operation(summary = "관리자 대시보드 요약", description = "서버 빌드, 제보·문의 대기 건수, 소식 학과 매칭 현황, 마지막 크롤링 결과")
+    @Operation(summary = "관리자 대시보드 요약", description = "서버 빌드, 제보·문의 대기 건수, 검토할 신고된 댓글 수, 소식 학과 매칭 현황, 마지막 크롤링 결과")
     @GetMapping("/admin/overview")
     @Transactional(readOnly = true)
     public AdminOverviewResponse overview() {
@@ -59,6 +61,7 @@ public class AdminOverviewController {
                 reports,
                 new AdminOverviewResponse.Feedback(feedbackRepository.countByStatus(FeedbackStatus.OPEN)),
                 new AdminOverviewResponse.News(newsTotal, newsMissingDepartment),
-                AdminOverviewResponse.Crawler.of(crawlerRunTracker.snapshot()));
+                AdminOverviewResponse.Crawler.of(crawlerRunTracker.snapshot()),
+                new AdminOverviewResponse.Comments(commentRepository.countFlaggedPending()));
     }
 }

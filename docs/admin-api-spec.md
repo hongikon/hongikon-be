@@ -48,9 +48,11 @@
     "lastSavedCount": 12,
     "lastError": null,
     "lastTrigger": "SCHEDULED"
-  }
+  },
+  "comments": { "flaggedPending": 2 }
 }
 ```
+`comments.flaggedPending`(2026-10-06~): 마지막 관리자 검토 뒤 신고가 들어온 공개·자동 숨김 댓글 수. 이전 서버는 필드가 없다.
 `crawler.*` 는 서버 메모리에만 있어 재시작 후 첫 실행 전까지 `null` 이다. `lastTrigger`: `SCHEDULED` / `MANUAL`.
 
 ## 제보 검토
@@ -91,6 +93,38 @@
 - 허용 목표 상태: `ACTIVE`(승인·재공개), `REJECTED`(반려), `HIDDEN`(숨김), `DELETED`(삭제)
 - 응답: 변경된 제보(위 목록 항목과 같은 형태)
 - `ACTIVE` 로 되돌려도 기존 신고 기록은 남는다. 관리자가 한 번 검토(`reviewedAt` 있음)한 제보는 신고가 더 쌓여도 자동 숨김되지 않는다(관리자 판단 우선).
+
+## 댓글 검토
+
+상태: `VISIBLE`(공개) · `HIDDEN`(신고 누적 자동 숨김 또는 관리자 숨김) · `DELETED`(작성자·관리자 삭제)
+
+`GET /admin/reports/{reportId}/comments` — 그 제보의 댓글 전체(숨김·삭제 포함, 오래된 순).
+
+`GET /admin/comments?filter=flagged`(2026-10-06~) — 검토할 신고된 댓글. 마지막 관리자 검토(`reviewedAt`) 뒤 신고가 1건 이상인
+공개·자동 숨김 댓글(작성자가 지운 댓글 제외), 마지막 신고가 최근인 순 최대 200건. `total` 은 전체 검토 대기 수.
+```json
+{
+  "comments": [{
+    "id": 103, "reportId": 25, "parentId": null, "content": "...", "status": "HIDDEN",
+    "authorId": 21, "authorNickname": "박**", "authorDisplayName": "박**", "authorMemberCode": "Z8N4KD0P3S",
+    "flagCount": 3, "flagReasons": { "SPAM": 2, "PRIVACY": 1 },
+    "createdAt": "...", "reviewedAt": null,
+    "reportTitle": "학생회관 3층 줄", "reportStatus": "ACTIVE",
+    "pendingFlagCount": 3, "lastFlaggedAt": "..."
+  }],
+  "total": 1
+}
+```
+작성자는 앱에 보이는 이름·회원 번호로만(로그인 닉네임 원문 없음). 신고자는 싣지 않는다(사유별 수만).
+
+`PATCH /admin/comments/{commentId}` — `{ "status": "VISIBLE" | "HIDDEN" | "DELETED", "reason": "선택, 200자" }`
+- 늘 `reviewedAt` 을 지금으로 남겨 그 전 신고는 자동 숨김·신고된 댓글 목록에서 더 세지 않는다. 그래서 공개 중인 댓글에 `VISIBLE` = **검토 완료(유지)**.
+- `HIDDEN`·`DELETED` 로 바뀌면(자동 숨김된 댓글을 숨김으로 확정할 때도) 작성자에게 푸시(`COMMENT_MODERATED`)로 사유(`reason`, 없으면 "운영 정책 위반")와
+  14일 이의 제기 안내를 보낸다(이용약관 제10조). 작성자가 "내 제보 결과 알림"을 껐으면 보내지 않는다. 작성자가 스스로 지운 댓글은 알리지 않는다.
+- `reason` 은 DB 에 남지 않고 알림에만 쓰인다. 작성자에게 그대로 보이므로 신고자·개인정보를 적지 않는다.
+
+관리자 푸시 `ADMIN_COMMENT_FLAGGED`(data: `reportId`, `commentId`, `count`): 검토 뒤 첫 신고와 신고 누적 자동 숨김 때. 종류별 묶음(기본 120초).
+본문에는 제보 제목만 — 댓글 내용·신고자·사유는 싣지 않는다.
 
 ## 문의(피드백)
 

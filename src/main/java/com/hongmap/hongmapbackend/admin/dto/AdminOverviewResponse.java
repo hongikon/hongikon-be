@@ -11,7 +11,8 @@ public record AdminOverviewResponse(
         Reports reports,
         Feedback feedback,
         News news,
-        Crawler crawler
+        Crawler crawler,
+        Comments comments
 ) {
     public record Server(String version, String buildTime) {
     }
@@ -24,6 +25,10 @@ public record AdminOverviewResponse(
     }
 
     public record News(long total, long missingDepartment) {
+    }
+
+    /** flaggedPending: 마지막 검토 뒤 신고가 들어온 공개·자동 숨김 댓글 수(GET /admin/comments?filter=flagged 의 total). */
+    public record Comments(long flaggedPending) {
     }
 
     /** lastRequestCount 이하 4개는 크롤링 최적화(2026-10)로 추가 — 학교 서버 요청 수·소요 시간·실패/건너뛴 게시판(출처명). */
