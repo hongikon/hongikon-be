@@ -879,3 +879,10 @@
   로컬 MySQL 26.7 에서 alter 두 번 실행(재실행 안전) → `ddl-auto=validate` 기동·`/map/data` 200/304 확인(로컬 사본 DB, 확인 후 삭제).
 - **DB 변경**: 배포 전에 `db/alter_map_data_v1.sql` 을 실행한 다음 `db/sync_map_data_2026_10_06.sql` 을 실행(이 순서대로). alter 없이 배포하면 validate 로 서버가 뜨지 않는다.
 - 관리자 제휴업체 삭제는 `confirmName`(업체 이름, 앞뒤 공백만 무시)이 정확히 맞아야 한다. 다르거나 없으면 400. 앱도 이름을 다시 입력받는다.
+
+### CI 구성 (chore/ci-setup)
+
+- GitHub Actions `ci.yml`: `dev`·`main` PR/push 에서 Java 17(temurin) + Gradle 캐시로 `./gradlew build`(테스트 포함), 실패 시 테스트 리포트 아티팩트.
+  테스트는 전부 `test` 프로필(H2 인메모리)이라 DB 서비스 컨테이너·Secrets 없이 돈다.
+- 루트 `Dockerfile`(서버에서 쓰던 정의 그대로)·`.dockerignore`(실행 jar 만), 배포 스크립트 초안 `scripts/deploy.sh`(교체·`/reports` 헬스체크·롤백, 자동 실행 미연결).
+- 사용법·다음 단계(레지스트리, SSM 배포, 마이그레이션 도구)는 `docs/ci-cd.md`.
