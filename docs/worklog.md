@@ -944,3 +944,8 @@
 - 테스트: `NewReportDigestTest` 10개(빈도 제한 중 제보가 다이제스트로 모두 도착·재실행 중복 없음, 1건/3건 형식·말줄임, 방해 금지 중 즉시·다이제스트 없음 → 8시 회차에 모아 보냄·키워드는 바로,
   방해 금지 설정값, 키워드로 받은 제보 제외, 끝난·숨긴·내 제보·공개 전 제보 제외와 KEYWORDS·알림 끈 유저 제외, 승인 시 published_at·숨김 해제 불변, 예정 제보 published_at 선점 1회, 알림 새로 켜면 마지막 발송 시각 비움). 전체 522개 통과.
 - **DB 변경**: 배포 전에 `db/alter_reports_add_published_at.sql` 실행(`reports.published_at datetime(6) NULL` + 인덱스 `(status, published_at)`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다. 기존 행은 NULL(백필 불필요).
+
+## 2026-10-06 — 현대미술관 10월 전시 등록용 SQL
+
+- `db/content/seed_homa_exhibitions_2026_10.sql`: HoMA 2026 전시 일정표(공식 PDF) 기준 10월 전시 7건을 지도 제보(ETC, 배지 "전시")로 넣는다. 관리자 계정 작성, 재실행 안전, 이미 시작한 전시는 알림 없음. 계획표 기준이라 본문에 변경 가능하다고 적었다.
+- 운영 DB 에는 다른 배포 SQL 을 모두 실행한 뒤 이 파일을 실행한다(되돌리기 SQL 은 파일 끝 주석).
