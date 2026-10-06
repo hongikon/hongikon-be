@@ -784,6 +784,7 @@
   (안 보내면 교환이 실패해 탈퇴 때 Apple 토큰을 폐기할 수 없다 — 5.1.1(v)). 앱 교환은 그대로.
 - Apple Developer 에서 Services ID(com.hongikon.web)를 만들고 Sign in with Apple 켜기·Primary App ID com.hongikon.app·도메인 hongikon.com·Return URL 등록이 필요하다. DB 변경 없음.
 
+
 ## 2026-10-05 — 공식 계정(학생회 등) 인증 (`feat/official-accounts`)
 
 - `users.official_name`(30자, 유니크) — 운영진이 문의로 신청받아 확인한 뒤 붙이는 공식 이름. 있으면 앱 닉네임 대신 보이고 공개 응답에
@@ -794,3 +795,7 @@
 - 문의 참고 사진(공식 계정 신청 확인 자료 등): `POST /feedback` 에 `imageKeys`(최대 3장, 로그인 필요 — 게스트 401). 제보 사진과 같은
   업로드·검사·메타데이터 제거(ReportImageService). 관리자 문의 응답에 `imageUrls`. 처리 완료(RESOLVED)·작성자 탈퇴 때 사진 삭제.
   **DB 변경**: `db/alter_feedback_add_image_keys.sql`.
+## 2026-10-06 — 대시보드 '노출 예정' 수 (`feat/overview-upcoming`)
+
+- `GET /admin/overview` 의 `reports.upcoming`: 승인(ACTIVE)했고 아직 시작 전인 예정 제보 수. DB 변경 없음.
+

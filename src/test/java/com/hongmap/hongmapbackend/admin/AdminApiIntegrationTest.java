@@ -133,6 +133,7 @@ class AdminApiIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         // 이 클래스는 테스트마다 DB 를 비우지 않아 다른 테스트의 제보가 남는다 — 전후 차이로 본다.
         long before = reportRepository.countLive(ReportStatus.ACTIVE, now);
+        long upcomingBefore = reportRepository.countByStatusAndStartsAtAfter(ReportStatus.ACTIVE, now);
         Report live = pendingReport();
         live.moderate(ReportStatus.ACTIVE, null, now);
         reportRepository.save(live);
@@ -157,7 +158,8 @@ class AdminApiIntegrationTest {
 
         mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reports.active").value((int) before + 1));
+                .andExpect(jsonPath("$.reports.active").value((int) before + 1))
+                .andExpect(jsonPath("$.reports.upcoming").value((int) upcomingBefore + 1));
 
         // 이 클래스는 DB 를 비우지 않는다 — 진행 중 제보가 남으면 "지도 목록이 비어 있다"고 보는 다른 테스트가 깨진다.
         reportRepository.deleteAll(List.of(live, ended, upcoming));

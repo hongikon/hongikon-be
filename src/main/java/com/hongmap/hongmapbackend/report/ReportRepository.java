@@ -161,4 +161,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             WHERE r.status = :status AND :now BETWEEN r.startsAt AND r.endsAt
             """)
     long countLive(@Param("status") ReportStatus status, @Param("now") LocalDateTime now);
+
+    /** 아직 시작 전인 제보 수 — 관리자 대시보드 '노출 예정'. */
+    long countByStatusAndStartsAtAfter(ReportStatus status, LocalDateTime now);
 }
