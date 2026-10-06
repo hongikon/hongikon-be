@@ -293,6 +293,23 @@ class MapDataIntegrationTest {
     }
 
     @Test
+    void 제휴업체_삭제는_업체_이름을_정확히_넣어야_한다() throws Exception {
+        String auth = bearer(admin);
+        mockMvc.perform(delete("/admin/map/partners/" + partnerCode).header("Authorization", auth))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(delete("/admin/map/partners/" + partnerCode).header("Authorization", auth)
+                        .param("confirmName", "테스트 카페"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", auth))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')]").isNotEmpty());
+        mockMvc.perform(delete("/admin/map/partners/" + partnerCode).header("Authorization", auth)
+                        .param("confirmName", "  테스트카페 "))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", auth))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')]").isEmpty());
+    }
+
+    @Test
     void id를_비우면_코드를_만들고_중복_id는_409() throws Exception {
         String auth = bearer(admin);
         mockMvc.perform(post("/admin/map/partners").header("Authorization", auth)

@@ -79,9 +79,13 @@ public class AdminMapService {
     }
 
     @Transactional
-    public void deletePartner(String code) {
+    public void deletePartner(String code, String confirmName) {
         Partner partner = partnerRepository.findWithAffiliationsByCode(code)
                 .orElseThrow(() -> notFound("존재하지 않는 제휴업체예요."));
+        // 관리자 화면이 업체 이름을 다시 입력받는다. 서버도 확인해 다른 클라이언트·실수 호출로 지워지지 않게 한다.
+        if (confirmName == null || !confirmName.trim().equals(partner.getName().trim())) {
+            throw badRequest("업체 이름이 일치하지 않아요.");
+        }
         partnerRepository.delete(partner);
         mapDataService.invalidateAfterCommit();
     }

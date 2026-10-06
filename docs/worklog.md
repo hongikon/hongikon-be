@@ -878,3 +878,4 @@
 - 테스트: `MapDataIntegrationTest` 7개(모양·version 계산·304·CORS ETag 노출·캐시 무효화·401/403·400 검증·코드 생성/409·소속 교체). 전체 491개 통과.
   로컬 MySQL 26.7 에서 alter 두 번 실행(재실행 안전) → `ddl-auto=validate` 기동·`/map/data` 200/304 확인(로컬 사본 DB, 확인 후 삭제).
 - **DB 변경**: 배포 전에 `db/alter_map_data_v1.sql` 을 실행한 다음 `db/sync_map_data_2026_10_06.sql` 을 실행(이 순서대로). alter 없이 배포하면 validate 로 서버가 뜨지 않는다.
+- 관리자 제휴업체 삭제는 `confirmName`(업체 이름, 앞뒤 공백만 무시)이 정확히 맞아야 한다. 다르거나 없으면 400. 앱도 이름을 다시 입력받는다.

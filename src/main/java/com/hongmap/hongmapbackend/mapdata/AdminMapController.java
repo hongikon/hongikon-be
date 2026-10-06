@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -62,10 +63,12 @@ public class AdminMapController {
         return saved;
     }
 
-    @Operation(summary = "지도 제휴업체 삭제")
+    @Operation(summary = "지도 제휴업체 삭제",
+            description = "실수 삭제 방지: confirmName 에 업체 이름을 정확히 넣어야 한다(앞뒤 공백만 무시). 다르면 400.")
     @DeleteMapping("/partners/{code}")
-    public ResponseEntity<Void> deletePartner(@AuthenticationPrincipal Long adminId, @PathVariable String code) {
-        adminMapService.deletePartner(code);
+    public ResponseEntity<Void> deletePartner(@AuthenticationPrincipal Long adminId, @PathVariable String code,
+                                              @RequestParam(required = false) String confirmName) {
+        adminMapService.deletePartner(code, confirmName);
         log.info("지도 제휴업체 삭제: adminId={}, code={}", adminId, code);
         return ResponseEntity.noContent().build();
     }
