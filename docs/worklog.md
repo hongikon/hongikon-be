@@ -783,3 +783,7 @@
 - identity token aud 로 웹 Services ID 도 허용(`AppleProperties.allClientIds`). 웹 로그인의 authorization code 교환에는 redirect_uri 를 함께 보낸다
   (안 보내면 교환이 실패해 탈퇴 때 Apple 토큰을 폐기할 수 없다 — 5.1.1(v)). 앱 교환은 그대로.
 - Apple Developer 에서 Services ID(com.hongikon.web)를 만들고 Sign in with Apple 켜기·Primary App ID com.hongikon.app·도메인 hongikon.com·Return URL 등록이 필요하다. DB 변경 없음.
+
+## 2026-10-06 — 대시보드 '노출 예정' 수 (`feat/overview-upcoming`)
+
+- `GET /admin/overview` 의 `reports.upcoming`: 승인(ACTIVE)했고 아직 시작 전인 예정 제보 수. DB 변경 없음.

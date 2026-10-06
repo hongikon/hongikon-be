@@ -16,7 +16,8 @@ public record AdminOverviewResponse(
     public record Server(String version, String buildTime) {
     }
 
-    public record Reports(long pending, long active, long hidden, long rejected) {
+    /** upcoming: 승인했지만 아직 시작 전(예정) — 시작 시각이 되면 '노출 중'으로 넘어간다. */
+    public record Reports(long pending, long active, long hidden, long rejected, long upcoming) {
     }
 
     public record Feedback(long open) {
