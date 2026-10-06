@@ -6,6 +6,7 @@ import java.util.List;
 public record MapDataPayload(
         List<MapBuilding> buildings,
         List<MapFacility> facilities,
-        List<MapPartner> partners
+        List<MapPartner> partners,
+        List<MapExhibition> exhibitions
 ) {
 }
