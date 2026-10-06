@@ -43,7 +43,9 @@ public record AdminReportResponse(
         /** 앱 사용자에게 보이는 작성자 이름(앱 닉네임, 없으면 가린 로그인 닉네임 "홍**" — DisplayNames). */
         String authorDisplayName,
         /** 작성자 공개 회원 번호(K7Q2M9XA4D). 회원 조회(q=)에 그대로 넣어 찾는다. */
-        String authorMemberCode
+        String authorMemberCode,
+        /** 장소 설명(작성자가 고칠 수 있음). 없으면 null */
+        String placeLabel
 ) {
     public static AdminReportResponse of(Report report, long flagCount, List<String> imageUrls) {
         return new AdminReportResponse(
@@ -69,6 +71,7 @@ public record AdminReportResponse(
                 report.getModerationNote(),
                 report.getReviewedAt(),
                 report.getUser().getDisplayName(),
-                report.getUser().getMemberCode());
+                report.getUser().getMemberCode(),
+                report.getPlaceLabel());
     }
 }

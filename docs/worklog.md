@@ -837,3 +837,9 @@
 
 - `dev` 브랜치를 만들었다(origin/main 기준). 앞으로 작업 PR 은 base `dev`, 릴리스는 `dev → main`. 규칙은 `docs/branching.md`.
 
+
+## 2026-10-06 — 제보 장소 설명 (`feat/report-place-label`)
+
+- `reports.place_label`(60자): 앱이 지도 핀 근처 건물로 "제4공학관(T동) 근처"처럼 채워 주고 작성자가 고칠 수 있는 장소 설명.
+  `POST /reports` 의 `placeLabel`(선택, 앞뒤 공백 제거), 제보 목록·상세·내 제보·관리자 응답에 `placeLabel`.
+- **DB 변경**: `db/alter_reports_add_place_label.sql` 을 배포 전에 실행.
