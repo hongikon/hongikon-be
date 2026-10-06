@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 관리자 알림 푸시(Expo) — 새 제보 승인 대기, 새 문의, 신고 누적 자동 숨김, 정지·신고 이력 회원 재가입.
+ * 관리자 알림 푸시(Expo) — 새 제보 승인 대기, 새 문의, 신고 누적 자동 숨김, 정지·신고 이력 회원 재가입, 댓글 신고.
  * 이벤트를 발행한 트랜잭션이 커밋된 뒤 별도 스레드에서 돈다(작성자 응답을 늦추지 않고, 롤백되면 보내지 않는다). 실패는 로그만 남긴다.
  *
  * <ul>
@@ -35,8 +35,10 @@ import java.util.concurrent.TimeUnit;
  *   <li>묶음: 종류마다 push.admin-alert-window-seconds(기본 120초)에 한 번까지. 첫 건은 바로 보내고, 그 사이에 들어온 건은
  *       window가 끝날 때 "새 제보 3건 승인 대기"처럼 한 번에 보낸다(AdminAlertThrottle).</li>
  *   <li>구분: 제목 "[관리]" 접두어, Android 채널 "admin"(앱이 시작할 때 만든다 — 없는 구버전 앱은 기본 채널로 떨어짐),
- *       categoryId "admin", data.type ADMIN_REPORT_PENDING / ADMIN_FEEDBACK / ADMIN_REPORT_FLAGGED / ADMIN_MEMBER_REJOINED.</li>
- *   <li>본문: 제보 제목·건물·층만. 작성자·문의 내용·연락처는 담지 않는다("새 문의가 도착했어요").</li>
+ *       categoryId "admin", data.type ADMIN_REPORT_PENDING / ADMIN_FEEDBACK / ADMIN_REPORT_FLAGGED / ADMIN_MEMBER_REJOINED /
+ *       ADMIN_COMMENT_FLAGGED(reportId·commentId).</li>
+ *   <li>본문: 제보 제목·건물·층만. 작성자·문의 내용·연락처는 담지 않는다("새 문의가 도착했어요").
+ *       댓글 신고도 제보 제목만 — 댓글 내용·신고자는 담지 않는다.</li>
  * </ul>
  */
 @Slf4j
@@ -116,6 +118,9 @@ public class AdminAlertDispatcher implements DisposableBean {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", batch.type().dataType());
         data.put(batch.type().idKey(), batch.latest().targetId());
+        if (batch.latest().commentId() != null) {
+            data.put("commentId", batch.latest().commentId());
+        }
         data.put("count", batch.count());
 
         List<ExpoPushMessage> messages = new ArrayList<>();
@@ -135,6 +140,8 @@ public class AdminAlertDispatcher implements DisposableBean {
             case FEEDBACK -> n == 1 ? "새 문의" : "새 문의 " + n + "건";
             case REPORT_FLAGGED -> n == 1 ? "신고 누적으로 자동 숨김" : "제보 " + n + "건 신고 누적으로 자동 숨김";
             case MEMBER_REJOINED -> n == 1 ? "이력 있는 회원 재가입" : "이력 있는 회원 " + n + "명 재가입";
+            case COMMENT_FLAGGED -> n > 1 ? "신고된 댓글 " + n + "건 검토 필요"
+                    : batch.latest().autoHidden() ? "신고 누적으로 댓글 자동 숨김" : "신고된 댓글 검토 필요";
         };
     }
 
@@ -148,9 +155,22 @@ public class AdminAlertDispatcher implements DisposableBean {
                     ? "정지·신고 이력이 있는 탈퇴 회원이 다시 가입했어요 (회원 #" + batch.latest().targetId() + ")"
                     : "정지·신고 이력이 있는 탈퇴 회원 " + batch.count() + "명이 다시 가입했어요";
         }
+        if (batch.type() == AdminAlertType.COMMENT_FLAGGED) {
+            // 제보 제목(이미 지도에 공개된 값)만 쓴다. 댓글 내용·신고자·신고 사유는 싣지 않는다 — 관리 탭에서 확인.
+            String line = "'" + excerpt(batch.latest().reportTitle()) + "' 제보의 댓글";
+            return batch.count() == 1 ? line : "최근: " + line;
+        }
         AdminAlertEvent latest = batch.latest();
         String line = latest.reportTitle() + " · " + ReportPushDispatcher.place(latest.buildingName(), latest.floor());
         return batch.count() == 1 ? line : "최근: " + line;
+    }
+
+    private static String excerpt(String text) {
+        if (text == null || text.isBlank()) {
+            return "-";
+        }
+        String trimmed = text.strip();
+        return trimmed.length() <= 30 ? trimmed : trimmed.substring(0, 29) + "…";
     }
 
     /** 테스트용 — 묶음 상태를 비운다. */

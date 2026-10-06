@@ -94,4 +94,26 @@ public interface ReportCommentRepository extends JpaRepository<ReportComment, Lo
             WHERE c.id = :id AND c.status = com.hongmap.hongmapbackend.comment.ReportCommentStatus.VISIBLE
             """)
     int hideIfVisible(@Param("id") Long id);
+
+    /**
+     * 검토할 신고된 댓글: 마지막 관리자 검토(reviewedAt) 뒤 신고가 1건 이상인 댓글(공개 중이거나 자동 숨김된 것).
+     * 작성자가 지운(DELETED) 댓글은 더 볼 것이 없어 뺀다. 마지막 신고가 최근인 순. 작성자·제보를 함께 읽어 N+1 을 막는다.
+     */
+    @Query("""
+            SELECT c FROM ReportComment c JOIN FETCH c.user JOIN FETCH c.report
+            WHERE c.status <> com.hongmap.hongmapbackend.comment.ReportCommentStatus.DELETED
+              AND EXISTS (SELECT 1 FROM ReportCommentFlag f WHERE f.comment = c
+                          AND (c.reviewedAt IS NULL OR f.createdAt > c.reviewedAt))
+            ORDER BY (SELECT MAX(f2.createdAt) FROM ReportCommentFlag f2 WHERE f2.comment = c) DESC, c.id DESC
+            """)
+    List<ReportComment> findFlaggedPending(Pageable pageable);
+
+    /** findFlaggedPending 과 같은 조건의 수(관리자 대시보드 comments.flaggedPending). */
+    @Query("""
+            SELECT COUNT(c) FROM ReportComment c
+            WHERE c.status <> com.hongmap.hongmapbackend.comment.ReportCommentStatus.DELETED
+              AND EXISTS (SELECT 1 FROM ReportCommentFlag f WHERE f.comment = c
+                          AND (c.reviewedAt IS NULL OR f.createdAt > c.reviewedAt))
+            """)
+    long countFlaggedPending();
 }
