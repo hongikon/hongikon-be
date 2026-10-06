@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.feedback.Feedback;
 import com.hongmap.hongmapbackend.user.User;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 관리자 문의 목록의 한 줄. 작성자는 앱에 보이는 이름과 회원 번호로만 가리키고 로그인 닉네임 원문은 싣지 않는다
@@ -24,9 +25,15 @@ public record FeedbackResponse(
         LocalDateTime createdAt,
         LocalDateTime resolvedAt,
         String userDisplayName,
-        String userMemberCode
+        String userMemberCode,
+        /** 참고 사진 보기 URL(presigned GET, 1시간 유효). 없으면 빈 배열 */
+        List<String> imageUrls
 ) {
     public static FeedbackResponse of(Feedback feedback) {
+        return of(feedback, List.of());
+    }
+
+    public static FeedbackResponse of(Feedback feedback, List<String> imageUrls) {
         User user = feedback.getUser();
         String displayName = user != null ? user.getDisplayName() : null;
         return new FeedbackResponse(
@@ -39,6 +46,7 @@ public record FeedbackResponse(
                 feedback.getCreatedAt(),
                 feedback.getResolvedAt(),
                 displayName,
-                user != null ? user.getMemberCode() : null);
+                user != null ? user.getMemberCode() : null,
+                imageUrls == null ? List.of() : imageUrls);
     }
 }

@@ -248,11 +248,20 @@ class AdminApiIntegrationTest {
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"  \"}"))
                 .andExpect(status().isBadRequest());
+        // 참고 사진은 로그인한 문의만 붙일 수 있다(게스트는 401). 사진 없이 보낸 문의는 imageUrls 가 빈 배열.
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"확인 자료\",\"imageKeys\":[\"reports/x.jpg\"]}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"사진 넷\",\"imageKeys\":[\"a\",\"b\",\"c\",\"d\"]}")
+                        .header("Authorization", bearer(normal)))
+                .andExpect(status().isBadRequest());
 
         String body = mockMvc.perform(get("/admin/feedback").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.feedback[0].content").value("지도에 건물이 안 보여요"))
                 .andExpect(jsonPath("$.feedback[0].userId").isEmpty())
+                .andExpect(jsonPath("$.feedback[0].imageUrls").isArray())
                 .andReturn().getResponse().getContentAsString();
         long id = Long.parseLong(body.replaceAll("(?s).*?\"id\":(\\d+).*", "$1"));
 

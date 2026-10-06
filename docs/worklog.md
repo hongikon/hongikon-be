@@ -791,3 +791,6 @@
 - 관리자 API: `PUT /admin/users/{id}/official {"name"}`(2~30자, 겹치면 409) · `DELETE /admin/users/{id}/official`. 서버 로그 한 줄.
 - 일반 회원 앱 닉네임 금지어에 '학생회' 추가(공식 계정 흉내 방지, '공식'은 이미 있음).
 - **DB 변경**: `db/alter_users_add_official_name.sql` 를 배포 전에 실행해야 한다(ddl-auto=validate).
+- 문의 참고 사진(공식 계정 신청 확인 자료 등): `POST /feedback` 에 `imageKeys`(최대 3장, 로그인 필요 — 게스트 401). 제보 사진과 같은
+  업로드·검사·메타데이터 제거(ReportImageService). 관리자 문의 응답에 `imageUrls`. 처리 완료(RESOLVED)·작성자 탈퇴 때 사진 삭제.
+  **DB 변경**: `db/alter_feedback_add_image_keys.sql`.
