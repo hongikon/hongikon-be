@@ -848,3 +848,7 @@
 ## 2026-10-06 — README 서비스 링크 (`docs/readme-site-url`)
 
 - README 상단에 서비스 주소 https://hongikon.com 추가.
+
+## 2026-10-06 — 브랜치 규칙 변경
+
+- 평소 작업은 `dev` 에서 바로 커밋한다. 큰 작업·팀원 검토가 필요한 작업만 접두사 브랜치. (`docs/branching.md`)
