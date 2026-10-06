@@ -799,6 +799,7 @@
 
 - `GET /admin/overview` 의 `reports.upcoming`: 승인(ACTIVE)했고 아직 시작 전인 예정 제보 수. DB 변경 없음.
 
+
 ## 2026-10-06 — 댓글 신고 검토 보강 (`feat/comment-moderation`, base main `0b7746f`)
 
 - 관리자 알림 `AdminAlertType.COMMENT_FLAGGED`(data.type `ADMIN_COMMENT_FLAGGED`, `reportId`·`commentId`): 마지막 검토 뒤 첫 신고, 신고 누적 자동 숨김 때
@@ -830,3 +831,9 @@
 - `CommentModerationPushDispatcher`: `report_status_enabled` 확인을 뺐다 — 조치 사유·14일 이의 제기 안내(이용약관 제10조)는
   "내 제보 결과 알림"을 꺼도 보낸다(위 항목의 "끄면 안 감"을 대체). 푸시 전체가 꺼졌거나(push.enabled=false) VISIBLE 로 바꾼 경우는 그대로 안 보낸다.
 - 테스트: `CommentModerationIntegrationTest` 의 "알림을 끈 작성자에게는 안 간다"를 "간다"로 바꿨다. 전체 482개 통과. DB 변경 없음.
+
+
+## 2026-10-06 — 브랜치 전략 `main` ← `dev` ← 작업 브랜치
+
+- `dev` 브랜치를 만들었다(origin/main 기준). 앞으로 작업 PR 은 base `dev`, 릴리스는 `dev → main`. 규칙은 `docs/branching.md`.
+
