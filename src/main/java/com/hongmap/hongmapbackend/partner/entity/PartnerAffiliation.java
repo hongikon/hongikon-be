@@ -39,6 +39,10 @@ public class PartnerAffiliation {
         this.benefit = benefit;
     }
 
+    void changeBenefit(String benefit) {
+        this.benefit = benefit;
+    }
+
     /** 소속 전용 혜택이 있으면 그것을, 없으면 업체 기본 혜택을 돌려준다. */
     public String getEffectiveBenefit() {
         return benefit != null ? benefit : partner.getBenefit();
