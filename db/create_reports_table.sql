@@ -18,7 +18,7 @@ CREATE TABLE `reports` (
   `category` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `custom_category_label` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `title` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `content` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `content` varchar(2000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `starts_at` datetime NOT NULL,
   `ends_at` datetime NOT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PENDING',

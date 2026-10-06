@@ -47,7 +47,7 @@ public record ReportCreateRequest(
         @Size(max = 100)
         String title,
 
-        @Size(max = 500)
+        @Size(max = 2000)
         String content,
 
         /** POST /reports/images 로 받은 key 들(최대 3장, 순서대로 표시, 중복 불가). 사진이 없으면 생략. */
