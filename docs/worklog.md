@@ -947,6 +947,30 @@
 
 ## 2026-10-06 — 현대미술관 10월 전시 등록용 SQL
 
-- `db/content/seed_homa_exhibitions_2026_10.sql`: HoMA 2026 전시 일정표(공식 PDF) 기준 10월 전시 7건을 지도 제보(ETC, 배지 "전시")로 넣는다. 관리자 계정 작성, 재실행 안전, 이미 시작한 전시는 알림 없음. 계획표 기준이라 본문에 변경 가능하다고 적었다.
-- 운영 DB 에는 다른 배포 SQL 을 모두 실행한 뒤 이 파일을 실행한다(되돌리기 SQL 은 파일 끝 주석).
+- `db/content/seed_homa_exhibitions_2026_10.sql`: HoMA 2026 전시 일정표(공식 PDF) 기준 10월 전시 7건을 넣는 SQL.
+  - (변경) 처음엔 지도 제보(ETC, 배지 "전시")로 넣었으나, 장소마다 지금·다음 전시를 보여 주는 쪽으로 바꿔 **`exhibitions` 테이블**(장소별 전시 일정)에 넣도록 파일 전체를 갈아엎었다.
+    제보·알림은 만들지 않는다. 자세한 내용은 아래 "전시 일정(장소별)" 항목.
+  - 재실행 안전(같은 장소·제목·시작일이면 건너뜀). 계획표 기준이라 설명에 변경 가능하다고 적었다.
+- 운영 DB 에는 `db/create_exhibitions_table.sql` → 지도 데이터 동기화 → 이 파일 순으로 실행한다.
 - 편의시설 추가: 제2공학관 P동 1층 라운지(`hi-p-1f-lounge`)를 `db/sync_map_data_2026_10_06.sql` 에 넣었다(설명은 미확인이라 비움). 배포 뒤에는 관리자 화면 편의시설 관리에서 고친다.
+
+## 2026-10-06 — 전시 일정(장소별) (feat/exhibitions)
+
+- 지도 '이벤트 → 전시' 의 장소(편의시설 kind `행사·전시`: `hi-mh-4f-exhibition` HoMA 1관, `hi-r-2f-exhibition` HoMA 2관, `hi-mh-3f-museum` 박물관)마다
+  지금 열리는 전시·다음 전시를 보여 주려고 `exhibitions` 테이블을 새로 뒀다. 전시를 제보로 만들던 방식은 쓰지 않는다.
+- 테이블 `exhibitions`(`mapdata.Exhibition`): id, facility_code(인덱스, **외래키 없음** — 지도 동기화 SQL 이 campus_facilities 를 지우고 다시 넣기 때문),
+  title(150), starts_on·ends_on(DATE, KST 달력 날짜, 양 끝 포함), hours(100), description(1000), link_label(50), link_url(500), created_at·updated_at.
+- `GET /map/data` 에 최상위 배열 `exhibitions` 추가(항상 있음, 비어 있을 수 있음).
+  - 항목: `{ id, facilityId, title, startsOn: "2026-10-12", endsOn, hours, description, link: {label, url} }` — null 필드 생략, link 는 url 이 있을 때만.
+  - 오늘(KST) 기준 `endsOn >= 오늘` 이고 `startsOn <= 오늘 + 60일` 인 것만, 지금 campus_facilities 에 있는 장소의 것만. facilityId → startsOn → id 순.
+  - 날짜에 따라 내용이 바뀌므로 서버 캐시는 만든 KST 날짜가 지나면(자정) 5분 TTL 과 상관없이 다시 만든다. version/ETag 는 그대로 본문 해시.
+  - `MapDataService` 가 `Clock` 빈을 받는다(테스트가 바꿔 끼움).
+- 관리자(`/admin/map/**` 와 같은 ADMIN 권한·접속 기록):
+  - `GET /admin/map/exhibitions` → `{ "exhibitions": [...] }` 지난 전시 포함 전부, 시작일 최근 순(같으면 id 큰 순). 항목 모양은 map/data 와 같다.
+  - `POST /admin/map/exhibitions` → 201, `PUT /admin/map/exhibitions/{id}` → 200(통째로 바꿈), `DELETE /admin/map/exhibitions/{id}` → 204(없으면 404).
+  - 검증(400 + 기존 `{message}`): facilityId 는 kind `행사·전시` 인 기존 편의시설, 제목 1~150자, 날짜 `yyyy-MM-dd`(없는 날짜 거절), 시작일 ≤ 종료일,
+    관람 시간 ≤100자, 설명 ≤1000자, 링크는 https 만(이름 1~50자). 쓰기가 커밋되면 map/data 캐시를 바로 비운다.
+- 테스트: `ExhibitionIntegrationTest` 7개(진행 중·60일째 포함 / 지난·61일째·없는 장소 제외·정렬·필드 생략, 빈 배열, KST 자정 캐시 교체,
+  관리자 CRUD·404, 401/403, 입력 검증 14가지 + 경계값, 추가·수정·삭제 시 캐시 무효화), `MapDataIntegrationTest` 최상위 키 순서 갱신.
+- **DB 변경**: 배포 전에 `db/create_exhibitions_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
+  배포·지도 데이터 동기화(`db/sync_map_data_*.sql`) 뒤에 `db/content/seed_homa_exhibitions_2026_10.sql` 실행(HoMA 10월 전시 7건).

@@ -4,12 +4,15 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapBuilding;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapBuildingListResponse;
+import com.hongmap.hongmapbackend.mapdata.dto.AdminMapExhibitionListResponse;
+import com.hongmap.hongmapbackend.mapdata.dto.AdminMapExhibitionRequest;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapFacility;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapFacilityListResponse;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapFacilityRequest;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapPartnerListResponse;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapPartnerRequest;
 import com.hongmap.hongmapbackend.mapdata.dto.AffiliationBenefitRequest;
+import com.hongmap.hongmapbackend.mapdata.dto.MapExhibition;
 import com.hongmap.hongmapbackend.mapdata.dto.MapPartner;
 import com.hongmap.hongmapbackend.partner.entity.Partner;
 import com.hongmap.hongmapbackend.partner.repository.PartnerRepository;
@@ -21,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
@@ -36,9 +41,13 @@ public class AdminMapService {
 
     private static final int CODE_ATTEMPTS = 5;
 
+    /** 전시를 걸 수 있는 편의시설 종류. */
+    static final String EXHIBITION_FACILITY_KIND = "행사·전시";
+
     private final PartnerRepository partnerRepository;
     private final CampusFacilityRepository facilityRepository;
     private final BuildingRepository buildingRepository;
+    private final ExhibitionRepository exhibitionRepository;
     private final MapDataMapper mapper;
     private final MapDataService mapDataService;
 
@@ -194,6 +203,74 @@ public class AdminMapService {
         Building building = buildingRepository.findByCode(r.buildingCode().trim())
                 .orElseThrow(() -> badRequest("존재하지 않는 건물이에요."));
         return new FacilityFields(kind, building, r.floor(), blankToNull(r.note()), coord(r.lat()), coord(r.lng()));
+    }
+
+    // ── 전시(장소별 일정) ───────────────────────────────
+
+    public AdminMapExhibitionListResponse exhibitions() {
+        return new AdminMapExhibitionListResponse(
+                exhibitionRepository.findAllByOrderByStartsOnDescIdDesc().stream().map(mapper::exhibition).toList());
+    }
+
+    @Transactional
+    public MapExhibition createExhibition(AdminMapExhibitionRequest request) {
+        ExhibitionFields f = exhibitionFields(request);
+        Exhibition saved = exhibitionRepository.save(Exhibition.builder()
+                .facilityCode(f.facilityCode).title(f.title).startsOn(f.startsOn).endsOn(f.endsOn)
+                .hours(f.hours).description(f.description).linkLabel(f.linkLabel).linkUrl(f.linkUrl)
+                .build());
+        mapDataService.invalidateAfterCommit();
+        return mapper.exhibition(saved);
+    }
+
+    @Transactional
+    public MapExhibition updateExhibition(Long id, AdminMapExhibitionRequest request) {
+        Exhibition exhibition = exhibitionRepository.findById(id)
+                .orElseThrow(() -> notFound("존재하지 않는 전시예요."));
+        ExhibitionFields f = exhibitionFields(request);
+        exhibition.update(f.facilityCode, f.title, f.startsOn, f.endsOn, f.hours, f.description, f.linkLabel, f.linkUrl);
+        exhibitionRepository.flush();
+        mapDataService.invalidateAfterCommit();
+        return mapper.exhibition(exhibition);
+    }
+
+    @Transactional
+    public void deleteExhibition(Long id) {
+        Exhibition exhibition = exhibitionRepository.findById(id)
+                .orElseThrow(() -> notFound("존재하지 않는 전시예요."));
+        exhibitionRepository.delete(exhibition);
+        mapDataService.invalidateAfterCommit();
+    }
+
+    private record ExhibitionFields(String facilityCode, String title, LocalDate startsOn, LocalDate endsOn,
+                                    String hours, String description, String linkLabel, String linkUrl) {
+    }
+
+    private ExhibitionFields exhibitionFields(AdminMapExhibitionRequest r) {
+        String facilityCode = r.facilityId().trim();
+        CampusFacility facility = facilityRepository.findByCodeWithBuilding(facilityCode)
+                .orElseThrow(() -> badRequest("존재하지 않는 장소예요."));
+        if (!EXHIBITION_FACILITY_KIND.equals(facility.getKind())) {
+            throw badRequest("전시는 '" + EXHIBITION_FACILITY_KIND + "' 장소에만 등록할 수 있어요.");
+        }
+        String title = r.title().trim();
+        LocalDate startsOn = date(r.startsOn(), "시작일");
+        LocalDate endsOn = date(r.endsOn(), "종료일");
+        if (startsOn.isAfter(endsOn)) {
+            throw badRequest("종료일은 시작일과 같거나 뒤여야 해요.");
+        }
+        String linkLabel = r.link() == null ? null : r.link().label().trim();
+        String linkUrl = r.link() == null ? null : r.link().url().trim();
+        return new ExhibitionFields(facilityCode, title, startsOn, endsOn, blankToNull(r.hours()),
+                blankToNull(r.description()), linkLabel, linkUrl);
+    }
+
+    private static LocalDate date(String value, String name) {
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeException e) {
+            throw badRequest(name + "이 올바른 날짜가 아니에요.");
+        }
     }
 
     // ── 건물(선택 목록) ─────────────────────────────────
