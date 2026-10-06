@@ -40,12 +40,15 @@ public class AdminOverviewController {
                 .map(p -> new AdminOverviewResponse.Server(p.getVersion(), p.getTime().toString()))
                 .orElseGet(() -> new AdminOverviewResponse.Server("unknown", "unknown"));
 
+        LocalDateTime now = LocalDateTime.now();
         AdminOverviewResponse.Reports reports = new AdminOverviewResponse.Reports(
                 reportRepository.countByStatus(ReportStatus.PENDING),
                 // 승인(ACTIVE)이어도 끝났거나 아직 시작 전(예정)이면 지도에 없다 — 실제로 지도에 보이는 것만 '노출 중'으로 센다.
-                reportRepository.countLive(ReportStatus.ACTIVE, LocalDateTime.now()),
+                reportRepository.countLive(ReportStatus.ACTIVE, now),
                 reportRepository.countByStatus(ReportStatus.HIDDEN),
-                reportRepository.countByStatus(ReportStatus.REJECTED));
+                reportRepository.countByStatus(ReportStatus.REJECTED),
+                // 승인했고 아직 시작 전인 예정 제보(지도에는 시작 3일 전부터 '예정'으로 보인다).
+                reportRepository.countByStatusAndStartsAtAfter(ReportStatus.ACTIVE, now));
 
         // NewsRepository 는 크롤러 쪽에서 자주 바뀌는 파일이라, 대시보드 전용 집계는 여기서 직접 센다.
         long newsTotal = entityManager.createQuery("SELECT COUNT(n) FROM News n", Long.class).getSingleResult();

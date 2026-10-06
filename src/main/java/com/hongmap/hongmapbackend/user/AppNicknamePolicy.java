@@ -18,7 +18,7 @@ public final class AppNicknamePolicy {
     private static final Pattern ALLOWED = Pattern.compile("^[가-힣a-zA-Z0-9_]+$");
 
     static final List<String> RESERVED_WORDS = List.of(
-            "운영", "운영진", "관리자", "admin", "홍익온", "hongikon", "공식", "학교");
+            "운영", "운영진", "관리자", "admin", "홍익온", "hongikon", "공식", "학교", "학생회");
 
     private AppNicknamePolicy() {
     }

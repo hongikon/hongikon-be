@@ -1,7 +1,5 @@
 package com.hongmap.hongmapbackend.comment;
 
-import com.hongmap.hongmapbackend.notification.UserNotificationSetting;
-import com.hongmap.hongmapbackend.notification.UserNotificationSettingRepository;
 import com.hongmap.hongmapbackend.push.ExpoPushMessage;
 import com.hongmap.hongmapbackend.push.ExpoPushSender;
 import com.hongmap.hongmapbackend.push.PushProperties;
@@ -29,8 +27,8 @@ import java.util.Set;
  * <ul>
  *   <li>이용약관 제10조: 게시물 숨김·삭제는 사유를 알리고 14일 안에 이의를 제기할 수 있게 한다 — 본문에 사유(없으면
  *       "운영 정책 위반")와 이의 제기 안내를 싣는다.</li>
- *   <li>설정: 제보 결과 알림(REPORT_STATUS)과 같은 "내 제보 결과 알림"(report_status_enabled)을 따른다 — 끈 사람은 받지 않는다
- *       (행이 없으면 켜짐). 댓글·답글 알림(ReportCommentPushDispatcher)도 같은 설정을 쓴다.</li>
+ *   <li>설정과 관계없이 보낸다 — 위 사유·이의 제기 안내는 약관상 알려야 하는 것이라 "내 제보 결과 알림"(report_status_enabled)을
+ *       꺼도 받는다. 푸시 자체가 꺼져 있으면(push.enabled=false) 보내지 않는다.</li>
  *   <li>본문에는 제보 제목만 — 댓글 내용은 싣지 않는다(잠금 화면에 그대로 보이고, 숨긴 내용을 다시 퍼뜨리지 않게).
  *       신고자 정보도 싣지 않는다(보복 방지).</li>
  * </ul>
@@ -50,7 +48,6 @@ public class CommentModerationPushDispatcher {
     private static final int MAX_TITLE_EXCERPT = 30;
 
     private final UserDeviceRepository userDeviceRepository;
-    private final UserNotificationSettingRepository settingRepository;
     private final ExpoPushSender expoPushSender;
     private final PushProperties properties;
 
@@ -67,12 +64,6 @@ public class CommentModerationPushDispatcher {
     /** 동기 실행 — 리스너와 테스트가 쓴다. Expo 가 받아들인 메시지 수. */
     public int dispatch(ReportCommentModeratedEvent event) {
         if (!properties.isEnabled() || event.status() == ReportCommentStatus.VISIBLE) {
-            return 0;
-        }
-        boolean enabled = settingRepository.findById(event.authorId())
-                .map(UserNotificationSetting::isReportStatusEnabled)
-                .orElse(UserNotificationSetting.DEFAULT_REPORT_STATUS_ENABLED);
-        if (!enabled) {
             return 0;
         }
         Set<String> tokens = new LinkedHashSet<>();

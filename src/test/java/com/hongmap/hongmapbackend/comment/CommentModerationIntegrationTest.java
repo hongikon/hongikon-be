@@ -291,7 +291,7 @@ class CommentModerationIntegrationTest {
     }
 
     @Test
-    void 결과_알림을_끈_작성자와_스스로_지운_댓글에는_알리지_않는다() throws Exception {
+    void 결과_알림을_끈_작성자에게도_조치_알림은_간다_스스로_지운_댓글에는_알리지_않는다() throws Exception {
         Report report = report();
         User quiet = user("조용한");
         String quietToken = device(quiet);
@@ -301,6 +301,11 @@ class CommentModerationIntegrationTest {
         Long quietComment = comment(report, quiet, "조용한 댓글");
         moderate(quietComment, "HIDDEN", "테스트").andExpect(status().isOk());
 
+        // 이용약관 제10조 — 사유·이의 제기 안내는 설정과 관계없이 보낸다.
+        ExpoPushMessage m = await(quietToken);
+        assertThat(m.title()).isEqualTo("댓글이 운영 정책에 따라 숨겨졌어요");
+        assertThat(m.body()).contains("사유: 테스트").contains("14일 안에");
+
         Long selfDeleted = comment(report, commenter, "내가 지울 댓글");
         String token = device(commenter);
         mockMvc.perform(delete(comments(report) + "/" + selfDeleted).header("Authorization", bearer(commenter)))
@@ -308,7 +313,8 @@ class CommentModerationIntegrationTest {
         moderate(selfDeleted, "DELETED", null).andExpect(status().isOk());
 
         Thread.sleep(500);
-        assertThat(mine()).noneMatch(m -> m.to().equals(quietToken) || m.to().equals(token));
+        assertThat(mine()).noneMatch(msg -> msg.to().equals(token));
+        assertThat(mine()).hasSize(1);
     }
 
     // ---------- 픽스처 ----------

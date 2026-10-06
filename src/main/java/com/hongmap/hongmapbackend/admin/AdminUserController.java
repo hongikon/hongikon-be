@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.admin.dto.AdminLoginNameResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserListResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserPriorHistoryResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserResponse;
+import com.hongmap.hongmapbackend.admin.dto.OfficialNameRequest;
 import com.hongmap.hongmapbackend.admin.dto.UserSuspendRequest;
 import com.hongmap.hongmapbackend.common.config.SwaggerConfig;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,9 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -92,6 +95,24 @@ public class AdminUserController {
     public AdminUserResponse revokeAdmin(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
         AdminUserResponse response = adminUserService.revokeAdmin(adminId, id);
         log.info("관리자 해제: adminId={}, userId={}", adminId, id);
+        return response;
+    }
+
+    @Operation(summary = "공식 계정 인증", description = "학생회 등 공식 계정에 운영진이 정한 이름과 공식 배지를 붙입니다(2~30자). "
+            + "이 이름이 앱 닉네임 대신 보입니다. 다른 계정과 같은 공식 이름이면 409.")
+    @PutMapping("/{id}/official")
+    public AdminUserResponse setOfficial(@AuthenticationPrincipal Long adminId, @PathVariable Long id,
+                                         @Valid @RequestBody OfficialNameRequest request) {
+        AdminUserResponse response = adminUserService.setOfficialName(id, request.name());
+        log.info("공식 계정 인증: adminId={}, userId={}, name={}", adminId, id, response.officialName());
+        return response;
+    }
+
+    @Operation(summary = "공식 계정 인증 해제")
+    @DeleteMapping("/{id}/official")
+    public AdminUserResponse clearOfficial(@AuthenticationPrincipal Long adminId, @PathVariable Long id) {
+        AdminUserResponse response = adminUserService.clearOfficialName(id);
+        log.info("공식 계정 인증 해제: adminId={}, userId={}", adminId, id);
         return response;
     }
 

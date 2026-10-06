@@ -27,7 +27,11 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
      * 운영 DB FK는 ON DELETE SET NULL(db/alter_admin_console.sql)이지만 그것만으로는 contact가 남으므로
      * 반드시 users 삭제 전에 이 쿼리로 함께 지운다.
      */
+    /** 탈퇴하는 회원이 문의에 붙인 사진 키들(쉼표로 이은 값, 문의마다 한 줄). 탈퇴 때 S3 에서 지운다. */
+    @Query("SELECT f.imageKeys FROM Feedback f WHERE f.user.id = :userId AND f.imageKeys IS NOT NULL")
+    java.util.List<String> findImageKeysByUserId(@Param("userId") Long userId);
+
     @Modifying
-    @Query("UPDATE Feedback f SET f.user = null, f.contact = null WHERE f.user.id = :userId")
+    @Query("UPDATE Feedback f SET f.user = null, f.contact = null, f.imageKeys = null WHERE f.user.id = :userId")
     int detachUser(@Param("userId") Long userId);
 }

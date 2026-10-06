@@ -23,7 +23,9 @@ public record MeResponse(
         String maskedDefaultName,
         String status,
         String suspendedReason,
-        LocalDateTime suspendedAt
+        LocalDateTime suspendedAt,
+        /** 운영진이 붙인 공식 이름(학생회 등). 없으면 null. 있으면 displayName 도 이 값이다 */
+        String officialName
 ) {
     public static MeResponse of(User user) {
         return new MeResponse(
@@ -34,6 +36,7 @@ public record MeResponse(
                 DisplayNames.mask(user.getNickname()),
                 user.getStatus().name(),
                 user.getSuspendedReason(),
-                user.getSuspendedAt());
+                user.getSuspendedAt(),
+                user.getOfficialName());
     }
 }

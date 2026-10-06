@@ -39,7 +39,7 @@ class AppNicknamePolicyTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"운영진", "홍익온공식", "ADMIN_kim", "HongikOn", "학교대표", "관_리자", "운영1"})
+    @ValueSource(strings = {"운영진", "홍익온공식", "ADMIN_kim", "HongikOn", "학교대표", "관_리자", "운영1", "경영학생회", "학생_회장"})
     void rejectsReservedWords(String nickname) {
         assertThat(AppNicknamePolicy.violation(nickname)).hasValueSatisfying(m -> assertThat(m).contains("쓸 수 없어요"));
     }

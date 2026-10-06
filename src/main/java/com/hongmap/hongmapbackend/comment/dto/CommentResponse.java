@@ -27,6 +27,8 @@ public record CommentResponse(
         String content,
         String placeholder,
         String authorDisplayName,
+        /** 운영진이 인증한 공식 계정(학생회 등)의 댓글이면 true(자리 표시는 false) */
+        boolean authorOfficial,
         String authorKey,
         boolean isMine,
         LocalDateTime createdAt,
@@ -41,7 +43,7 @@ public record CommentResponse(
         if (comment.getStatus() != ReportCommentStatus.VISIBLE) {
             // 자리 표시: 내용·작성자를 싣지 않는다.
             return new CommentResponse(comment.getId(), comment.getReport().getId(), comment.getParentId(), null,
-                    comment.getStatus().name(), null, null, false, comment.getCreatedAt(), replies, replyCount, 0, false, false);
+                    comment.getStatus().name(), null, false, null, false, comment.getCreatedAt(), replies, replyCount, 0, false, false);
         }
         Long authorId = comment.getUser().getId();
         return new CommentResponse(
@@ -51,6 +53,7 @@ public record CommentResponse(
                 comment.getContent(),
                 null,
                 comment.getUser().getDisplayName(),
+                comment.getUser().isOfficial(),
                 authorKey,
                 requesterId != null && requesterId.equals(authorId),
                 comment.getCreatedAt(),
@@ -65,7 +68,7 @@ public record CommentResponse(
     public CommentResponse withViewerState(long likeCount, boolean likedByMe, boolean flaggedByMe,
                                            List<CommentResponse> replies) {
         boolean placeholderRow = placeholder != null;
-        return new CommentResponse(id, reportId, parentId, content, placeholder, authorDisplayName, authorKey, isMine,
+        return new CommentResponse(id, reportId, parentId, content, placeholder, authorDisplayName, authorOfficial, authorKey, isMine,
                 createdAt, replies, replyCount, placeholderRow ? 0 : likeCount, !placeholderRow && likedByMe,
                 !placeholderRow && flaggedByMe);
     }

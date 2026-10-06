@@ -784,6 +784,21 @@
   (안 보내면 교환이 실패해 탈퇴 때 Apple 토큰을 폐기할 수 없다 — 5.1.1(v)). 앱 교환은 그대로.
 - Apple Developer 에서 Services ID(com.hongikon.web)를 만들고 Sign in with Apple 켜기·Primary App ID com.hongikon.app·도메인 hongikon.com·Return URL 등록이 필요하다. DB 변경 없음.
 
+## 2026-10-05 — 공식 계정(학생회 등) 인증 (`feat/official-accounts`)
+
+- `users.official_name`(30자, 유니크) — 운영진이 문의로 신청받아 확인한 뒤 붙이는 공식 이름. 있으면 앱 닉네임 대신 보이고 공개 응답에
+  `authorOfficial: true`(제보 목록·상세, 댓글). `/users/me` 에 `officialName`, 관리자 회원 응답에도 `officialName`.
+- 관리자 API: `PUT /admin/users/{id}/official {"name"}`(2~30자, 겹치면 409) · `DELETE /admin/users/{id}/official`. 서버 로그 한 줄.
+- 일반 회원 앱 닉네임 금지어에 '학생회' 추가(공식 계정 흉내 방지, '공식'은 이미 있음).
+- **DB 변경**: `db/alter_users_add_official_name.sql` 를 배포 전에 실행해야 한다(ddl-auto=validate).
+- 문의 참고 사진(공식 계정 신청 확인 자료 등): `POST /feedback` 에 `imageKeys`(최대 3장, 로그인 필요 — 게스트 401). 제보 사진과 같은
+  업로드·검사·메타데이터 제거(ReportImageService). 관리자 문의 응답에 `imageUrls`. 처리 완료(RESOLVED)·작성자 탈퇴 때 사진 삭제.
+  **DB 변경**: `db/alter_feedback_add_image_keys.sql`.
+
+## 2026-10-06 — 대시보드 '노출 예정' 수 (`feat/overview-upcoming`)
+
+- `GET /admin/overview` 의 `reports.upcoming`: 승인(ACTIVE)했고 아직 시작 전인 예정 제보 수. DB 변경 없음.
+
 ## 2026-10-06 — 댓글 신고 검토 보강 (`feat/comment-moderation`, base main `0b7746f`)
 
 - 관리자 알림 `AdminAlertType.COMMENT_FLAGGED`(data.type `ADMIN_COMMENT_FLAGGED`, `reportId`·`commentId`): 마지막 검토 뒤 첫 신고, 신고 누적 자동 숨김 때
@@ -806,3 +821,12 @@
 - 테스트: `CommentModerationIntegrationTest`(신규 7개), `AdminAlertDispatcherTest` 2개 추가. 전체 479개 통과.
 - DB 변경 없음(새 컬럼·테이블 없음, 기존 `reviewed_at`·`report_comment_flags.created_at` 사용) — 배포 전 SQL 없음.
 
+
+## 2026-10-06 — 댓글 조치 알림을 설정과 관계없이 발송, main 충돌 해결 (`feat/comment-moderation`)
+
+- main(`0247396`, #36·#37) 을 merge. `docs/worklog.md` 는 양쪽 기록을 모두 살려 시간순으로 정리했다.
+- `CommentResponse`: main 의 `authorOfficial`(공식 배지, #36)과 이 브랜치의 `flaggedByMe` 를 둘 다 싣는다(자리 표시는 둘 다 false).
+  `of`·`withViewerState` 외에 생성자를 직접 부르는 곳은 없다.
+- `CommentModerationPushDispatcher`: `report_status_enabled` 확인을 뺐다 — 조치 사유·14일 이의 제기 안내(이용약관 제10조)는
+  "내 제보 결과 알림"을 꺼도 보낸다(위 항목의 "끄면 안 감"을 대체). 푸시 전체가 꺼졌거나(push.enabled=false) VISIBLE 로 바꾼 경우는 그대로 안 보낸다.
+- 테스트: `CommentModerationIntegrationTest` 의 "알림을 끈 작성자에게는 안 간다"를 "간다"로 바꿨다. 전체 482개 통과. DB 변경 없음.

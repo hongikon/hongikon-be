@@ -27,9 +27,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,6 +67,42 @@ class AdminApiIntegrationTest {
                 .build());
     }
 
+    @Test
+    void 공식_계정으로_인증하면_공식_이름과_배지가_제보에_보이고_해제할_수_있다() throws Exception {
+        String name = "경영대학 학생회 " + UUID.randomUUID().toString().substring(0, 6);
+        String url = "/admin/users/" + normal.getId() + "/official";
+        // 관리자만 붙일 수 있다.
+        mockMvc.perform(put(url).header("Authorization", bearer(normal))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  " + name + "  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.officialName").value(name))
+                .andExpect(jsonPath("$.displayName").value(name));
+        // 같은 공식 이름은 다른 계정에 줄 수 없다.
+        mockMvc.perform(put("/admin/users/" + admin.getId() + "/official").header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(put(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"학\"}"))
+                .andExpect(status().isBadRequest());
+
+        Report report = pendingReport();
+        approve(report);
+        mockMvc.perform(get("/reports").param("buildingId", String.valueOf(building.getId())))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value(name))
+                .andExpect(jsonPath("$.reports[0].authorOfficial").value(true));
+
+        mockMvc.perform(delete(url).header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.officialName").doesNotExist());
+        mockMvc.perform(get("/reports").param("buildingId", String.valueOf(building.getId())))
+                .andExpect(jsonPath("$.reports[0].authorOfficial").value(false))
+                .andExpect(jsonPath("$.reports[0].authorDisplayName").value("학*"));
+        reportRepository.delete(report);
+    }
+
     private String bearer(User user) {
         return "Bearer " + jwtTokenProvider.generateAccessToken(user.getId());
     }
@@ -95,6 +133,7 @@ class AdminApiIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         // 이 클래스는 테스트마다 DB 를 비우지 않아 다른 테스트의 제보가 남는다 — 전후 차이로 본다.
         long before = reportRepository.countLive(ReportStatus.ACTIVE, now);
+        long upcomingBefore = reportRepository.countByStatusAndStartsAtAfter(ReportStatus.ACTIVE, now);
         Report live = pendingReport();
         live.moderate(ReportStatus.ACTIVE, null, now);
         reportRepository.save(live);
@@ -119,7 +158,8 @@ class AdminApiIntegrationTest {
 
         mockMvc.perform(get("/admin/overview").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reports.active").value((int) before + 1));
+                .andExpect(jsonPath("$.reports.active").value((int) before + 1))
+                .andExpect(jsonPath("$.reports.upcoming").value((int) upcomingBefore + 1));
 
         // 이 클래스는 DB 를 비우지 않는다 — 진행 중 제보가 남으면 "지도 목록이 비어 있다"고 보는 다른 테스트가 깨진다.
         reportRepository.deleteAll(List.of(live, ended, upcoming));
@@ -210,11 +250,20 @@ class AdminApiIntegrationTest {
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"  \"}"))
                 .andExpect(status().isBadRequest());
+        // 참고 사진은 로그인한 문의만 붙일 수 있다(게스트는 401). 사진 없이 보낸 문의는 imageUrls 가 빈 배열.
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"확인 자료\",\"imageKeys\":[\"reports/x.jpg\"]}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/feedback").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"사진 넷\",\"imageKeys\":[\"a\",\"b\",\"c\",\"d\"]}")
+                        .header("Authorization", bearer(normal)))
+                .andExpect(status().isBadRequest());
 
         String body = mockMvc.perform(get("/admin/feedback").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.feedback[0].content").value("지도에 건물이 안 보여요"))
                 .andExpect(jsonPath("$.feedback[0].userId").isEmpty())
+                .andExpect(jsonPath("$.feedback[0].imageUrls").isArray())
                 .andReturn().getResponse().getContentAsString();
         long id = Long.parseLong(body.replaceAll("(?s).*?\"id\":(\\d+).*", "$1"));
 
