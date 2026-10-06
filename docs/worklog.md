@@ -837,3 +837,14 @@
 
 - `dev` 브랜치를 만들었다(origin/main 기준). 앞으로 작업 PR 은 base `dev`, 릴리스는 `dev → main`. 규칙은 `docs/branching.md`.
 
+- 댓글 조치 알림 사유: 관리자가 사유를 비워 두면 그 댓글에 가장 많이 들어온 신고 사유 문구(허위 정보·스팸·광고·욕설·비하 등 부적절한 내용·개인정보 노출)를 쓴다. 신고가 없거나 '기타'뿐이면 "운영 정책 위반".
+
+## 2026-10-06 — 제보 장소 설명 (`feat/report-place-label`)
+
+- `reports.place_label`(60자): 앱이 지도 핀 근처 건물로 "제4공학관(T동) 근처"처럼 채워 주고 작성자가 고칠 수 있는 장소 설명.
+  `POST /reports` 의 `placeLabel`(선택, 앞뒤 공백 제거), 제보 목록·상세·내 제보·관리자 응답에 `placeLabel`.
+- **DB 변경**: `db/alter_reports_add_place_label.sql` 을 배포 전에 실행.
+
+## 2026-10-06 — README 서비스 링크 (`docs/readme-site-url`)
+
+- README 상단에 서비스 주소 https://hongikon.com 추가.

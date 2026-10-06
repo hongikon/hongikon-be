@@ -68,7 +68,11 @@ public record ReportCreateRequest(
         /** 종료 시각(UTC). startsAt 보다 뒤, 진행 기간은 report.maxDurationDays(기본 7)일 이내. */
         @NotNull
         @Future(message = "종료 시각이 이미 지났어요. 시간을 다시 골라 주세요.")
-        LocalDateTime endsAt
+        LocalDateTime endsAt,
+
+        /** 장소 설명(선택, 60자). 앱이 핀 근처 건물로 채워 주고 작성자가 고칠 수 있다. */
+        @Size(max = 60, message = "장소 설명은 60자 이내로 적어 주세요.")
+        String placeLabel
 ) {
     /** 붙일 사진 키(순서대로). imageKeys 가 있으면 그것, 없으면 imageKey 1장, 둘 다 없으면 빈 목록. */
     public List<String> requestedImageKeys() {
