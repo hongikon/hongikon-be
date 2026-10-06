@@ -879,3 +879,10 @@
   로컬 MySQL 26.7 에서 alter 두 번 실행(재실행 안전) → `ddl-auto=validate` 기동·`/map/data` 200/304 확인(로컬 사본 DB, 확인 후 삭제).
 - **DB 변경**: 배포 전에 `db/alter_map_data_v1.sql` 을 실행한 다음 `db/sync_map_data_2026_10_06.sql` 을 실행(이 순서대로). alter 없이 배포하면 validate 로 서버가 뜨지 않는다.
 - 관리자 제휴업체 삭제는 `confirmName`(업체 이름, 앞뒤 공백만 무시)이 정확히 맞아야 한다. 다르거나 없으면 400. 앱도 이름을 다시 입력받는다.
+
+## 2026-10-06 — 제보 본문을 지도 시트에 (목록 응답에 content, 2000자)
+
+- `GET /reports` 목록(`ReportSummaryResponse`)에 `content` 추가 — 앱 지도 시트가 단건 조회 없이 본문을 보여 준다. 목록은 공개(ACTIVE) 제보만이라 공개 범위는 그대로.
+- 본문 최대 500 → 2000자(`ReportCreateRequest @Size`, `Report.content`). 학생회 행사 공지 같은 긴 안내를 그대로 옮길 수 있게.
+- **DB 변경**: `db/alter_reports_content_2000.sql`(길이만 늘림, 재실행 안전). 실행 전에도 서버는 뜨지만 500자 넘는 본문 저장이 실패한다.
+- 테스트: `AppNicknameIntegrationTest.liveReportListIncludesContentUpTo2000Chars`(2000자 저장·목록 노출, 2001자 400).

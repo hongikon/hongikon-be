@@ -89,7 +89,7 @@ public class Report {
     @Column(name = "title", nullable = false, length = 100)
     private String title;
 
-    @Column(name = "content", length = 500)
+    @Column(name = "content", length = 2000)
     private String content;
 
     /**

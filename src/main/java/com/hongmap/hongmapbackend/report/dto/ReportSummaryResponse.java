@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 목록 조회용 — content(본문) 제외한 요약본.
+ * 목록 조회용 요약본. 지도 시트가 본문까지 보여 주도록 content 도 싣는다(2026-10-06 — 단건 조회 없이 목록으로 시트를 그림).
  */
 @Builder(toBuilder = true)
 public record ReportSummaryResponse(
@@ -23,6 +23,8 @@ public record ReportSummaryResponse(
         /** 장소 설명(작성자가 고칠 수 있는 "제4공학관(T동) 근처" 등). 없으면 null — 앱이 좌표로 가까운 건물을 보여 준다 */
         String placeLabel,
         String title,
+        /** 본문(최대 2000자, 없으면 null). 목록에 나오는 제보는 모두 공개(ACTIVE) 제보라 본문도 공개 범위다 */
+        String content,
         String authorNickname,
         /** 첫 번째 사진 보기 URL(presigned GET, 1시간 유효). 사진이 없으면 null. 구버전 앱 호환용 — imageUrls[0] 과 같다 */
         String imageUrl,
@@ -66,6 +68,7 @@ public record ReportSummaryResponse(
                 .customCategoryLabel(report.getCustomCategoryLabel())
                 .placeLabel(report.getPlaceLabel())
                 .title(report.getTitle())
+                .content(report.getContent())
  .authorNickname(report.getUser().getDisplayName())
                 .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
                 .imageUrls(imageUrls)
