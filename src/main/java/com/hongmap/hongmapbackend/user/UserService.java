@@ -94,6 +94,11 @@ public class UserService {
         notificationCategoryRepository.deleteByUser_Id(userId);
         refreshTokenRepository.deleteByUser_Id(userId);
         // 문의(feedback)는 지우지 않고 작성자·연락처(contact)만 NULL로 비운다(처리방침: 내용만 남음).
+        // 문의에 붙인 참고 사진은 탈퇴와 함께 지운다(내용만 남는다).
+        feedbackRepository.findImageKeysByUserId(userId).stream()
+                .flatMap(joined -> java.util.Arrays.stream(joined.split(",")))
+                .filter(key -> !key.isBlank())
+                .forEach(reportImageService::deleteAfterCommit);
         feedbackRepository.detachUser(userId);
 
         userRepository.delete(user);

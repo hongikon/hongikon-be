@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 앱 설정 > 문의하기로 들어온 내용. 비로그인(게스트)도 보낼 수 있어 user 는 비어 있을 수 있다.
@@ -57,10 +58,32 @@ public class Feedback {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    /**
+     * 참고 사진 S3 키들(최대 3장, 쉼표로 이음). 로그인해서 보낸 문의만(공식 계정 신청의 확인 자료 등). 제보 사진과 같은 방식으로
+     * 올리고 검사·메타데이터 제거를 거친다(ReportImageService). 처리 완료하거나 작성자가 탈퇴하면 지운다 — 확인이 끝나면 남기지 않는다.
+     */
+    @Column(name = "image_keys", length = 600)
+    private String imageKeys;
+
     public Feedback(User user, String content, String contact) {
         this.user = user;
         this.content = content;
         this.contact = contact;
+    }
+
+    public Feedback(User user, String content, String contact, List<String> imageKeys) {
+        this(user, content, contact);
+        this.imageKeys = imageKeys == null || imageKeys.isEmpty() ? null : String.join(",", imageKeys);
+    }
+
+    /** 붙은 사진 키들(없으면 빈 목록). */
+    public List<String> getImageKeyList() {
+        return imageKeys == null || imageKeys.isBlank() ? List.of() : List.of(imageKeys.split(","));
+    }
+
+    /** 사진 기록을 지운다(S3 객체는 부르는 쪽이 커밋 뒤 지운다). */
+    public void clearImages() {
+        this.imageKeys = null;
     }
 
     public void changeStatus(FeedbackStatus status, LocalDateTime now) {

@@ -101,6 +101,33 @@ public class AdminUserService {
         return toResponse(user);
     }
 
+    /**
+     * 공식 계정으로 인증해 공식 이름을 붙인다(학생회 등, 문의로 신청받아 운영진이 확인한 뒤). 이름은 앞뒤 공백을 지우고 2~30자,
+     * 다른 계정의 공식 이름과 겹치면 409. 이미 붙어 있으면 새 이름으로 바꾼다.
+     */
+    @Transactional
+    public AdminUserResponse setOfficialName(Long userId, String rawName) {
+        String name = rawName == null ? "" : rawName.strip();
+        int length = name.codePointCount(0, name.length());
+        if (length < 2 || length > 30) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 이름은 2~30자로 입력해 주세요.");
+        }
+        User user = find(userId);
+        if (userRepository.existsByOfficialNameAndIdNot(name, userId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "같은 공식 이름을 쓰는 계정이 이미 있습니다.");
+        }
+        user.changeOfficialName(name);
+        return toResponse(user);
+    }
+
+    /** 공식 인증을 뗀다(원래 이름으로 돌아간다). */
+    @Transactional
+    public AdminUserResponse clearOfficialName(Long userId) {
+        User user = find(userId);
+        user.changeOfficialName(null);
+        return toResponse(user);
+    }
+
     /** 관리자로 지정한다. 정지된 회원은 먼저 해제해야 한다. 이미 관리자면 그대로 돌려준다. */
     @Transactional
     public AdminUserResponse grantAdmin(Long userId) {

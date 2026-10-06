@@ -102,6 +102,14 @@ public class User {
     @Column(name = "member_code", nullable = false, unique = true, length = 10)
     private String memberCode;
 
+    /**
+     * 운영진이 인증해 붙인 공식 이름(예: "경영대학 학생회"). 있으면 앱 닉네임 대신 이 이름이 보이고 공식 배지가 붙는다.
+     * 학생회 등이 문의로 신청하면 관리자가 지정한다(PUT /admin/users/{id}/official). 일반 회원은 '학생회'·'공식'을 닉네임에 못 쓴다
+     * (AppNicknamePolicy) — 공식 계정을 흉내 낼 수 없게. db/alter_users_add_official_name.sql
+     */
+    @Column(name = "official_name", length = 30)
+    private String officialName;
+
     @Builder
     public User(String socialId, SocialType socialType, String email, String nickname) {
         this.socialId = socialId;
@@ -174,6 +182,16 @@ public class User {
      * 공개 응답에는 반드시 이 값만 싣는다(원래 닉네임은 실명인 경우가 많다).
      */
     public String getDisplayName() {
-        return DisplayNames.of(appNickname, nickname);
+        return officialName != null ? officialName : DisplayNames.of(appNickname, nickname);
+    }
+
+    /** 운영진이 인증한 공식 계정인지(공식 배지). */
+    public boolean isOfficial() {
+        return officialName != null;
+    }
+
+    /** 공식 이름을 붙인다. null 이면 떼어 원래 이름(앱 닉네임·가린 닉네임)으로 돌아간다. */
+    public void changeOfficialName(String officialName) {
+        this.officialName = officialName;
     }
 }
