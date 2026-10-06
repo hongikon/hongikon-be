@@ -852,3 +852,30 @@
 ## 2026-10-06 — 브랜치 규칙 변경
 
 - 평소 작업은 `dev` 에서 바로 커밋한다. 큰 작업·팀원 검토가 필요한 작업만 접두사 브랜치. (`docs/branching.md`)
+
+## 2026-10-06 — 지도 데이터 서버 이전 (feat/map-data)
+
+- 앱이 상수로 그리던 건물·편의시설·제휴업체를 서버에서 한 번에 내려준다. FE/BE 공통 계약(지도 데이터 서버 이전, 2026-10-06) 기준.
+- `GET /map/data`(비로그인 허용): `{ version, buildings, facilities, partners }`. null 필드는 생략, 각 배열은 `sort_order, id` 순, 좌표는 JSON number.
+  - 건물 `name` = `display_name ?? name`(앱 표시 이름). `buildings.name`(짧은 이름)은 뉴스 장소 매칭(`NewsLocationMatcher`)이 쓰므로 그대로 둔다.
+    편의시설 `buildingName` 도 같은 표시 이름. 제휴업체 `id` = `partners.code`, `affiliationBenefits` 는 소속 전용 혜택이 있는 소속(예외)만.
+  - `version` = 본문(version 제외)의 SHA-256 앞 16 hex. `ETag: "<version>"`, `Cache-Control: public, max-age=300`, `If-None-Match` 같으면 304.
+  - 서버 메모리 캐시(최대 5분, `map-data.cache-ttl-seconds`). 관리자 쓰기(아래)와 기존 `POST/DELETE /partners` 는 커밋 직후 캐시를 비운다.
+    SQL 로 직접 고친 값은 5분 안에 반영. 쿼리 3번(건물 / 편의시설+건물 fetch join / 제휴업체+소속 fetch join) — N+1 없음.
+  - CORS `exposedHeaders: ETag` 추가(웹에서 ETag 를 읽게).
+- 관리자 API(ADMIN 전용, 기존 `/admin/**` 보안 규칙·`AdminAuditInterceptor` 접속 기록 그대로):
+  `GET/POST /admin/map/partners`, `PUT/DELETE /admin/map/partners/{code}`, `GET/POST /admin/map/facilities`,
+  `PUT/DELETE /admin/map/facilities/{code}`, `GET /admin/map/buildings`(`{id, code, name}`).
+  - 본문은 map/data 의 partner/facility 모양(facility 는 `buildingName` 대신 `buildingCode`). POST 에서 id 를 비우면 `p-xxxxxxxx`/`f-xxxxxxxx`(SecureRandom 소문자·숫자 8자), 같은 id 면 409. PUT 은 경로 code 기준(본문 id 무시).
+  - 검증(400 + 기존 `ErrorResponse`): 이름 1~100자, 위도 33~39·경도 124~132, 분류·소속(중복 금지)·지도 아이콘·편의시설 종류는 허용 목록(`MapDataRules`), 링크는 https:// 만, 문자열은 컬럼 길이 이하,
+    소속 혜택은 고른 소속에만(기본 혜택과 같으면 NULL 로 저장), 편의시설 위도·경도는 함께, 없는 건물 code 는 400.
+  - 소속 수정은 기존 행을 지우지 않고 혜택만 고친다(지우고 다시 넣으면 Hibernate 가 INSERT 를 먼저 보내 `uq_partner_affiliation` 에 걸림).
+- 기존 `POST /partners` 도 이제 `code`(p-xxxxxxxx)·`sort_order`(맨 뒤)를 채운다. 레거시 `/partners`·`/buildings`·`/places` 응답은 그대로.
+- 엔티티: `Building`(+displayName, extraBoundaries·entrances JSON, sortOrder), `Partner`(+code UNIQUE, sortOrder), 새 `mapdata.CampusFacility`(`campus_facilities`, FK buildings).
+- `partners` 를 참조하는 테이블 확인: `partner_affiliations`(ON DELETE CASCADE) 하나뿐(엔티티·db/*.sql·로컬 DB FK 전수 확인). 북마크는 `news` 만 참조.
+  → 동기화 SQL 이 partners 를 지우고 다시 넣어도 다른 데이터에 영향 없음. `buildings` 는 `reports`·`news`·`places` 가 참조하므로 UPDATE 만.
+- 개인정보: 응답은 건물·업체 공개 정보뿐(사용자 데이터 없음). 업체 `road_address` 는 내보내지 않는다(앱 타입에 없음).
+- 테스트: `MapDataIntegrationTest` 7개(모양·version 계산·304·CORS ETag 노출·캐시 무효화·401/403·400 검증·코드 생성/409·소속 교체). 전체 491개 통과.
+  로컬 MySQL 26.7 에서 alter 두 번 실행(재실행 안전) → `ddl-auto=validate` 기동·`/map/data` 200/304 확인(로컬 사본 DB, 확인 후 삭제).
+- **DB 변경**: 배포 전에 `db/alter_map_data_v1.sql` 을 실행한 다음 `db/sync_map_data_2026_10_06.sql` 을 실행(이 순서대로). alter 없이 배포하면 validate 로 서버가 뜨지 않는다.
+- 관리자 제휴업체 삭제는 `confirmName`(업체 이름, 앞뒤 공백만 무시)이 정확히 맞아야 한다. 다르거나 없으면 400. 앱도 이름을 다시 입력받는다.

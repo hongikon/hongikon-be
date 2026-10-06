@@ -1,5 +1,7 @@
 package com.hongmap.hongmapbackend.partner.service;
 
+import com.hongmap.hongmapbackend.mapdata.MapCodes;
+import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import com.hongmap.hongmapbackend.partner.dto.*;
 import com.hongmap.hongmapbackend.partner.entity.Partner;
 import com.hongmap.hongmapbackend.partner.repository.PartnerRepository;
@@ -20,6 +22,7 @@ import java.util.Set;
 public class PartnerService {
 
     private final PartnerRepository partnerRepository;
+    private final MapDataService mapDataService;
 
     public PartnerListResponse findAll(String category, String affiliation) {
         List<Partner> partners;
@@ -71,6 +74,9 @@ public class PartnerService {
             .mapIcon(request.mapIcon())
             .linkLabel(request.linkLabel())
             .linkUrl(request.linkUrl())
+            // GET /map/data 의 id·관리자 화면 편집용 코드(관리자 지도 API 와 같은 규칙).
+            .code(newPartnerCode())
+            .sortOrder(partnerRepository.findMaxSortOrder() + 1)
             .build();
 
         if (request.affiliations() != null) {
@@ -85,6 +91,7 @@ public class PartnerService {
         }
 
         Partner saved = partnerRepository.save(partner);
+        mapDataService.invalidateAfterCommit();
         return PartnerResponse.from(saved);
     }
 
@@ -92,6 +99,17 @@ public class PartnerService {
     public void delete(Long id) {
         Partner partner = getPartnerOrThrow(id);
         partnerRepository.delete(partner);
+        mapDataService.invalidateAfterCommit();
+    }
+
+    private String newPartnerCode() {
+        for (int i = 0; i < 5; i++) {
+            String code = MapCodes.generate(MapCodes.PARTNER_PREFIX);
+            if (!partnerRepository.existsByCode(code)) {
+                return code;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "잠시 후 다시 시도해 주세요.");
     }
 
     private Partner getPartnerOrThrow(Long id) {

@@ -105,4 +105,31 @@ public class Building {
 
     @Column(name = "anchor_y", precision = 6, scale = 2)
     private BigDecimal anchorY;
+
+    /**
+     * 앱 표시 이름(예: '홍문관 R동'). NULL 이면 name 을 쓴다. name 은 뉴스 장소 매칭(NewsLocationMatcher)이
+     * 부분 문자열로 쓰는 짧은 이름이라 바꾸지 않고, 앱에 보일 긴 이름은 여기에 둔다.
+     */
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    /** 떨어진 동의 추가 외곽선 JSON [[[lat,lng], ...], ...] */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extra_boundaries")
+    private String extraBoundaries;
+
+    /** 출입구 JSON [{label, lat, lng, minFloor, maxFloor}, ...] */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "entrances")
+    private String entrances;
+
+    /** GET /map/data 정렬 순서(작은 값 먼저, 같으면 id 순) */
+    @Builder.Default
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder = 0;
+
+    /** 앱에 보이는 이름 — display_name 이 있으면 그것, 없으면 name. */
+    public String getMapName() {
+        return displayName != null && !displayName.isBlank() ? displayName : name;
+    }
 }
