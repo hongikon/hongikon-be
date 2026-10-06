@@ -21,7 +21,8 @@ import java.util.List;
  * <ul>
  *   <li>서버가 막 떴을 때는 {@link #STARTUP_LOOKBACK}만큼 거슬러 본다(배포 중 시작한 제보를 놓치지 않게).</li>
  *   <li>그 때문에 같은 제보를 두 번 집을 수 있지만, 유저당 빈도 제한(push.report-new-throttle-minutes, 기본 30분)이
- *       같은 유저에게 다시 보내는 것을 막는다.</li>
+ *       같은 유저에게 다시 보내는 것을 막는다. 제보 키워드 알림은 빈도 제한이 없는 대신 발송 기록(report_keyword_push_log)이
+ *       같은 제보로 두 번 보내는 것을 막는다.</li>
  *   <li>서버가 10분 넘게 꺼져 있던 사이 시작한 제보는 알림 없이 지도에만 뜬다(알림은 보조 수단이라 감수).</li>
  * </ul>
  * 서버 1대 기준이다. 여러 대로 늘리면 구간을 DB에 두거나 한 대에서만 돌린다.
@@ -61,7 +62,8 @@ public class ReportStartPushScheduler {
                 int accepted = reportPushDispatcher.dispatchStarted(new ReportModeratedEvent(
                         report.getId(), report.getUser().getId(), report.getTitle(),
                         report.getBuilding().getName(), report.getFloor(),
-                        ReportStatus.ACTIVE, ReportStatus.ACTIVE, null, report.getEndsAt(), report.getStartsAt()));
+                        ReportStatus.ACTIVE, ReportStatus.ACTIVE, null, report.getEndsAt(), report.getStartsAt(),
+                        report.getContent(), report.getPlaceLabel(), report.getCustomCategoryLabel()));
                 log.info("예정 제보 시작 알림: reportId={}, {}건 접수", report.getId(), accepted);
             } catch (Exception e) {
                 log.warn("예정 제보 시작 알림 실패 (reportId={}): {}", report.getId(), e.getMessage());

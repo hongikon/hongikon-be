@@ -17,12 +17,24 @@ public record ReportModeratedEvent(
         String note,
         LocalDateTime endsAt,
         /** 시작 시각(UTC). 승인 시점에 아직 시작 전이면 새 제보 알림을 시작 시각으로 미룬다. null 이면 이미 시작한 것으로 본다. */
-        LocalDateTime startsAt
+        LocalDateTime startsAt,
+        /** 본문·장소 설명·직접 입력 분류 — 제보 키워드 알림(ReportPushDispatcher) 매칭용. 없으면 null. */
+        String content,
+        String placeLabel,
+        String customCategoryLabel
 ) {
+    /** 키워드 매칭용 본문 없이 만드는 이벤트 — 제목·건물명만으로 매칭한다(기존 호출부·테스트 호환용). */
+    public ReportModeratedEvent(Long reportId, Long authorId, String title, String buildingName, Integer floor,
+                                ReportStatus previousStatus, ReportStatus status, String note, LocalDateTime endsAt,
+                                LocalDateTime startsAt) {
+        this(reportId, authorId, title, buildingName, floor, previousStatus, status, note, endsAt, startsAt,
+                null, null, null);
+    }
+
     /** 시작 시각을 모르는(이미 시작한 것으로 보는) 이벤트 — 예정 제보 이전의 호출부·테스트 호환용. */
     public ReportModeratedEvent(Long reportId, Long authorId, String title, String buildingName, Integer floor,
                                 ReportStatus previousStatus, ReportStatus status, String note, LocalDateTime endsAt) {
-        this(reportId, authorId, title, buildingName, floor, previousStatus, status, note, endsAt, null);
+        this(reportId, authorId, title, buildingName, floor, previousStatus, status, note, endsAt, (LocalDateTime) null);
     }
 
     /** 승인 시점(now)에 아직 시작 전인지. */

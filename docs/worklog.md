@@ -895,3 +895,26 @@
 - **DB 변경**: `db/alter_reports_content_2000.sql`(길이만 늘림, 재실행 안전). 실행 전에도 서버는 뜨지만 500자 넘는 본문 저장이 실패한다.
 - 테스트: `AppNicknameIntegrationTest.liveReportListIncludesContentUpTo2000Chars`(2000자 저장·목록 노출, 2001자 400).
 
+
+## 2026-10-06 — 제보 키워드 알림 (feat/report-keywords)
+
+- 제보 전용 키워드(소식 키워드 `keyword_subscriptions` 와 별개). 새 제보 알림 범위에 "내 키워드만"(`KEYWORDS`) 추가, 키워드에 걸린 제보는 빈도 제한 없이 먼저 보낸다.
+- API(전부 로그인 필요, 소식 키워드와 같은 모양·검증):
+  - `GET /users/me/report-keywords` → `{ "keywords": [{ "id": 1, "keyword": "간식" }] }`(등록 순서)
+  - `POST /users/me/report-keywords` `{ "keyword": "간식" }` → 201 `{ "id": 1, "keyword": "간식" }`. 앞뒤 공백 제거, 빈 값·30자 초과 400, 유저당 30개 초과 400, 같은 키워드(대소문자 무시) 409.
+  - `DELETE /users/me/report-keywords/{id}` → 204. 남의 id·없는 id 는 404(존재 여부를 드러내지 않음).
+  - `PATCH /users/me/notification-settings` 의 `newReportsScope` 가 `"CAMPUS"`·`"KEYWORDS"`(대소문자 무시)를 받는다. 컬럼 varchar(20) 그대로.
+- 발송(`ReportPushDispatcher.sendNewReport` — 승인 즉시 공개와 예정 제보 시작 스케줄러 둘 다 여기로 온다):
+  1. 키워드: 새 제보 알림을 켠(범위 무관) 활성 회원 중 제보 키워드가 제목·본문·장소 설명(placeLabel)·직접 입력 분류(customCategoryLabel)·건물명에 들어간 유저.
+     대소문자·공백 무시("간식 행사" = "간식행사"). 작성자·정지 회원·관리자 알림을 켠 관리자(일반 새 제보 알림과 같은 기준)는 제외. 빈도 제한 없음.
+     제목 `"[간식] 새 제보 · 홍문관 1층"`, 여러 개면 등록 순서 첫 키워드 + `"[간식 외 1] ..."`, 본문 = 제보 제목, data `{type: "REPORT_NEW", reportId}`.
+     보낸 유저는 `report_keyword_push_log(report_id, user_id)` 유일 기록을 먼저 남기고(재실행·동시 실행 중복 방지) `new_report_last_sent_at` 도 갱신한다.
+  2. 일반: 범위 CAMPUS 유저에게 기존처럼(30분 빈도 제한) — 이 제보로 키워드 알림을 받은 유저는 뺀다. 범위 KEYWORDS 유저는 일반 알림을 받지 않는다.
+  - 후보 조회 1쿼리(키워드 + 설정 + 유저 + 발송 기록) → 자바에서 매칭 → 기기 1쿼리. 발송 기록 INSERT 는 대상 유저당 1건.
+  - 키워드 매칭에 본문 등이 필요해 `ReportModeratedEvent` 에 `content`·`placeLabel`·`customCategoryLabel` 을 더했다(기존 생성자 유지).
+- 개인정보: 키워드는 본인만 조회·삭제, 로그에는 건수만 남긴다(키워드 내용 X). 회원탈퇴 시 제보 키워드·발송 기록을 지운다(`UserService.withdraw`, DB 도 ON DELETE CASCADE).
+  발송 기록에는 제보 id·유저 id·시각만 있다.
+- 테스트: `ReportKeywordApiIntegrationTest` 10개(CRUD·401·409·400·30개·남의 것 404·탈퇴·범위 PATCH·관리자 승인 → 본문 키워드 푸시),
+  `ReportKeywordPushTest` 9개(공백·대소문자·본문·장소·분류·건물명 매칭, "외 N", KEYWORDS 범위 일반 알림 제외, 빈도 제한 우회, 재실행 중복 없음, 작성자·정지·알림 끈 유저 제외),
+  `UserWithdrawIntegrationTest` 에 새 테이블 추가. 전체 512개 통과.
+- **DB 변경**: 배포 전에 `db/create_report_keyword_subscriptions.sql` 실행(`report_keyword_subscriptions` + `report_keyword_push_log`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다.
