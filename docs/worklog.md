@@ -974,3 +974,4 @@
   관리자 CRUD·404, 401/403, 입력 검증 14가지 + 경계값, 추가·수정·삭제 시 캐시 무효화), `MapDataIntegrationTest` 최상위 키 순서 갱신.
 - **DB 변경**: 배포 전에 `db/create_exhibitions_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
   배포·지도 데이터 동기화(`db/sync_map_data_*.sql`) 뒤에 `db/content/seed_homa_exhibitions_2026_10.sql` 실행(HoMA 10월 전시 7건).
+- 편의시설 추가(운영자 제공, 2026-10-07): 제4공학관 T동 10층 산업데이터공학과 전용 라운지, 6층 컴퓨터공학과 전용 라운지(멀티미디어실), 인문사회관 A동 2층 경영대학 학생 전용 스터디룸 — `db/sync_map_data_2026_10_06.sql`.

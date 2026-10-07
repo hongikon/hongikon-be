@@ -1,5 +1,5 @@
 -- 자동 생성: hongikon-fe scripts/generate-map-data-sync.ts
--- 원본: src/constants/buildings.ts(+buildingBoundaries.ts) 27동, partners.ts 120곳, facilities.ts 110건 (+ 2026-10-06 운영자 추가 P동 1층 라운지 1건)
+-- 원본: src/constants/buildings.ts(+buildingBoundaries.ts) 27동, partners.ts 120곳, facilities.ts 110건 (+ 운영자 추가: P동 1층 라운지, T동 10층·6층 학과 라운지, A동 2층 경영대 스터디룸)
 -- 선행: db/alter_map_data_v1.sql (display_name·extra_boundaries·entrances·sort_order, partners.code, campus_facilities)
 -- 건물은 code 기준 UPDATE 만 한다(reports·news 가 buildings.id 를 참조). name(서버 짧은 이름)은 그대로 둔다.
 
@@ -413,6 +413,10 @@ INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, l
 INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, longitude, sort_order, created_at, updated_at) VALUES ('hi-d-building-elevator', '엘리베이터', (SELECT id FROM buildings WHERE code = 'hongik_d'), NULL, NULL, NULL, NULL, 110, NOW(6), NOW(6));
 -- 2026-10-06 추가(운영자 제공): 제2공학관 P동 1층 라운지. 이름·위치 설명은 미확인이라 비워 둔다.
 INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, longitude, sort_order, created_at, updated_at) VALUES ('hi-p-1f-lounge', '라운지', (SELECT id FROM buildings WHERE code = 'hongik_p'), 1, NULL, NULL, NULL, 111, NOW(6), NOW(6));
+-- 2026-10-07 추가(운영자 제공): 학과·단과대 전용 라운지·스터디룸.
+INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, longitude, sort_order, created_at, updated_at) VALUES ('hi-t-10f-lounge', '라운지', (SELECT id FROM buildings WHERE code = 'hongik_t'), 10, '산업데이터공학과 전용 라운지', NULL, NULL, 112, NOW(6), NOW(6));
+INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, longitude, sort_order, created_at, updated_at) VALUES ('hi-t-6f-lounge', '라운지', (SELECT id FROM buildings WHERE code = 'hongik_t'), 6, '컴퓨터공학과 전용 라운지 (멀티미디어실)', NULL, NULL, 113, NOW(6), NOW(6));
+INSERT INTO campus_facilities (code, kind, building_id, floor, note, latitude, longitude, sort_order, created_at, updated_at) VALUES ('hi-a-2f-study-room', '스터디룸', (SELECT id FROM buildings WHERE code = 'hongik_a'), 2, '경영대학 학생 전용 스터디룸', NULL, NULL, 114, NOW(6), NOW(6));
 
 COMMIT;
 
