@@ -975,3 +975,34 @@
 - **DB 변경**: 배포 전에 `db/create_exhibitions_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
   배포·지도 데이터 동기화(`db/sync_map_data_*.sql`) 뒤에 `db/content/seed_homa_exhibitions_2026_10.sql` 실행(HoMA 10월 전시 7건).
 - 편의시설 추가(운영자 제공, 2026-10-07): 제4공학관 T동 10층 산업데이터공학과 전용 라운지, 6층 컴퓨터공학과 전용 라운지(멀티미디어실), 인문사회관 A동 2층 경영대학 학생 전용 스터디룸 — `db/sync_map_data_2026_10_06.sql`.
+
+## 2026-10-07 — 학식 메뉴 가져오기 (feat/cafeteria-menus)
+
+- 홍익대 홈페이지 서울캠퍼스 식당 페이지(`/kr/life/seoul-cafeteria.do`)가 쓰는 공개 JSON 에서 이번 주(월~금) 메뉴를 가져와
+  `cafeteria_menus` 에 저장하고, 앱은 우리 API 만 읽는다(사용자 단말이 학교 서버를 부르지 않는다). 패키지 `cafeteria`.
+- 가져오기(`CafeteriaMenuClient`): **고정 주소 하나만** 부른다 —
+  `https://www.hongik.ac.kr/sso/APICipher2.jsp?data={"url":"/homepage/get_food_list.php","url2":"CAMPUS=","url3":"0"}`(URL 인코딩).
+  이 학교 엔드포인트는 data.url 의 내부 경로를 그대로 중계하는 범용 프록시라 어떤 입력도 주소에 넣지 않는다(SSRF). 리다이렉트 안 따라감,
+  연결 5초·응답 10초(전체 15초), 본문 2 MB 상한, UA `HongikOnBot/1.0 (+…; hongikonsupport@gmail.com)`.
+- 파싱(`CafeteriaMenuParser`): Content-Type 은 text/html 이지만 JSON 으로 읽고 `result == "Y"` 확인. 필드 URL 디코딩(+ = 공백),
+  MENU 를 `\r\n` 으로 나누고 HTML 엔티티(`&amp;`) 풀고 trim. 대응표(`CafeteriaRestaurants`):
+  REST_NO 3 → `dorm2-student`(학생식당, 제2기숙사 B2, facilityId `hi-dorm2-b2f-restaurant-01`, PRICELEVEL 0 아침·1 점심A·2 점심B·3 저녁),
+  REST_NO 2 → `mh-staff`(교직원식당, MH 16층, `hi-mh-16f-restaurant`, 0 점심·1 저녁). 시간·가격은 홈페이지 공식 값.
+  모르는 REST_NO·슬롯, 날짜·인코딩이 깨졌거나 빈 행은 건너뛰고 건수만 경고 로그. 한두 줄짜리 휴무 문구('한글날', '대체공휴일 운영X', '휴무' 등)는 `closed=true`.
+- 저장: (restaurant_code, menu_date, meal) 유니크, 같은 키면 items·closed·fetched_at 덮어쓰기(upsert). fetched_at 은 UTC, API 는 KST.
+- 일정(`CafeteriaMenuFetchJob`, KST): 평일 07:00·10:30, 월요일 12:00 재시도, 서버 시작 30초 뒤 이번 주 메뉴가 없으면 한 번.
+  한 번에 하나만 돈다(겹치면 건너뜀). 성공 시 건수 로그, 0건·`result != Y`·HTTP 실패는 WARN. 메뉴 텍스트·응답 본문은 로그에 남기지 않는다.
+- 설정: `menu.fetch.enabled`(기본 true, 테스트 false) `menu.fetch.cron-morning`(`0 0 7 * * MON-FRI`) `menu.fetch.cron-late-morning`(`0 30 10 * * MON-FRI`)
+  `menu.fetch.cron-monday-retry`(`0 0 12 * * MON`) `menu.fetch.startup-delay-seconds`(30) `menu.fetch.connect-timeout-ms`(5000) `menu.fetch.read-timeout-ms`(10000)
+  — 환경 변수 `MENU_FETCH_*`. cron 을 `-` 로 두면 그 일정만 끈다.
+- API(비로그인 GET, `Cache-Control: public, max-age=600`):
+  - `GET /cafeteria/menus?date=YYYY-MM-DD`(기본 오늘 KST) → `{ date, source: "홍익대학교 홈페이지", sourceUrl, fetchedAt(KST, 없으면 null),
+    restaurants: [{ code, facilityId, name, meals: [{ meal, time, price, items: [...], closed }] }] }`. 식당은 메뉴가 없어도 `meals: []` 로 나온다.
+    끼니 순서 아침, 점심/점심A, 점심B, 저녁.
+  - `GET /cafeteria/menus/week?date=` → `{ days: [월~금 하루 응답 5개] }`(주말 날짜면 그 주 월~금).
+  - 날짜 형식이 틀리거나 없는 날짜·2020~2100 밖이면 400 `{message}`.
+- 테스트: `CafeteriaMenuParserTest` 7(실제 응답 fixture `src/test/resources/cafeteria/hongik-food-list-2026-10-05.json`, 슬롯 대응, 엔티티,
+  휴무, 모르는 식당·슬롯·깨진 행, result != Y), `CafeteriaMenuClientTest` 3(고정 URI만 요청, 2 MB 상한),
+  `CafeteriaMenuIntegrationTest` 11(upsert 멱등·덮어쓰기, 실패 시 저장 안 함, 시작 시 확인, 동시 실행 건너뜀, 하루·주 응답 모양, 기본 날짜, 400). 네트워크 없음.
+- 개인정보 없음(공개 메뉴 텍스트뿐), 인증 불필요한 조회만, 학교 요청은 하루 2~3번.
+- **DB 변경**: 배포 전에 `db/create_cafeteria_menus_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
