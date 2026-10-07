@@ -67,6 +67,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
                     // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
                     auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
+                    // 학식 메뉴(학교 홈페이지 공개 메뉴를 서버가 가져와 둔 것). 조회만.
+                    auth.requestMatchers(HttpMethod.GET, "/cafeteria/menus", "/cafeteria/menus/week").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
                     // 문의하기는 비로그인(게스트)도 보낼 수 있다. 토큰이 있으면 작성자로 연결된다.
                     auth.requestMatchers(HttpMethod.POST, "/feedback").permitAll();
