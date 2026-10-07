@@ -1016,3 +1016,10 @@
   - `hi-t-3f-reading-room`: '일반·노트북 열람실 · 06:00~23:00 연중무휴'. '방학 중 3층 열람실 24시간 개방'·'좌석배정기에서 좌석 발급' 문구는 뺐다(요청).
   - `hi-r-8f-reading-room`: '노트북열람실 06:00~23:00' 이 두 번 들어간 중복 제거.
 - 스키마 변경 없음. 개인정보 없음.
+
+## 2026-10-08 — 비밀값 점검·인증서 파일 git 제외 (dev)
+
+- 저장소 비밀값 점검: `.env`·`.pem`·`.p8`·`application-local.properties` 는 `.gitignore` 로 막혀 있고 git 기록에도 올라간 적 없음.
+  `application*.properties` 의 DB 비밀번호·JWT·카카오·Apple 키·Expo 푸시 토큰은 모두 `${환경변수}` 자리표시뿐. 추적 파일에서 AWS 키·개인키·GitHub 토큰 형식도 없음(테스트용 가짜 값만).
+- `.gitignore` 에 인증서·서명 파일(`*.cer`·`*.crt`·`*.der`·`*.pfx`·`*.keystore`·`*.mobileprovision`) 추가.
+- 코드·스키마 변경 없음. 개인정보 없음.

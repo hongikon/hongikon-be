@@ -47,3 +47,10 @@ credentials*.json
 *.p12
 *.jks
 *.key
+# 인증서·서명 파일은 저장소에 두지 않는다
+*.cer
+*.crt
+*.der
+*.pfx
+*.keystore
+*.mobileprovision
