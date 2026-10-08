@@ -1055,3 +1055,28 @@
 - `AssumeRoleWithWebIdentity` 가 거부되면 실제 `sub` 를 확인하라는 안내와 확인 명령(`gh api repos/hongikon/hongikon-be/actions/oidc/customization/sub`) 추가.
 - 공개 저장소라 숫자 ID·계정 ID·인스턴스 ID·역할 ARN 은 적지 않고 자리표시자만 쓴다.
 - 코드·워크플로·스키마 변경 없음. 개인정보 없음.
+## 2026-10-09 — 앱 심사용 데모 로그인 (dev)
+
+- 배경: TestFlight Beta App Review 가 "아이디/비밀번호로 들어갈 수 있는 데모 계정"이 없다며 반려. 앱은 카카오·Apple 로그인만 있어
+  심사 기간에만 켜는 데모 로그인을 추가했다. 패키지 `auth/demo`(`DemoLoginController`, `DemoLoginService`).
+- API: `POST /auth/demo` body `{ "username", "password" }` → 200 `{ accessToken, refreshToken }`(`/auth/token/exchange`·`/auth/apple` 과 같은
+  `TokenResponse`, 같은 `RefreshTokenService.issueTokenPair` — refresh 세션 행·재발급·로그아웃·세션 상한 동작이 같다).
+  - 꺼져 있으면(기본) 본문과 상관없이 **404**(엔드포인트가 없는 것처럼). 그래서 본문을 DTO/@Valid 로 받지 않고 켜졌는지 먼저 본 뒤 읽는다.
+  - 아이디·비밀번호가 틀리거나 본문 형식이 틀리면 **401** "아이디 또는 비밀번호가 올바르지 않습니다."(어느 쪽이 틀렸는지 알리지 않음).
+  - 접속 IP 마다 10분에 10번 넘게 시도하면 **429**(성공·실패 모두 셈, `SlidingWindowRateLimiter`, IP 는 FeedbackController 와 같은 `getRemoteAddr()`).
+  - SecurityConfig: `POST /auth/demo` 만 permitAll(GET 등은 그대로 인증 필요).
+- 설정(환경 변수, 저장소에는 자리표시만): `app.demo-login.enabled=${DEMO_LOGIN_ENABLED:false}`, `app.demo-login.username=${DEMO_LOGIN_USERNAME:}`,
+  `app.demo-login.password=${DEMO_LOGIN_PASSWORD:}`, `app.demo-login.rate-limit.max-attempts=10`·`window-minutes=10`.
+  켜도 아이디가 비었거나 비밀번호가 12자 미만이면 꺼진 것으로 보고(404) 기동 때 WARN 한 번. 켜져 있으면 기동 때 "심사 끝나면 끄라"는 WARN.
+- 보안:
+  - 아이디·비밀번호 모두 SHA-256 다이제스트를 `MessageDigest.isEqual` 로 비교(상수 시간), 아이디가 틀려도 비밀번호 비교를 건너뛰지 않는다.
+  - 데모 회원은 하나: `social_type='DEMO'`, `social_id='app-review-demo'`, 로그인 닉네임 "앱 심사 계정"(앱 닉네임은 비워 둠 — 유니크 충돌 없음),
+    이메일 등 개인정보 없음. 없으면 만들고(동시 첫 로그인은 유니크 제약으로 한 행), 있으면 그대로 쓴다.
+  - 역할은 항상 USER. 저장된 데모 회원이 ADMIN 이면 401 + ERROR 로그(데모 계정으로 관리자 화면 진입 차단).
+  - 로그에는 결과(`result=success|fail|ratelimited`)와 끝을 가린 IP(`203.0.113.*`), 성공 시 userId 만. 입력 아이디·비밀번호는 남기지 않는다.
+  - 정지된 데모 회원은 일반 회원과 같다(로그인은 되고 쓰기만 막힘). 탈퇴(`DELETE /auth/me`)도 일반 회원과 같고, DEMO 는 카카오 연결 끊기·Apple 토큰 폐기를 부르지 않는다.
+- `SocialType` 에 `DEMO` 추가. `users.social_type`·`withdraw_retentions.social_type` 은 VARCHAR(20) 이라 **SQL 변경 없음**.
+  `GET /users/me` 등의 `socialType` 에 `"DEMO"` 가 올 수 있다(데모 계정으로 로그인했을 때만).
+- 테스트: `DemoLoginIntegrationTest` 6(성공·토큰 모양·같은 회원 재로그인·재발급, 틀린 아이디/비밀번호/형식 401 같은 응답, IP 별 429, ADMIN 거절,
+  탈퇴 시 카카오·Apple 미호출, IP 가리기), `DemoLoginDisabledIntegrationTest` 2(꺼짐 404·GET 401, 불완전 설정은 꺼짐). 전체 558개 통과.
+- 운영: 켜고 끄는 법은 `docs/deploy-runbook-2026-10.md` "심사용 데모 로그인 켜기".

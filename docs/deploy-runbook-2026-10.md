@@ -125,3 +125,20 @@ curl -sI https://api.hongikon.com/status | grep -i '^server'  # 버전 번호 �
 
 - 카카오 개발자 콘솔 앱 이름이 아직 **'홍대로'** — 로그인 동의 화면에 그대로 뜬다. [앱 설정 → 일반 → 기본 정보]에서 `홍익온` 으로, 아이콘도 등록
 - `GET /news` 가 페이지 나눔 없이 전체(1만 건 넘게, 약 2MB)를 한 번에 내려준다 — 페이지 나눔 필요
+
+## 심사용 데모 로그인 켜기 (App Store / TestFlight 심사 기간에만)
+
+`POST /auth/demo`(2026-10-09, worklog 참고). 기본은 꺼져 있고(404), 서버 `.env` 로만 켠다. 실제 값은 저장소·이슈·채팅에 남기지 말 것.
+
+1. EC2 의 `.env` 에 추가:
+   ```
+   DEMO_LOGIN_ENABLED=true
+   DEMO_LOGIN_USERNAME=<심사용 아이디>
+   DEMO_LOGIN_PASSWORD=<12자 이상 무작위 비밀번호, 예: openssl rand -base64 18>
+   ```
+2. 컨테이너를 **다시 만든다**(`--env-file` 은 `docker restart` 로는 다시 읽지 않는다). 지금 떠 있는 이미지 태그 그대로
+   `ENV_FILE=/home/ubuntu/hongikon-be/.env IMAGE_NAME=<이미지> ./scripts/deploy.sh <현재 태그>`(docs/ci-cd.md), 또는 `docker rm -f <컨테이너>` 후 위 `docker run ... --env-file .env ...`.
+3. 확인: `docker logs <컨테이너> | grep demo-login` 에 "데모 로그인이 켜져 있습니다" WARN. "끈 상태로 둡니다"가 보이면 아이디가 비었거나 비밀번호가 12자 미만.
+4. App Store Connect → TestFlight(또는 앱 심사) → 로그인 정보에 같은 아이디/비밀번호 입력.
+5. 심사가 끝나면 `DEMO_LOGIN_ENABLED=false`(또는 세 줄 삭제) 후 컨테이너 다시 만들기 → `POST /auth/demo` 가 404 인지 확인.
+   다음 심사 때는 비밀번호를 새로 만든다. 데모 회원(`social_type='DEMO'`)이 남긴 제보 등은 관리자 화면에서 정리하거나 앱에서 탈퇴 처리.
