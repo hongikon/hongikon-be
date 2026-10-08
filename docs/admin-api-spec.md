@@ -181,6 +181,87 @@
 `withdrawals` 는 오래된 순(재가입·재탈퇴하면 한 건씩 늘어난다). 위반 확정 제보의 요약만 담는다 — 위치(건물·층·좌표)·기간,
 위반이 아닌 제보, 이 회원이 단 신고, 사진, 닉네임·이메일·소셜 id 는 없다(사진은 보관하지 않는다 — 관리자 삭제 시점에 지워진다).
 
+## 지도 경로망 (`/admin/map/path-*`)
+
+앱이 길찾기를 계산하는 경로망(점·간선). 앱은 `GET /map/data` 의 `paths` 로 받는다(서버 경로 계산 API 없음).
+기존 `route_nodes`/`route_edges`(`POST /routes/search`)와는 별개다. 쓰기가 성공하면 `GET /map/data` 캐시를 바로 비운다.
+
+- 점 종류
+  - `WAYPOINT` 중간점 — 좌표를 저장한다. id 는 프론트 id 그대로(예: `n110`), 비우면 `pn-xxxxxxxx`.
+  - `ENTRANCE` 건물 출입구 — `buildingCode` + `entranceLabel` 로 `buildings.entrances` 의 출입구를 가리킨다.
+    좌표는 저장하지 않고 응답 때 entrances 에서 읽는다. id 는 `e-{건물 code}-{라벨}`(예: `e-hongik_r-HI_R_2F_ENTER`).
+- 간선은 양방향 한 줄. 같은 두 점은 방향과 상관없이 한 번만.
+
+| 메서드·경로 | 본문 / 응답 | 오류 |
+|---|---|---|
+| `GET /admin/map/path-nodes` | `{ nodes: [{ id, kind, lat?, lng?, buildingCode?, entranceLabel?, degree, broken }] }` code 순. 출입구 노드 lat·lng 는 해석값(못 찾으면 생략, `broken: true`) | |
+| `POST /admin/map/path-nodes` | `{ id?, kind, lat?, lng?, buildingCode?, entranceLabel? }` → 201 + 위 항목 | 400 종류·필드 조합·없는 건물·없는 라벨·출입구 id 불일치 / 409 같은 id·같은 출입구 노드 |
+| `PUT /admin/map/path-nodes/{id}` | 같은 본문(`kind: WAYPOINT`, lat·lng) → 200. **중간점 좌표만** 바꾼다 | 400 출입구 노드·종류 변경 / 404 |
+| `DELETE /admin/map/path-nodes/{id}` | 204 | 404 / 409 이어진 간선이 있음(`"이어진 간선 N개를 먼저 지워 주세요."`) |
+| `GET /admin/map/path-edges` | `{ edges: [{ id, a, b, lengthM? }] }` | |
+| `POST /admin/map/path-edges` | `{ a, b }` → 201 `{ id, a, b, lengthM }` | 400 같은 점·없는 점 / 409 이미 이어짐 |
+| `DELETE /admin/map/path-edges/{id}` | 204 (수정 API 없음 — 지우고 다시 추가) | 404 |
+| `GET /admin/map/path-audit` | 아래 | |
+| `POST /admin/map/path-network/import?dryRun=true` | 아래 | 400 dryRun=false 인데 오류가 있음(본문은 리포트) |
+
+**점검** `GET /admin/map/path-audit`
+
+```json
+{
+  "summary": { "nodes": 145, "edges": 175, "components": 2, "mainComponentSize": 140 },
+  "brokenEntranceRefs": [{ "node": "e-hongik_x-…", "building": "hongik_x", "label": "…", "reason": "LABEL_MISSING | ENTRANCES_INVALID" }],
+  "isolatedNodes": ["n77"],
+  "detachedComponents": [{ "size": 5, "nodes": ["n90", "…"] }],
+  "unlinkedEntrances": [{ "building": "hongik_r", "label": "HI_R_B2_ENTER" }],
+  "longEdgeThresholdM": 100.0,
+  "longEdges": [{ "id": 12, "a": "n1", "b": "n2", "lengthM": 412.3 }]
+}
+```
+
+- `brokenEntranceRefs`: 출입구 노드가 가리키는 라벨이 건물 entrances 에 없다. 이 점과 이어진 간선은 `GET /map/data` 에서 빠진다.
+  출입구 편집 API 는 아직 없어서, 주로 `db/sync_map_data_*.sql` 이 entrances 를 덮어쓸 때 생긴다 — 동기화 SQL 은 COMMIT 전에
+  `db/create_path_network_tables.sql` 끝의 확인 쿼리를 돌린다.
+- `detachedComponents`: 본망(가장 큰 덩어리)과 이어지지 않은 덩어리(크기 2 이상). 크기 1 은 `isolatedNodes`.
+- `unlinkedEntrances`: 경로망에 출입구 노드가 없는 건물 출입구(참고).
+- `longEdges`: 100m(`AdminMapPathService.LONG_EDGE_METERS`) 넘는 간선 — 좌표 실수 의심.
+
+**임포트** `POST /admin/map/path-network/import` — 앱이 `pathNodes.ts` 에서 내보낸 JSON(format 1)
+
+```json
+{
+  "format": 1,
+  "source": "hongikon-fe src/constants/pathNodes.ts @ <커밋>",
+  "nodes": [{ "id": "n110", "lat": 37.55, "lng": 126.92 }],
+  "edges": [["n110", "n111"], ["n111", "홍문관 R동#HI_R_2F_ENTER"]],
+  "entranceRefs": [{ "ref": "홍문관 R동#HI_R_2F_ENTER", "buildingName": "홍문관 R동", "buildingCode": "hongik_r", "label": "HI_R_2F_ENTER" }]
+}
+```
+
+- `dryRun` 기본 `true` — 검증 리포트만 주고 아무것도 바꾸지 않는다.
+- `dryRun=false` 는 **오류가 하나도 없을 때만** 기존 경로망 전체를 한 트랜잭션에서 지우고 새로 넣는다(전부 아니면 전무). 오류가 있으면 400 + 리포트.
+- 점 id 는 그대로 쓴다. `MapDataRules.CODE_REGEX`(영문·숫자·`-`·`_`, 100자)에 맞지 않는 것만 바꾸고 `idConversions` 에 남긴다.
+- 출입구 참조: `buildingCode` 가 있으면 그것으로, 없으면 `buildingName` 을 `display_name` → `name` 순으로 찾는다(앞뒤·연속 공백 정리 후 일치).
+  라벨은 정확히 일치해야 한다. `entranceRefs` 에 없는 끝점도 `'건물명#라벨'` 이면 마지막 `#` 으로 나눠 읽는다. 출입구 노드는 간선이 쓰는 것만 만든다.
+
+리포트:
+
+```json
+{
+  "dryRun": true, "applied": false, "format": 1, "source": "…",
+  "counts": { "waypoints": 105, "entranceNodes": 40, "edges": 175 },
+  "idConversions": [{ "from": "n 3", "to": "n_3" }],
+  "entranceRefs": [{ "ref": "홍문관 R동#HI_R_2F_ENTER", "buildingCode": "hongik_r", "label": "HI_R_2F_ENTER", "nodeId": "e-hongik_r-HI_R_2F_ENTER", "matchedBy": "buildingCode | displayName | name" }],
+  "errors": [{ "type": "LABEL_NOT_FOUND", "target": "홍문관 R동#HI_R_9F_ENTER", "message": "…", "candidates": ["HI_R_1F5_ENTER", "…"] }],
+  "warnings": { "isolatedNodes": [], "detachedComponents": [], "unusedEntranceRefs": [] }
+}
+```
+
+`errors[].type`: `FORMAT`, `INVALID_NODE`, `DUPLICATE_NODE_ID`, `INVALID_COORD`, `INVALID_REF`, `BUILDING_NOT_FOUND`, `BUILDING_AMBIGUOUS`(candidates = 건물 code),
+`LABEL_NOT_FOUND`(candidates = 그 건물 라벨, 대소문자만 다른 것 먼저, 20개까지), `INVALID_EDGE`, `EDGE_UNKNOWN_NODE`, `SELF_LOOP`, `DUPLICATE_EDGE`(방향 무관).
+`target` 은 점 id·참조 문자열·`edges[i]`.
+
+배포 전 DB: `db/create_path_network_tables.sql`(새 테이블 `path_nodes`, `path_edges`). 절차는 `docs/deploy-runbook-path-network.md`.
+
 ## 운영 도구
 
 - `POST /crawler/trigger` → `{ "savedCount": 12 }` (기존, 이제 ADMIN 전용). 이미 도는 중이면 `409`.
