@@ -1047,3 +1047,11 @@
 - `workflow_run` 은 기본 브랜치(main)에 파일이 있어야 동작 — dev→main 머지 전에는 자동 배포가 일어나지 않는다.
 - 로컬 확인: YAML 파싱, 각 단계 `bash -n`, aws/jq 목(mock)으로 SSM 전송·폴링·실패 경로, guard 시나리오 7가지(dev 전용 커밋 거부 — dispatch·workflow_run, db 변경 차단·sql_applied 통과·dry run·잘못된 태그·없는 커밋). 실제 AWS·서버로는 아직 돌리지 않았다.
 - 코드·스키마 변경 없음. 개인정보 없음.
+
+## 2026-10-08 — OIDC 신뢰 정책 sub 형식 정정 (docs/fix-oidc-sub-format)
+
+- `docs/ci-cd.md` 5.6: IAM 역할 신뢰 정책의 `sub` 를 이름 기반(`repo:hongikon/hongikon-be:environment:production`)에서
+  불변 subject 형식(`repo:hongikon@<조직ID>/hongikon-be@<저장소ID>:environment:production`)으로 고쳤다. 저장소 설정이 `use_immutable_subject: true` 다.
+- `AssumeRoleWithWebIdentity` 가 거부되면 실제 `sub` 를 확인하라는 안내와 확인 명령(`gh api repos/hongikon/hongikon-be/actions/oidc/customization/sub`) 추가.
+- 공개 저장소라 숫자 ID·계정 ID·인스턴스 ID·역할 ARN 은 적지 않고 자리표시자만 쓴다.
+- 코드·워크플로·스키마 변경 없음. 개인정보 없음.
