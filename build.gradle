@@ -58,3 +58,9 @@ tasks.named('test') {
 springBoot {
 	buildInfo()
 }
+
+// 로컬 개발용 비밀값(application-local.properties, gitignore 대상)이 배포 jar·이미지에 섞여 들어가지 않게 한다.
+// bootJar 에만 걸어서 bootRun·테스트는 그대로 src/main/resources 의 파일을 읽는다.
+tasks.named('bootJar') {
+	exclude 'application-local.properties'
+}
