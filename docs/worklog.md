@@ -896,6 +896,15 @@
 - 테스트: `AppNicknameIntegrationTest.liveReportListIncludesContentUpTo2000Chars`(2000자 저장·목록 노출, 2001자 400).
 
 
+
+### 이미지 업로드 (chore/image-publish)
+
+- GitHub Actions `publish-image.yml`: `dev`·`main` push 마다 `./gradlew build -x test` → `docker build` → `ghcr.io/<owner>/hongikon-be` 에 올린다(로그인 `GITHUB_TOKEN`, 배포는 안 함).
+  태그 `sha-<7자리>` + 브랜치 이름(`dev`/`main`), `latest` 는 `main` 만. 같은 브랜치 이전 실행은 취소.
+- jar 에 로컬 전용 `application-local.properties` 가 들어 있으면 올리지 않고 실패하게 막았다(`.gitignore` 대상이라 CI 체크아웃에는 없음 — 실수로 커밋될 때 대비).
+- 추적되는 `src/main/resources`(`application.properties`·`application-prod.properties`·금칙어 목록) 점검: 비밀값 없음. 비밀은 전부 `${ENV}` 로만 받고, 기본값은 공개 도메인·외부 API 주소·`localhost` 뿐.
+- `docs/ci-cd.md` 3절(업로드·태그 규칙) 추가.
+
 ## 2026-10-06 — 제보 키워드 알림 (feat/report-keywords)
 
 - 제보 전용 키워드(소식 키워드 `keyword_subscriptions` 와 별개). 새 제보 알림 범위에 "내 키워드만"(`KEYWORDS`) 추가, 키워드에 걸린 제보는 빈도 제한 없이 먼저 보낸다.
@@ -1023,3 +1032,4 @@
   `application*.properties` 의 DB 비밀번호·JWT·카카오·Apple 키·Expo 푸시 토큰은 모두 `${환경변수}` 자리표시뿐. 추적 파일에서 AWS 키·개인키·GitHub 토큰 형식도 없음(테스트용 가짜 값만).
 - `.gitignore` 에 인증서·서명 파일(`*.cer`·`*.crt`·`*.der`·`*.pfx`·`*.keystore`·`*.mobileprovision`) 추가.
 - 코드·스키마 변경 없음. 개인정보 없음.
+
