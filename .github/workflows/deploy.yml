@@ -1,0 +1,287 @@
+name: Deploy
+
+# 운영 서버 배포(CD). 흐름·승인·롤백은 docs/ci-cd.md 5절.
+# 서버·AWS 값(리전·역할 ARN·인스턴스 ID)은 이 파일에 적지 않는다 — GitHub Environment `production` 의 변수로만 읽는다.
+#   vars.AWS_REGION, vars.AWS_ROLE_ARN, vars.EC2_INSTANCE_ID
+# workflow_run 은 기본 브랜치(main)에 이 파일이 있어야 동작한다.
+on:
+  workflow_run:
+    workflows: ["Publish image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: '배포할 이미지 태그 (예: sha-1234567)'
+        required: true
+        type: string
+      dry_run:
+        description: '서버 연결만 시험하고 배포하지 않음'
+        required: false
+        type: boolean
+        default: true
+      sql_applied:
+        description: 'db/ 변경분을 운영 DB 에 이미 적용함(RDS 스냅샷 후)'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  guard:
+    # main 에 대한 push 로 "Publish image" 가 성공했을 때만 자동으로 돈다. 수동 실행은 항상.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      image_tag: ${{ steps.target.outputs.image_tag }}
+      dry_run: ${{ steps.target.outputs.dry_run }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve target commit
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_SQL_APPLIED: ${{ inputs.sql_applied }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            sha="$RUN_HEAD_SHA"
+            image_tag="sha-${sha::7}"
+            dry_run=false
+            sql_applied=false
+          else
+            if [[ ! "$INPUT_IMAGE_TAG" =~ ^sha-[0-9a-f]{7}$ ]]; then
+              echo "::error::image_tag 는 sha-<커밋 앞 7자리> 형식이어야 합니다 (예: sha-1234567)"
+              exit 1
+            fi
+            if ! sha="$(git rev-parse --verify --quiet "${INPUT_IMAGE_TAG#sha-}^{commit}")"; then
+              echo "::error::${INPUT_IMAGE_TAG} 에 해당하는 커밋을 찾지 못했습니다(없거나 여러 개)"
+              exit 1
+            fi
+            image_tag="$INPUT_IMAGE_TAG"
+            dry_run="$INPUT_DRY_RUN"
+            sql_applied="$INPUT_SQL_APPLIED"
+          fi
+
+          # 이미지는 dev·main push 에서만 만들어진다. 그 밖의 커밋은 배포하지 않는다.
+          if ! git merge-base --is-ancestor "$sha" origin/main && ! git merge-base --is-ancestor "$sha" origin/dev; then
+            echo "::error::${sha} 는 main·dev 어디에도 없는 커밋입니다"
+            exit 1
+          fi
+
+          # 첫 번째 부모와 비교해 db/ 변경을 찾는다. 머지 커밋이면 머지된 브랜치 전체 변경이 잡힌다.
+          changed="$(git diff --name-only "${sha}^1" "$sha" -- db/)"
+          if [[ -n "$changed" && "$sql_applied" != "true" ]]; then
+            echo "이 커밋에서 바뀐 db/ 파일:"
+            echo "$changed" | sed 's/^/  - /'
+            echo "::error::db/ 변경이 있습니다. RDS 스냅샷 후 SQL을 먼저 적용하고 workflow_dispatch 로 sql_applied=true 로 다시 실행하세요 (image_tag=${image_tag})."
+            exit 1
+          fi
+
+          {
+            echo "sha=$sha"
+            echo "image_tag=$image_tag"
+            echo "dry_run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### 배포 대상"
+            echo "- 커밋: \`$sha\`"
+            echo "- 이미지 태그: \`$image_tag\`"
+            echo "- dry_run: \`$dry_run\`"
+            if [[ -n "$changed" ]]; then
+              echo "- db/ 변경 있음 — sql_applied=true 로 통과:"
+              echo "$changed" | sed 's/^/  - `/; s/$/`/'
+            else
+              echo "- db/ 변경 없음"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # 승인(Required reviewers)은 Environment 설정에서 건다. 승인 대기 시간은 timeout 에 들어가지 않는다.
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      # 저장소가 Public 이라 Actions 로그도 공개된다. 서버·AWS 값이 로그에 찍히지 않게 먼저 가린다.
+      - name: Mask environment values
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: |
+          echo "::add-mask::$AWS_ROLE_ARN"
+          echo "::add-mask::$EC2_INSTANCE_ID"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: hongikon-be-deploy-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Run on server via SSM
+        env:
+          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          IMAGE_TAG: ${{ needs.guard.outputs.image_tag }}
+          DRY_RUN: ${{ needs.guard.outputs.dry_run }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$GHCR_TOKEN"
+
+          script="$RUNNER_TEMP/remote.sh"
+          params="$RUNNER_TEMP/ssm-params.json"
+          trap 'rm -f "$script" "$params"' EXIT
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            # 인증·SSM 경로 시험. 토큰을 보내지 않고, pull·교체도 하지 않는다.
+            cat > "$script" <<'REMOTE'
+          set -uo pipefail
+          echo "== dry run: 배포하지 않습니다"
+          echo "== whoami"; whoami
+          echo "== docker ps"; docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+          echo "== SSM agent"
+          for svc in amazon-ssm-agent snap.amazon-ssm-agent.amazon-ssm-agent; do
+            echo "$svc: $(systemctl is-active "$svc" 2>/dev/null || true)"
+          done
+          echo "== GET /reports: $(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080/reports || true)"
+          REMOTE
+          else
+            {
+              echo "TAG=$(printf '%q' "$IMAGE_TAG")"
+              echo "GHCR_USER=$(printf '%q' "$GHCR_USER")"
+              echo "GHCR_TOKEN=$(printf '%q' "$GHCR_TOKEN")"
+              # 서버의 ~/deploy.sh 복사본이 아니라 대상 커밋의 scripts/deploy.sh 를 그대로 보낸다.
+              echo "DEPLOY_SH_B64=$(base64 -w0 scripts/deploy.sh)"
+              cat <<'REMOTE'
+          set -euo pipefail
+          IMAGE_NAME=ghcr.io/hongikon/hongikon-be
+          CONTAINER_NAME=hongikon-be
+          workdir="$(mktemp -d)"
+          cleanup() {
+            docker logout ghcr.io >/dev/null 2>&1 || true
+            rm -rf "$workdir"
+          }
+          trap cleanup EXIT
+
+          echo "== ghcr.io 로그인"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+          unset GHCR_TOKEN
+
+          echo "== pull ${IMAGE_NAME}:${TAG}"
+          docker pull "${IMAGE_NAME}:${TAG}"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+
+          echo "== 롤백용 태그"
+          if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+            current="$(docker container inspect -f '{{.Image}}' "$CONTAINER_NAME")"
+            docker tag "$current" "hongikon-be:before-${TAG}"
+            echo "hongikon-be:before-${TAG} <- ${current} ($(docker container inspect -f '{{.Config.Image}}' "$CONTAINER_NAME"))"
+          else
+            echo "실행 중인 ${CONTAINER_NAME} 컨테이너가 없어 건너뜁니다"
+          fi
+
+          echo "== deploy.sh ${TAG}"
+          printf '%s' "$DEPLOY_SH_B64" | base64 -d > "$workdir/deploy.sh"
+          chmod 700 "$workdir/deploy.sh"
+          ENV_FILE=/home/ubuntu/hongikon-be/.env IMAGE_NAME="$IMAGE_NAME" bash "$workdir/deploy.sh" "$TAG"
+
+          echo "== 배포 후 확인"
+          reports="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080/reports || true)"
+          admin="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080/admin/users || true)"
+          echo "GET /reports: ${reports} (기대 200)"
+          echo "GET /admin/users (비로그인): ${admin} (기대 401)"
+          if [[ "$reports" != "200" || "$admin" != "401" ]]; then
+            echo "배포 후 확인 실패 — 이전 이미지는 hongikon-be:before-${TAG} 로 남아 있습니다 (docs/ci-cd.md 롤백)" >&2
+            exit 1
+          fi
+          echo "배포 완료: ${IMAGE_NAME}:${TAG}"
+          REMOTE
+            } > "$script"
+          fi
+
+          # AWS-RunShellScript 는 sh(Ubuntu 는 dash)로 돈다. 위 스크립트는 bash 문법이라 base64 로 감싸
+          # 서버 임시 파일로 풀어 bash 로 실행하고 지운다.
+          wrapper="f=\$(mktemp)
+          echo '$(base64 -w0 "$script")' | base64 -d > \"\$f\"
+          bash \"\$f\"; rc=\$?
+          rm -f \"\$f\"
+          exit \$rc"
+          jq -n --arg s "$wrapper" '{commands: [$s], executionTimeout: ["1500"]}' > "$params"
+          unset wrapper
+          command_id="$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --comment "hongikon-be ${IMAGE_TAG} dry_run=${DRY_RUN} run ${GITHUB_RUN_ID}" \
+            --timeout-seconds 600 \
+            --parameters "file://$params" \
+            --query 'Command.CommandId' --output text)"
+          rm -f "$script" "$params"
+          echo "SSM command: $command_id"
+
+          deadline=$(( SECONDS + 1800 ))
+          status=Pending
+          while true; do
+            sleep 10
+            status="$(aws ssm get-command-invocation \
+              --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            case "$status" in
+              Pending|InProgress|Delayed) ;;
+              *) break ;;
+            esac
+            if (( SECONDS >= deadline )); then
+              echo "::error::SSM 명령이 30분 안에 끝나지 않았습니다 — 취소합니다"
+              aws ssm cancel-command --command-id "$command_id" >/dev/null || true
+              status=TimedOut
+              break
+            fi
+          done
+
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" --output json || echo '{}')"
+          echo "::group::서버 stdout"
+          jq -r '.StandardOutputContent // ""' <<<"$invocation"
+          echo "::endgroup::"
+          echo "::group::서버 stderr"
+          jq -r '.StandardErrorContent // ""' <<<"$invocation"
+          echo "::endgroup::"
+
+          echo "### SSM 결과: ${status} (dry_run=${DRY_RUN}, ${IMAGE_TAG})" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$status" != "Success" ]]; then
+            echo "::error::SSM 명령 상태: ${status} (응답 코드 $(jq -r '.ResponseCode // "?"' <<<"$invocation"))"
+            exit 1
+          fi
