@@ -1,9 +1,12 @@
 package com.hongmap.hongmapbackend.mapdata;
 
+import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.mapdata.dto.MapDataPayload;
 import com.hongmap.hongmapbackend.mapdata.dto.MapDataResponse;
+import com.hongmap.hongmapbackend.mapdata.dto.MapPaths;
 import com.hongmap.hongmapbackend.partner.repository.PartnerRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -19,16 +22,20 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * GET /map/data 본문을 조립해 메모리에 캐시한다(서버 1대 기준).
- * - 쿼리 4번: 건물, 편의시설+건물(fetch join), 제휴업체+소속(fetch join), 전시(오늘 KST 기준 진행 중·{@value #EXHIBITION_HORIZON_DAYS}일 안 시작).
+ * - 쿼리 6번: 건물, 편의시설+건물(fetch join), 제휴업체+소속(fetch join), 전시(오늘 KST 기준 진행 중·{@value #EXHIBITION_HORIZON_DAYS}일 안 시작),
+ *   경로망 점+건물(fetch join)·간선+양 끝 점(fetch join). 출입구 노드 좌표는 같은 건물 목록의 entrances 에서 해석한다.
  * - 캐시는 최대 ttl(기본 5분). 관리자 쓰기는 커밋 직후 {@link #invalidateAfterCommit()} 로 바로 비운다.
  * - 전시 목록이 날짜에 따라 달라지므로 캐시는 만든 KST 날짜가 지나면(자정) ttl 과 상관없이 다시 만든다.
  *   DB 를 SQL 로 직접 고친 경우(동기화 스크립트 등)는 ttl 이 지나면 반영된다.
  * - 조립 도중 무효화되면(세대 번호가 바뀌면) 그 결과는 응답에만 쓰고 캐시에 넣지 않는다 — 커밋 전 값을 5분간 들고 있지 않게.
  */
+@Slf4j
 @Service
 public class MapDataService {
 
@@ -40,6 +47,9 @@ public class MapDataService {
     private final CampusFacilityRepository facilityRepository;
     private final PartnerRepository partnerRepository;
     private final ExhibitionRepository exhibitionRepository;
+    private final PathNodeRepository pathNodeRepository;
+    private final PathEdgeRepository pathEdgeRepository;
+    private final BuildingEntrances buildingEntrances;
     private final MapDataMapper mapper;
     private final JsonMapper jsonMapper;
     private final TransactionTemplate readOnlyTx;
@@ -54,6 +64,9 @@ public class MapDataService {
                           CampusFacilityRepository facilityRepository,
                           PartnerRepository partnerRepository,
                           ExhibitionRepository exhibitionRepository,
+                          PathNodeRepository pathNodeRepository,
+                          PathEdgeRepository pathEdgeRepository,
+                          BuildingEntrances buildingEntrances,
                           MapDataMapper mapper,
                           JsonMapper jsonMapper,
                           PlatformTransactionManager transactionManager,
@@ -63,6 +76,9 @@ public class MapDataService {
         this.facilityRepository = facilityRepository;
         this.partnerRepository = partnerRepository;
         this.exhibitionRepository = exhibitionRepository;
+        this.pathNodeRepository = pathNodeRepository;
+        this.pathEdgeRepository = pathEdgeRepository;
+        this.buildingEntrances = buildingEntrances;
         this.mapper = mapper;
         this.jsonMapper = jsonMapper;
         this.readOnlyTx = new TransactionTemplate(transactionManager);
@@ -125,15 +141,31 @@ public class MapDataService {
     }
 
     private Snapshot build(LocalDate today) {
-        MapDataPayload payload = readOnlyTx.execute(status -> new MapDataPayload(
-                buildingRepository.findAllByOrderBySortOrderAscIdAsc().stream().map(mapper::building).toList(),
-                facilityRepository.findAllForMap().stream().map(mapper::facility).toList(),
-                partnerRepository.findAllForMap().stream().map(mapper::partner).toList(),
-                exhibitionRepository.findForMap(today, today.plusDays(EXHIBITION_HORIZON_DAYS)).stream()
-                        .map(mapper::exhibition).toList()));
+        MapDataPayload payload = readOnlyTx.execute(status -> {
+            List<Building> buildings = buildingRepository.findAllByOrderBySortOrderAscIdAsc();
+            return new MapDataPayload(
+                    buildings.stream().map(mapper::building).toList(),
+                    facilityRepository.findAllForMap().stream().map(mapper::facility).toList(),
+                    partnerRepository.findAllForMap().stream().map(mapper::partner).toList(),
+                    exhibitionRepository.findForMap(today, today.plusDays(EXHIBITION_HORIZON_DAYS)).stream()
+                            .map(mapper::exhibition).toList(),
+                    paths(buildings));
+        });
         String version = version(jsonMapper.writeValueAsBytes(payload));
         byte[] body = jsonMapper.writeValueAsBytes(MapDataResponse.of(version, payload));
         return new Snapshot(version, body);
+    }
+
+    /** 경로망. 출입구 참조가 깨진 점·간선은 응답에서 빠진다 — 무엇이 깨졌는지는 GET /admin/map/path-audit. */
+    private MapPaths paths(List<Building> buildings) {
+        Map<Long, BuildingEntrances.Parsed> entrances = buildingEntrances.index(buildings);
+        PathNetwork network = PathNetwork.of(pathNodeRepository.findAllWithBuilding(), pathEdgeRepository.findAllWithNodes(),
+                b -> entrances.computeIfAbsent(b.getId(), id -> buildingEntrances.parse(b)));
+        int broken = network.brokenNodes().size();
+        if (broken > 0) {
+            log.warn("경로망 출입구 참조 {}개를 찾지 못해 응답에서 뺐습니다 — GET /admin/map/path-audit 로 확인", broken);
+        }
+        return network.toMapPaths();
     }
 
     static String version(byte[] payloadJson) {

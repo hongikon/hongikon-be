@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 앱 지도 데이터(건물·편의시설·제휴업체·전시) 한 번에. 비로그인 허용 — SecurityConfig. */
+/** 앱 지도 데이터(건물·편의시설·제휴업체·전시·경로망) 한 번에. 비로그인 허용 — SecurityConfig. */
 @RestController
 @RequiredArgsConstructor
 public class MapDataController {
@@ -22,7 +22,8 @@ public class MapDataController {
     private final MapDataService mapDataService;
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
-    @Operation(summary = "지도 데이터", description = "건물·편의시설·제휴업체 전체 + 전시(오늘 KST 기준 끝나지 않았고 60일 안에 시작하는 것). null 필드는 생략. "
+    @Operation(summary = "지도 데이터", description = "건물·편의시설·제휴업체 전체 + 전시(오늘 KST 기준 끝나지 않았고 60일 안에 시작하는 것) "
+            + "+ 경로망 paths{nodes:[{id,lat,lng,entrance?}], edges:[[id,id]]}(맨 끝, 비어 있어도 항상). null 필드는 생략. "
             + "version = 본문(version 제외)의 SHA-256 앞 16 hex, ETag 로도 내려간다. "
             + "If-None-Match 가 같으면 304(본문 없음). 서버는 최대 5분 캐시하고 관리자 수정 시 바로 갱신한다.")
     @GetMapping("/map/data")
