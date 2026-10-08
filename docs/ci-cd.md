@@ -111,7 +111,7 @@ main push → CI / Publish image(sha-xxxxxxx 업로드)
 | `workflow_run` — `Publish image` 가 **main** push 에서 성공 | `workflow_run.head_sha`, 태그 `sha-<앞 7자리>` | `false`(실제 배포) | `false` |
 | `workflow_dispatch`(Actions → Deploy → Run workflow) | 입력 `image_tag`(`sha-1234567`) 의 커밋 | 입력(기본 `true`) | 입력(기본 `false`) |
 
-- **guard**(권한 `contents: read`, Environment 없음): 대상 커밋이 main·dev 에 있는지 보고, 첫 번째 부모와 비교해 `db/` 아래 바뀐 파일을 찾는다. 바뀐 게 있는데 `sql_applied` 가 `true` 가 아니면 파일 목록을 찍고 실패한다.
+- **guard**(권한 `contents: read`, Environment 없음): 대상 커밋이 `origin/main` 에 포함돼 있는지 보고(이미지는 dev·main 둘 다에서 만들어지지만 운영 배포는 main 커밋만 허용 — dev 에만 있는 `sha-` 태그는 거부), 첫 번째 부모와 비교해 `db/` 아래 바뀐 파일을 찾는다. 바뀐 게 있는데 `sql_applied` 가 `true` 가 아니면 파일 목록을 찍고 실패한다.
 - **deploy**(권한 `id-token: write`, `contents: read`, `packages: read`, Environment `production`): 동시에 하나만 돈다(`concurrency: deploy-production`, 진행 중인 배포는 취소하지 않음 — 대기 중인 실행이 이미 있으면 GitHub 이 더 오래된 대기 실행을 취소하고 최신 것만 남긴다).
   서버에서 할 일(실제 배포일 때):
   1. job 의 `GITHUB_TOKEN` 으로 `docker login ghcr.io --password-stdin` → `docker pull ghcr.io/hongikon/hongikon-be:<태그>` → 바로 `docker logout`(스크립트가 어떻게 끝나든 `trap` 으로 한 번 더 logout)
@@ -146,6 +146,7 @@ Actions → 해당 **Deploy** 실행 화면 위쪽의 노란 상자 **Review dep
 ### 5.5 롤백
 
 - **자동**: `deploy.sh` 가 새 컨테이너 기동 실패·종료·헬스체크(`/reports` 200) 시간 초과면 새 컨테이너를 지우고 직전 컨테이너(`hongikon-be-prev`)를 원래 이름으로 다시 띄운다. 이때 job 은 실패로 끝난다.
+- **배포 후 확인 실패는 자동 롤백하지 않는다**: `/reports` 200·`/admin/users` 401 확인에서 실패하면 새 컨테이너는 그대로 떠 있고 job 만 실패한다 — 아래처럼 `hongikon-be:before-<태그>` 로 수동 복구한다.
 - **수동**: deploy.sh 는 통과했는데 배포 후 확인(`/admin/users` 401 등)에서 실패했거나, 배포 뒤에 문제를 발견했을 때.
   - 이전 `sha-` 태그를 알면: Run workflow 로 그 태그를 `dry_run` 해제해 다시 배포한다(가장 간단).
   - 서버에서 바로: 배포 직전 이미지가 `hongikon-be:before-<배포한 태그>` 로 남아 있다.

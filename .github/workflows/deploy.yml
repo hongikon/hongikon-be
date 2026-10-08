@@ -81,9 +81,9 @@ jobs:
             sql_applied="$INPUT_SQL_APPLIED"
           fi
 
-          # 이미지는 dev·main push 에서만 만들어진다. 그 밖의 커밋은 배포하지 않는다.
-          if ! git merge-base --is-ancestor "$sha" origin/main && ! git merge-base --is-ancestor "$sha" origin/dev; then
-            echo "::error::${sha} 는 main·dev 어디에도 없는 커밋입니다"
+          # 이미지는 dev·main push 에서 만들어지지만 운영에는 main 에 들어간 커밋만 배포한다(dev 에만 있는 커밋 거부).
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::main 에 포함된 커밋만 운영에 배포할 수 있습니다 (${sha})"
             exit 1
           fi
 
