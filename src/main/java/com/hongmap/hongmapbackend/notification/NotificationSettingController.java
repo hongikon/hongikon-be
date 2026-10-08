@@ -26,7 +26,7 @@ public class NotificationSettingController {
     @Operation(summary = "내 제보 알림 설정 조회",
             description = "reportStatus: 내 제보가 승인·반려됐을 때 알림(기본 켜짐). "
                     + "newReports: 캠퍼스에 새 제보가 올라왔을 때 알림(기본 꺼짐, 유저당 최대 30분에 한 번). "
-                    + "newReportsScope: 새 제보 알림 범위(지금은 CAMPUS뿐). "
+                    + "newReportsScope: 새 제보 알림 범위 — CAMPUS(전체 새 제보 + 제보 키워드) 또는 KEYWORDS(제보 키워드에 걸린 제보만). "
                     + "adminAlerts: 관리자 알림(새 제보 승인 대기·새 문의·신고 자동 숨김, 기본 켜짐) — 관리자에게만 의미가 있습니다. "
                     + "저장한 적 없으면 기본값을 내려줍니다.")
     @GetMapping("/users/me/notification-settings")

@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminMapFacility;
 import com.hongmap.hongmapbackend.mapdata.dto.MapAffiliationBenefit;
 import com.hongmap.hongmapbackend.mapdata.dto.MapBuilding;
+import com.hongmap.hongmapbackend.mapdata.dto.MapExhibition;
 import com.hongmap.hongmapbackend.mapdata.dto.MapFacility;
 import com.hongmap.hongmapbackend.mapdata.dto.MapLink;
 import com.hongmap.hongmapbackend.mapdata.dto.MapPartner;
@@ -58,6 +59,11 @@ public class MapDataMapper {
     public AdminMapFacility adminFacility(CampusFacility f) {
         return new AdminMapFacility(f.getCode(), f.getKind(), f.getBuilding().getCode(), f.getBuilding().getMapName(),
                 f.getFloor(), f.getNote(), toDouble(f.getLatitude()), toDouble(f.getLongitude()));
+    }
+
+    public MapExhibition exhibition(Exhibition e) {
+        return new MapExhibition(e.getId(), e.getFacilityCode(), e.getTitle(), e.getStartsOn().toString(),
+                e.getEndsOn().toString(), e.getHours(), e.getDescription(), MapLink.of(e.getLinkLabel(), e.getLinkUrl()));
     }
 
     public MapPartner partner(Partner p) {

@@ -46,6 +46,7 @@ public class NotificationSettingService {
 
         UserNotificationSetting setting = settingRepository.findById(userId)
                 .orElseGet(() -> settingRepository.save(new UserNotificationSetting(userId)));
+        boolean campusBefore = setting.receivesCampusNewReports();
         if (request.reportStatus() != null) {
             setting.changeReportStatusEnabled(request.reportStatus());
         }
@@ -57,6 +58,9 @@ public class NotificationSettingService {
         }
         if (scope != null) {
             setting.changeNewReportsScope(scope);
+        }
+        if (!campusBefore && setting.receivesCampusNewReports()) {
+            setting.resetNewReportLastSent();
         }
         return NotificationSettingsResponse.from(setting);
     }

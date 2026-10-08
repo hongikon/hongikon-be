@@ -896,6 +896,7 @@
 - 테스트: `AppNicknameIntegrationTest.liveReportListIncludesContentUpTo2000Chars`(2000자 저장·목록 노출, 2001자 400).
 
 
+
 ### 이미지 업로드 (chore/image-publish)
 
 - GitHub Actions `publish-image.yml`: `dev`·`main` push 마다 `./gradlew build -x test` → `docker build` → `ghcr.io/<owner>/hongikon-be` 에 올린다(로그인 `GITHUB_TOKEN`, 배포는 안 함).
@@ -903,3 +904,132 @@
 - jar 에 로컬 전용 `application-local.properties` 가 들어 있으면 올리지 않고 실패하게 막았다(`.gitignore` 대상이라 CI 체크아웃에는 없음 — 실수로 커밋될 때 대비).
 - 추적되는 `src/main/resources`(`application.properties`·`application-prod.properties`·금칙어 목록) 점검: 비밀값 없음. 비밀은 전부 `${ENV}` 로만 받고, 기본값은 공개 도메인·외부 API 주소·`localhost` 뿐.
 - `docs/ci-cd.md` 3절(업로드·태그 규칙) 추가.
+
+## 2026-10-06 — 제보 키워드 알림 (feat/report-keywords)
+
+- 제보 전용 키워드(소식 키워드 `keyword_subscriptions` 와 별개). 새 제보 알림 범위에 "내 키워드만"(`KEYWORDS`) 추가, 키워드에 걸린 제보는 빈도 제한 없이 먼저 보낸다.
+- API(전부 로그인 필요, 소식 키워드와 같은 모양·검증):
+  - `GET /users/me/report-keywords` → `{ "keywords": [{ "id": 1, "keyword": "간식" }] }`(등록 순서)
+  - `POST /users/me/report-keywords` `{ "keyword": "간식" }` → 201 `{ "id": 1, "keyword": "간식" }`. 앞뒤 공백 제거, 빈 값·30자 초과 400, 유저당 30개 초과 400, 같은 키워드(대소문자 무시) 409.
+  - `DELETE /users/me/report-keywords/{id}` → 204. 남의 id·없는 id 는 404(존재 여부를 드러내지 않음).
+  - `PATCH /users/me/notification-settings` 의 `newReportsScope` 가 `"CAMPUS"`·`"KEYWORDS"`(대소문자 무시)를 받는다. 컬럼 varchar(20) 그대로.
+- 발송(`ReportPushDispatcher.sendNewReport` — 승인 즉시 공개와 예정 제보 시작 스케줄러 둘 다 여기로 온다):
+  1. 키워드: 새 제보 알림을 켠(범위 무관) 활성 회원 중 제보 키워드가 제목·본문·장소 설명(placeLabel)·직접 입력 분류(customCategoryLabel)·건물명에 들어간 유저.
+     대소문자·공백 무시("간식 행사" = "간식행사"). 작성자·정지 회원·관리자 알림을 켠 관리자(일반 새 제보 알림과 같은 기준)는 제외. 빈도 제한 없음.
+     제목 `"[간식] 새 제보 · 홍문관 1층"`, 여러 개면 등록 순서 첫 키워드 + `"[간식 외 1] ..."`, 본문 = 제보 제목, data `{type: "REPORT_NEW", reportId}`.
+     보낸 유저는 `report_keyword_push_log(report_id, user_id)` 유일 기록을 먼저 남기고(재실행·동시 실행 중복 방지) `new_report_last_sent_at` 도 갱신한다.
+  2. 일반: 범위 CAMPUS 유저에게 기존처럼(30분 빈도 제한) — 이 제보로 키워드 알림을 받은 유저는 뺀다. 범위 KEYWORDS 유저는 일반 알림을 받지 않는다.
+  - 후보 조회 1쿼리(키워드 + 설정 + 유저 + 발송 기록) → 자바에서 매칭 → 기기 1쿼리. 발송 기록 INSERT 는 대상 유저당 1건.
+  - 키워드 매칭에 본문 등이 필요해 `ReportModeratedEvent` 에 `content`·`placeLabel`·`customCategoryLabel` 을 더했다(기존 생성자 유지).
+- 개인정보: 키워드는 본인만 조회·삭제, 로그에는 건수만 남긴다(키워드 내용 X). 회원탈퇴 시 제보 키워드·발송 기록을 지운다(`UserService.withdraw`, DB 도 ON DELETE CASCADE).
+  발송 기록에는 제보 id·유저 id·시각만 있다.
+- 테스트: `ReportKeywordApiIntegrationTest` 10개(CRUD·401·409·400·30개·남의 것 404·탈퇴·범위 PATCH·관리자 승인 → 본문 키워드 푸시),
+  `ReportKeywordPushTest` 9개(공백·대소문자·본문·장소·분류·건물명 매칭, "외 N", KEYWORDS 범위 일반 알림 제외, 빈도 제한 우회, 재실행 중복 없음, 작성자·정지·알림 끈 유저 제외),
+  `UserWithdrawIntegrationTest` 에 새 테이블 추가. 전체 512개 통과.
+- **DB 변경**: 배포 전에 `db/create_report_keyword_subscriptions.sql` 실행(`report_keyword_subscriptions` + `report_keyword_push_log`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다.
+
+## 2026-10-06 — 새 제보 알림 모아 보내기 (feat/new-report-digest)
+
+- 캠퍼스(범위 `CAMPUS`) 새 제보 일반 알림의 30분 빈도 제한이 그 사이 제보를 **버리던** 것을 다이제스트로 바꿨다. 이제 놓치는 제보 없이 나중에 모아서 온다.
+- 즉시 알림(`ReportPushDispatcher` — 승인 즉시 공개·예정 제보 시작 두 경로 그대로):
+  - 빈도 제한이 풀렸고(마지막 발송 30분 이상 전·없음) 방해 금지 시간이 아닌 유저 → 지금처럼 `"새 제보 · 홍문관 1층"` / 본문 = 제보 제목.
+  - 빈도 제한 중이거나 방해 금지 시간(KST 23~8시 기본) → 지금은 안 보내고 다이제스트로 넘긴다.
+  - 제보 키워드 알림은 빈도 제한·방해 금지 시간과 무관하게 바로 간다(기존과 같음, `new_report_last_sent_at` 도 갱신).
+- 다이제스트(`NewReportDigestScheduler`, 5분마다, 방해 금지 시간엔 쉼 → 08:00 첫 회차에 밤사이 제보를 모아 보냄):
+  - 대상: 새 제보 알림 켬·범위 CAMPUS·빈도 제한 풀림·활성 기기 있음(관리자 알림을 켠 관리자 제외 — 일반 알림과 같은 기준). KEYWORDS 범위는 받지 않는다.
+  - 유저별 구간 = (max(마지막 새 제보 알림 시각, 지금 − 12시간), 지금 − 1분]. 받은 적 없으면 마지막 설정 변경 시각부터.
+    캠퍼스 새 제보 알림을 새로 켜면(꺼짐·KEYWORDS → 켬·CAMPUS) 마지막 발송 시각을 비워 꺼져 있던 동안의 제보가 몰려오지 않게 했다.
+  - 담는 제보: 그 구간에 새 제보로 공개됐고 지금도 지도에 떠 있는(ACTIVE, 끝나지 않음) 제보 중 내 제보·키워드 알림으로 이미 받은 제보(`report_keyword_push_log`) 제외. 숨김·반려·삭제는 빠진다.
+  - 1건: `"새 제보 · 홍문관 1층"` / `"붕어빵 트럭"`. 여러 건: `"새 제보 3건"` / `"커피 트럭 외 2건"`(대표 제목 40자 넘으면 말줄임). data `{type: "REPORT_NEW", reportId: 가장 최근 제보}` — 앱 탭 처리 변경 없음.
+  - 조건부 UPDATE 로 유저를 선점(`new_report_last_sent_at`)하고 보낸다 — 서버 여러 대·즉시 알림과 겹쳐도, 재실행해도 두 번 안 간다(ShedLock 없음, 기존 선점 패턴).
+    선점 시각을 지금 − 1분으로 찍어 커밋 직전 승인된 제보를 구간만 지나쳐 버리는 일을 막는다.
+  - 쿼리: 후보 유저 1 + 후보 제보 1 + 키워드 발송 기록 1 → 자바에서 유저별 계산 → 선점·선점 확인·기기 조회(500명 단위). 로그에는 건수만.
+- "공개 시각" 기준으로 `reports.published_at` 을 새로 둔다. `reviewed_at` 은 숨김 해제·재승인 때마다 바뀌어(→ 이미 받은 제보가 "새" 제보로 다시 묶임) 쓸 수 없었다.
+  - 승인 대기 → 승인 때 이미 시작한 제보면 승인 시각(`AdminReportService.moderate`), 예정 제보는 시작 알림을 보내는 순간(`ReportStartPushScheduler`).
+  - 예정 제보 스케줄러는 `published_at` 을 비어 있을 때만 채운(조건부 UPDATE) 쪽만 보낸다 — 재시작 lookback·서버 여러 대에서도 같은 제보 시작 알림이 한 번만.
+- 설정(`application.properties`): `push.report-new-quiet-start`(기본 23)·`push.report-new-quiet-end`(기본 8) — KST 시, 시작=끝이면 방해 금지 끔.
+  `push.report-new-digest-cron`(기본 `0 */5 * * * *`). 기존 `push.report-new-throttle-minutes`(30) 그대로. 테스트 프로필은 방해 금지 끔·다이제스트 정기 실행 끔.
+- `java.time.Clock` 빈(`ClockConfig`, UTC) 추가 — 디스패처·다이제스트가 쓰고 테스트가 바꿔 끼운다.
+- 테스트: `NewReportDigestTest` 10개(빈도 제한 중 제보가 다이제스트로 모두 도착·재실행 중복 없음, 1건/3건 형식·말줄임, 방해 금지 중 즉시·다이제스트 없음 → 8시 회차에 모아 보냄·키워드는 바로,
+  방해 금지 설정값, 키워드로 받은 제보 제외, 끝난·숨긴·내 제보·공개 전 제보 제외와 KEYWORDS·알림 끈 유저 제외, 승인 시 published_at·숨김 해제 불변, 예정 제보 published_at 선점 1회, 알림 새로 켜면 마지막 발송 시각 비움). 전체 522개 통과.
+- **DB 변경**: 배포 전에 `db/alter_reports_add_published_at.sql` 실행(`reports.published_at datetime(6) NULL` + 인덱스 `(status, published_at)`, 재실행 안전). 빠뜨리면 validate 로 서버가 뜨지 않는다. 기존 행은 NULL(백필 불필요).
+
+## 2026-10-06 — 현대미술관 10월 전시 등록용 SQL
+
+- `db/content/seed_homa_exhibitions_2026_10.sql`: HoMA 2026 전시 일정표(공식 PDF) 기준 10월 전시 7건을 넣는 SQL.
+  - (변경) 처음엔 지도 제보(ETC, 배지 "전시")로 넣었으나, 장소마다 지금·다음 전시를 보여 주는 쪽으로 바꿔 **`exhibitions` 테이블**(장소별 전시 일정)에 넣도록 파일 전체를 갈아엎었다.
+    제보·알림은 만들지 않는다. 자세한 내용은 아래 "전시 일정(장소별)" 항목.
+  - 재실행 안전(같은 장소·제목·시작일이면 건너뜀). 계획표 기준이라 설명에 변경 가능하다고 적었다.
+- 운영 DB 에는 `db/create_exhibitions_table.sql` → 지도 데이터 동기화 → 이 파일 순으로 실행한다.
+- 편의시설 추가: 제2공학관 P동 1층 라운지(`hi-p-1f-lounge`)를 `db/sync_map_data_2026_10_06.sql` 에 넣었다(설명은 미확인이라 비움). 배포 뒤에는 관리자 화면 편의시설 관리에서 고친다.
+
+## 2026-10-06 — 전시 일정(장소별) (feat/exhibitions)
+
+- 지도 '이벤트 → 전시' 의 장소(편의시설 kind `행사·전시`: `hi-mh-4f-exhibition` HoMA 1관, `hi-r-2f-exhibition` HoMA 2관, `hi-mh-3f-museum` 박물관)마다
+  지금 열리는 전시·다음 전시를 보여 주려고 `exhibitions` 테이블을 새로 뒀다. 전시를 제보로 만들던 방식은 쓰지 않는다.
+- 테이블 `exhibitions`(`mapdata.Exhibition`): id, facility_code(인덱스, **외래키 없음** — 지도 동기화 SQL 이 campus_facilities 를 지우고 다시 넣기 때문),
+  title(150), starts_on·ends_on(DATE, KST 달력 날짜, 양 끝 포함), hours(100), description(1000), link_label(50), link_url(500), created_at·updated_at.
+- `GET /map/data` 에 최상위 배열 `exhibitions` 추가(항상 있음, 비어 있을 수 있음).
+  - 항목: `{ id, facilityId, title, startsOn: "2026-10-12", endsOn, hours, description, link: {label, url} }` — null 필드 생략, link 는 url 이 있을 때만.
+  - 오늘(KST) 기준 `endsOn >= 오늘` 이고 `startsOn <= 오늘 + 60일` 인 것만, 지금 campus_facilities 에 있는 장소의 것만. facilityId → startsOn → id 순.
+  - 날짜에 따라 내용이 바뀌므로 서버 캐시는 만든 KST 날짜가 지나면(자정) 5분 TTL 과 상관없이 다시 만든다. version/ETag 는 그대로 본문 해시.
+  - `MapDataService` 가 `Clock` 빈을 받는다(테스트가 바꿔 끼움).
+- 관리자(`/admin/map/**` 와 같은 ADMIN 권한·접속 기록):
+  - `GET /admin/map/exhibitions` → `{ "exhibitions": [...] }` 지난 전시 포함 전부, 시작일 최근 순(같으면 id 큰 순). 항목 모양은 map/data 와 같다.
+  - `POST /admin/map/exhibitions` → 201, `PUT /admin/map/exhibitions/{id}` → 200(통째로 바꿈), `DELETE /admin/map/exhibitions/{id}` → 204(없으면 404).
+  - 검증(400 + 기존 `{message}`): facilityId 는 kind `행사·전시` 인 기존 편의시설, 제목 1~150자, 날짜 `yyyy-MM-dd`(없는 날짜 거절), 시작일 ≤ 종료일,
+    관람 시간 ≤100자, 설명 ≤1000자, 링크는 https 만(이름 1~50자). 쓰기가 커밋되면 map/data 캐시를 바로 비운다.
+- 테스트: `ExhibitionIntegrationTest` 7개(진행 중·60일째 포함 / 지난·61일째·없는 장소 제외·정렬·필드 생략, 빈 배열, KST 자정 캐시 교체,
+  관리자 CRUD·404, 401/403, 입력 검증 14가지 + 경계값, 추가·수정·삭제 시 캐시 무효화), `MapDataIntegrationTest` 최상위 키 순서 갱신.
+- **DB 변경**: 배포 전에 `db/create_exhibitions_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
+  배포·지도 데이터 동기화(`db/sync_map_data_*.sql`) 뒤에 `db/content/seed_homa_exhibitions_2026_10.sql` 실행(HoMA 10월 전시 7건).
+- 편의시설 추가(운영자 제공, 2026-10-07): 제4공학관 T동 10층 산업데이터공학과 전용 라운지, 6층 컴퓨터공학과 전용 라운지(멀티미디어실), 인문사회관 A동 2층 경영대학 학생 전용 스터디룸 — `db/sync_map_data_2026_10_06.sql`.
+- 편의시설 데이터 보강(2026-10-07): 행정·지원 부서 74곳(문헌관·홍문관 전체 + 학생이 찾아가는 부서, 종류 값 학생처 — 앱 칩 이름은 \"행정·지원\"), 카페·식당·편의점·라운지·수면실·스터디룸·열람실 35곳 운영시간을 메모에 추가(공식 출처 우선, 비공식은 \"비공식 정보\" 표시). 학생회관 2층 묶음 항목은 부서별 항목으로 대체.
+- 편의시설(운영자 확인, 2026-10-07): T604 컴공 라운지 운영시간(학기 평일 09~22시, 방학 10~20시), 스터디룸 3곳 추가(R동 1층 카페나무 세미나실, K동 6층 토론학습실, C동 8층 사범대학 세미나실).
+
+## 2026-10-07 — 학식 메뉴 가져오기 (feat/cafeteria-menus)
+
+- 홍익대 홈페이지 서울캠퍼스 식당 페이지(`/kr/life/seoul-cafeteria.do`)가 쓰는 공개 JSON 에서 이번 주(월~금) 메뉴를 가져와
+  `cafeteria_menus` 에 저장하고, 앱은 우리 API 만 읽는다(사용자 단말이 학교 서버를 부르지 않는다). 패키지 `cafeteria`.
+- 가져오기(`CafeteriaMenuClient`): **고정 주소 하나만** 부른다 —
+  `https://www.hongik.ac.kr/sso/APICipher2.jsp?data={"url":"/homepage/get_food_list.php","url2":"CAMPUS=","url3":"0"}`(URL 인코딩).
+  이 학교 엔드포인트는 data.url 의 내부 경로를 그대로 중계하는 범용 프록시라 어떤 입력도 주소에 넣지 않는다(SSRF). 리다이렉트 안 따라감,
+  연결 5초·응답 10초(전체 15초), 본문 2 MB 상한, UA `HongikOnBot/1.0 (+…; hongikonsupport@gmail.com)`.
+- 파싱(`CafeteriaMenuParser`): Content-Type 은 text/html 이지만 JSON 으로 읽고 `result == "Y"` 확인. 필드 URL 디코딩(+ = 공백),
+  MENU 를 `\r\n` 으로 나누고 HTML 엔티티(`&amp;`) 풀고 trim. 대응표(`CafeteriaRestaurants`):
+  REST_NO 3 → `dorm2-student`(학생식당, 제2기숙사 B2, facilityId `hi-dorm2-b2f-restaurant-01`, PRICELEVEL 0 아침·1 점심A·2 점심B·3 저녁),
+  REST_NO 2 → `mh-staff`(교직원식당, MH 16층, `hi-mh-16f-restaurant`, 0 점심·1 저녁). 시간·가격은 홈페이지 공식 값.
+  모르는 REST_NO·슬롯, 날짜·인코딩이 깨졌거나 빈 행은 건너뛰고 건수만 경고 로그. 한두 줄짜리 휴무 문구('한글날', '대체공휴일 운영X', '휴무' 등)는 `closed=true`.
+- 저장: (restaurant_code, menu_date, meal) 유니크, 같은 키면 items·closed·fetched_at 덮어쓰기(upsert). fetched_at 은 UTC, API 는 KST.
+- 일정(`CafeteriaMenuFetchJob`, KST): 평일 07:00·10:30, 월요일 12:00 재시도, 서버 시작 30초 뒤 이번 주 메뉴가 없으면 한 번.
+  한 번에 하나만 돈다(겹치면 건너뜀). 성공 시 건수 로그, 0건·`result != Y`·HTTP 실패는 WARN. 메뉴 텍스트·응답 본문은 로그에 남기지 않는다.
+- 설정: `menu.fetch.enabled`(기본 true, 테스트 false) `menu.fetch.cron-morning`(`0 0 7 * * MON-FRI`) `menu.fetch.cron-late-morning`(`0 30 10 * * MON-FRI`)
+  `menu.fetch.cron-monday-retry`(`0 0 12 * * MON`) `menu.fetch.startup-delay-seconds`(30) `menu.fetch.connect-timeout-ms`(5000) `menu.fetch.read-timeout-ms`(10000)
+  — 환경 변수 `MENU_FETCH_*`. cron 을 `-` 로 두면 그 일정만 끈다.
+- API(비로그인 GET, `Cache-Control: public, max-age=600`):
+  - `GET /cafeteria/menus?date=YYYY-MM-DD`(기본 오늘 KST) → `{ date, source: "홍익대학교 홈페이지", sourceUrl, fetchedAt(KST, 없으면 null),
+    restaurants: [{ code, facilityId, name, meals: [{ meal, time, price, items: [...], closed }] }] }`. 식당은 메뉴가 없어도 `meals: []` 로 나온다.
+    끼니 순서 아침, 점심/점심A, 점심B, 저녁.
+  - `GET /cafeteria/menus/week?date=` → `{ days: [월~금 하루 응답 5개] }`(주말 날짜면 그 주 월~금).
+  - 날짜 형식이 틀리거나 없는 날짜·2020~2100 밖이면 400 `{message}`.
+- 테스트: `CafeteriaMenuParserTest` 7(실제 응답 fixture `src/test/resources/cafeteria/hongik-food-list-2026-10-05.json`, 슬롯 대응, 엔티티,
+  휴무, 모르는 식당·슬롯·깨진 행, result != Y), `CafeteriaMenuClientTest` 3(고정 URI만 요청, 2 MB 상한),
+  `CafeteriaMenuIntegrationTest` 11(upsert 멱등·덮어쓰기, 실패 시 저장 안 함, 시작 시 확인, 동시 실행 건너뜀, 하루·주 응답 모양, 기본 날짜, 400). 네트워크 없음.
+- 개인정보 없음(공개 메뉴 텍스트뿐), 인증 불필요한 조회만, 학교 요청은 하루 2~3번.
+- **DB 변경**: 배포 전에 `db/create_cafeteria_menus_table.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
+
+## 2026-10-07 — 열람실 안내 정리 (dev)
+
+- `db/sync_map_data_2026_10_06.sql`(아직 운영 반영 전, PR #47 묶음) 열람실 문구 수정:
+  - `hi-t-4f-reading-room`: '일반·노트북 열람실 · 24시간 개방'(4층은 24시간 개방).
+  - `hi-t-3f-reading-room`: '일반·노트북 열람실 · 06:00~23:00 연중무휴'. '방학 중 3층 열람실 24시간 개방'·'좌석배정기에서 좌석 발급' 문구는 뺐다(요청).
+  - `hi-r-8f-reading-room`: '노트북열람실 06:00~23:00' 이 두 번 들어간 중복 제거.
+- 스키마 변경 없음. 개인정보 없음.
+
+## 2026-10-08 — 비밀값 점검·인증서 파일 git 제외 (dev)
+
+- 저장소 비밀값 점검: `.env`·`.pem`·`.p8`·`application-local.properties` 는 `.gitignore` 로 막혀 있고 git 기록에도 올라간 적 없음.
+  `application*.properties` 의 DB 비밀번호·JWT·카카오·Apple 키·Expo 푸시 토큰은 모두 `${환경변수}` 자리표시뿐. 추적 파일에서 AWS 키·개인키·GitHub 토큰 형식도 없음(테스트용 가짜 값만).
+- `.gitignore` 에 인증서·서명 파일(`*.cer`·`*.crt`·`*.der`·`*.pfx`·`*.keystore`·`*.mobileprovision`) 추가.
+- 코드·스키마 변경 없음. 개인정보 없음.
+

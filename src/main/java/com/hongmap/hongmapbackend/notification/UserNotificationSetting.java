@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
  *
  * new_report_last_sent_at: 새 제보 푸시 빈도 제한용. 마지막으로 새 제보 푸시를 보낸 시각이며,
  * 이 시각에서 push.report-new-throttle-minutes가 지나지 않은 유저에게는 새 제보 푸시를 보내지 않는다(ReportPushDispatcher).
+ * 새 제보 다이제스트(NewReportDigestScheduler)는 이 시각 뒤에 뜬 제보를 모아 보낸다(최대 12시간 전까지).
  *
  * DB: user_notification_settings (PK user_id / INDEX new_reports_enabled, new_report_last_sent_at)
  * — db/create_user_notification_settings.sql
@@ -91,5 +92,18 @@ public class UserNotificationSetting {
 
     public void changeNewReportsScope(NewReportScope scope) {
         this.newReportsScope = scope;
+    }
+
+    /** 캠퍼스 새 제보 알림(일반·다이제스트)을 받는 상태인지 — 켬 + 범위 CAMPUS. */
+    public boolean receivesCampusNewReports() {
+        return newReportsEnabled && newReportsScope == NewReportScope.CAMPUS;
+    }
+
+    /**
+     * 캠퍼스 새 제보 알림을 새로 켰을 때(꺼짐·KEYWORDS → 켬·CAMPUS) 마지막 발송 시각을 비운다 — 꺼져 있던 동안 뜬 제보가
+     * 다이제스트로 몰려오지 않게(받은 적 없으면 설정을 바꾼 시각 이후 제보만 모은다, NewReportDigestScheduler).
+     */
+    public void resetNewReportLastSent() {
+        this.newReportLastSentAt = null;
     }
 }
