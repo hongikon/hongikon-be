@@ -1033,3 +1033,17 @@
 - `.gitignore` 에 인증서·서명 파일(`*.cer`·`*.crt`·`*.der`·`*.pfx`·`*.keystore`·`*.mobileprovision`) 추가.
 - 코드·스키마 변경 없음. 개인정보 없음.
 
+
+## 2026-10-08 — 운영 자동 배포(CD) 워크플로 (chore/cd-workflow)
+
+- `.github/workflows/deploy.yml` 추가 — GitHub OIDC 로 IAM 역할을 assume 해 SSM Run Command(`AWS-RunShellScript`)로 서버에서 배포한다. SSH 키·AWS 액세스 키 없음.
+  서버·AWS 값은 저장소에 적지 않고 Environment `production` 변수(`AWS_REGION`·`AWS_ROLE_ARN`·`EC2_INSTANCE_ID`)로만 읽는다.
+- 트리거: `Publish image` 가 main push 에서 성공하면(`workflow_run`, 태그 `sha-<앞 7자리>`) + 수동(`workflow_dispatch`: `image_tag`, `dry_run` 기본 true, `sql_applied` 기본 false).
+- guard job: 대상 커밋이 main 에 포함돼 있는지(dev 에만 있는 커밋은 거부), 첫 번째 부모 대비 `db/` 변경이 있는지 확인 — 있으면 `sql_applied=true` 로 다시 실행할 때까지 멈춘다.
+- deploy job(Environment `production` 승인): ghcr 로그인(job `GITHUB_TOKEN`, pull 직후·종료 시 logout) → pull → 지금 이미지를 `hongikon-be:before-<태그>` 로 태그 →
+  대상 커밋의 `scripts/deploy.sh` 를 base64 로 보내 실행 → `/reports` 200·`/admin/users` 401 확인. SSM 결과를 폴링해 서버 출력을 로그에 보여 준다.
+  `dry_run` 이면 whoami·docker ps·SSM 에이전트·`/reports` 상태만 본다. 동시 실행 1개(`deploy-production`), 기본 권한 없음 + job 별 최소 권한, 액션은 커밋 SHA 고정.
+- `docs/ci-cd.md` 5절에 흐름·승인 버튼·SQL 변경 시 재실행·dry run·롤백·처음 설정할 것·토큰 잔존 위험 정리.
+- `workflow_run` 은 기본 브랜치(main)에 파일이 있어야 동작 — dev→main 머지 전에는 자동 배포가 일어나지 않는다.
+- 로컬 확인: YAML 파싱, 각 단계 `bash -n`, aws/jq 목(mock)으로 SSM 전송·폴링·실패 경로, guard 시나리오 7가지(dev 전용 커밋 거부 — dispatch·workflow_run, db 변경 차단·sql_applied 통과·dry run·잘못된 태그·없는 커밋). 실제 AWS·서버로는 아직 돌리지 않았다.
+- 코드·스키마 변경 없음. 개인정보 없음.
