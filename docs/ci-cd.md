@@ -159,7 +159,10 @@ Actions → 해당 **Deploy** 실행 화면 위쪽의 노란 상자 **Review dep
 ### 5.6 처음 설정할 때
 
 - **workflow_run 은 기본 브랜치(main)에 `deploy.yml` 이 있어야 동작한다.** dev 에만 있으면 자동 배포가 일어나지 않는다. `workflow_dispatch` 의 Run workflow 버튼도 기본 브랜치에 파일이 있어야 보인다.
-- IAM 역할 신뢰 정책: `token.actions.githubusercontent.com`, `aud` = `sts.amazonaws.com`, `sub` = `repo:hongikon/hongikon-be:environment:production` 로 좁힌다.
+- IAM 역할 신뢰 정책: `token.actions.githubusercontent.com`, `aud` = `sts.amazonaws.com`, `sub` = `repo:hongikon@<조직ID>/hongikon-be@<저장소ID>:environment:production` 로 좁힌다.
+  이 저장소는 불변 subject(`use_immutable_subject`)를 쓰므로 `sub` 에 이름만이 아니라 `<이름>@<숫자 ID>` 가 들어간다(이름 기반 `repo:hongikon/hongikon-be:...` 는 맞지 않는다). 실제 숫자 ID 는 문서에 적지 않는다.
+  - `AssumeRoleWithWebIdentity` 가 거부되면 실제 토큰의 `sub` 를 확인한다 — 저장소·조직 설정에 따라 `sub` 형식이 다르다.
+  - 확인: `gh api repos/hongikon/hongikon-be/actions/oidc/customization/sub` → 응답의 `sub_claim_prefix` 뒤에 `:environment:production` 이 붙은 값이 `sub` 다.
 - 역할 권한: 그 인스턴스에 대한 `ssm:SendCommand`(문서 `AWS-RunShellScript`), `ssm:GetCommandInvocation`, `ssm:CancelCommand` 정도만.
 - ghcr 패키지 설정(Package settings → Manage Actions access)에 이 저장소가 읽기 권한으로 들어 있어야 job 의 `GITHUB_TOKEN` 으로 pull 된다.
 - 서버의 지금 컨테이너 이름이 `hongikon-be`, 포트 `127.0.0.1:8080:8080` 인지(4절 기본값) 확인한다.
