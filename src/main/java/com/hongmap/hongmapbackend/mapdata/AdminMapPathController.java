@@ -8,6 +8,8 @@ import com.hongmap.hongmapbackend.mapdata.dto.AdminPathNode;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminPathNodeListResponse;
 import com.hongmap.hongmapbackend.mapdata.dto.AdminPathNodeRequest;
 import com.hongmap.hongmapbackend.mapdata.dto.PathAuditResponse;
+import com.hongmap.hongmapbackend.mapdata.dto.PathImportReport;
+import com.hongmap.hongmapbackend.mapdata.dto.PathImportRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminMapPathController {
 
     private final AdminMapPathService adminMapPathService;
+    private final PathNetworkImportService pathNetworkImportService;
 
     @Operation(summary = "경로 점 목록", description = "code 순. 출입구 노드의 lat·lng 는 건물 entrances 에서 읽은 값, degree = 이어진 간선 수.")
     @GetMapping("/path-nodes")
@@ -100,5 +104,22 @@ public class AdminMapPathController {
     @GetMapping("/path-audit")
     public PathAuditResponse pathAudit() {
         return adminMapPathService.audit();
+    }
+
+    @Operation(summary = "경로망 임포트",
+            description = "앱이 내보낸 format 1 JSON(nodes·edges·entranceRefs). dryRun(기본 true)이면 검증 리포트만. "
+                    + "dryRun=false 는 오류가 하나도 없을 때만 기존 경로망을 한 트랜잭션에서 통째로 바꾼다 — 오류가 있으면 400 + 리포트.")
+    @PostMapping("/path-network/import")
+    public ResponseEntity<PathImportReport> importPathNetwork(@AuthenticationPrincipal Long adminId,
+                                                              @RequestParam(defaultValue = "true") boolean dryRun,
+                                                              @Valid @RequestBody PathImportRequest request) {
+        PathImportReport report = pathNetworkImportService.importNetwork(request, dryRun);
+        log.info("경로망 임포트: adminId={}, dryRun={}, applied={}, waypoints={}, entranceNodes={}, edges={}, errors={}",
+                adminId, dryRun, report.applied(), report.counts().waypoints(), report.counts().entranceNodes(),
+                report.counts().edges(), report.errors().size());
+        if (!dryRun && !report.applied()) {
+            return ResponseEntity.badRequest().body(report);
+        }
+        return ResponseEntity.ok(report);
     }
 }
