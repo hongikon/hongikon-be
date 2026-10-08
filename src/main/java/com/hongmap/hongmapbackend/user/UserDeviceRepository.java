@@ -75,6 +75,21 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Long> {
     );
 
     /**
+     * 제보 키워드 알림 대상 기기 — 유저별로 제목이 달라(걸린 키워드) [userId, pushToken] 쌍으로 한 번에 읽는다.
+     */
+    @Query("""
+            SELECT d.user.id, d.pushToken FROM UserDevice d
+            WHERE d.active = true
+              AND d.tokenType = :tokenType
+              AND d.user.id IN :userIds
+            ORDER BY d.user.id ASC, d.id ASC
+            """)
+    List<Object[]> findActiveTokensByUserIds(
+            @Param("tokenType") TokenType tokenType,
+            @Param("userIds") Collection<Long> userIds
+    );
+
+    /**
      * 관리자 알림 대상 기기(AdminAlertDispatcher) — role이 관리자인 유저의 활성 기기. excludeUserId(그 일을 만든 본인)는 빼고,
      * 관리자 알림을 끈 유저(user_notification_settings.admin_alerts_enabled = false)도 뺀다. 설정 행이 없으면 켜짐.
      */

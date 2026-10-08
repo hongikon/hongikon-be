@@ -8,6 +8,8 @@ import com.hongmap.hongmapbackend.department.UserDepartmentRepository;
 import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
 import com.hongmap.hongmapbackend.notification.NotificationCategoryRepository;
 import com.hongmap.hongmapbackend.notification.KeywordSubscriptionRepository;
+import com.hongmap.hongmapbackend.notification.ReportKeywordPushLogRepository;
+import com.hongmap.hongmapbackend.notification.ReportKeywordSubscriptionRepository;
 import com.hongmap.hongmapbackend.notification.UserBoardSubscriptionRepository;
 import com.hongmap.hongmapbackend.notification.UserNotificationSettingRepository;
 import com.hongmap.hongmapbackend.report.ReportFlagRepository;
@@ -49,6 +51,8 @@ public class UserService {
     private final ReportFlagRepository reportFlagRepository;
     private final ReportImageService reportImageService;
     private final KeywordSubscriptionRepository keywordSubscriptionRepository;
+    private final ReportKeywordSubscriptionRepository reportKeywordSubscriptionRepository;
+    private final ReportKeywordPushLogRepository reportKeywordPushLogRepository;
     private final UserBoardSubscriptionRepository userBoardSubscriptionRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserDepartmentRepository userDepartmentRepository;
@@ -86,6 +90,9 @@ public class UserService {
             kakaoUnlinkClient.unlinkAfterCommit(user.getSocialId()); // 커밋 뒤 카카오 연결 끊기(실패해도 탈퇴는 완료)
         }
         keywordSubscriptionRepository.deleteByUser_Id(userId);
+        // 제보 키워드와 그 발송 기록(DB 에도 ON DELETE CASCADE). 이 유저가 쓴 제보의 발송 기록은 reports FK CASCADE 로 지워진다.
+        reportKeywordSubscriptionRepository.deleteByUser_Id(userId);
+        reportKeywordPushLogRepository.deleteByUserId(userId);
         userBoardSubscriptionRepository.deleteByUser_Id(userId);
         userNotificationSettingRepository.deleteByUserId(userId);
         userDepartmentRepository.deleteByUser_Id(userId);

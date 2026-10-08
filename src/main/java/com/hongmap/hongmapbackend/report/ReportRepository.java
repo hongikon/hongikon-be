@@ -56,6 +56,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
               AND r.startsAt > :from AND r.startsAt <= :to
               AND r.endsAt > :to
               AND r.reviewedAt IS NOT NULL AND r.reviewedAt < r.startsAt
+              AND r.publishedAt IS NULL
             ORDER BY r.startsAt ASC, r.id ASC
             """)
     List<Report> findStartedAfterEarlyApproval(@Param("status") ReportStatus status,
@@ -76,6 +77,31 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Modifying
     @Query("UPDATE Report r SET r.status = :to WHERE r.id = :id AND r.status = :from")
     int updateStatusIf(@Param("id") Long id, @Param("from") ReportStatus from, @Param("to") ReportStatus to);
+
+    /**
+     * 새 제보로 공개된 시각(published_at)을 아직 비어 있을 때만 채운다. 바뀐 행 수(0 또는 1) — 예정 제보 시작 알림을
+     * 서버 여러 대·재시작 중복 확인에도 한 번만 보내도록 선점하는 데 쓴다(ReportStartPushScheduler).
+     */
+    @Transactional
+    @Modifying
+    @Query("UPDATE Report r SET r.publishedAt = :at WHERE r.id = :id AND r.publishedAt IS NULL")
+    int markPublishedIfUnset(@Param("id") Long id, @Param("at") LocalDateTime at);
+
+    /**
+     * 새 제보 알림 다이제스트 후보 — (from, to] 사이에 새 제보로 공개됐고 지금도 지도에 떠 있는(ACTIVE, 끝나지 않은) 제보.
+     * 숨김(HIDDEN)·반려·삭제는 status 조건으로 빠진다. 최근 공개 순. 유저별 구간·작성자 제외는 NewReportDigestScheduler 가 자바에서 한다.
+     */
+    @Query("""
+            SELECT new com.hongmap.hongmapbackend.report.ReportDigestCandidate(
+                r.id, r.user.id, r.title, r.building.name, r.floor, r.publishedAt)
+            FROM Report r
+            WHERE r.status = com.hongmap.hongmapbackend.report.ReportStatus.ACTIVE
+              AND r.publishedAt > :from AND r.publishedAt <= :to
+              AND r.endsAt > :now
+            ORDER BY r.publishedAt DESC, r.id DESC
+            """)
+    List<ReportDigestCandidate> findDigestCandidates(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                                     @Param("now") LocalDateTime now);
 
     void deleteByUser_Id(Long userId);
 

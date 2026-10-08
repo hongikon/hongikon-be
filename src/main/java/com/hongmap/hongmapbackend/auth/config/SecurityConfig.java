@@ -65,6 +65,10 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/departments").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
+                    // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
+                    auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
+                    // 학식 메뉴(학교 홈페이지 공개 메뉴를 서버가 가져와 둔 것). 조회만.
+                    auth.requestMatchers(HttpMethod.GET, "/cafeteria/menus", "/cafeteria/menus/week").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
                     // 문의하기는 비로그인(게스트)도 보낼 수 있다. 토큰이 있으면 작성자로 연결된다.
                     auth.requestMatchers(HttpMethod.POST, "/feedback").permitAll();
@@ -112,6 +116,8 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("*"));
         // JWT는 Authorization 헤더로, refresh 토큰은 body로 주고받으므로 쿠키 전송이 필요 없다.
         config.setAllowCredentials(false);
+        // GET /map/data 의 ETag 를 웹 앱이 읽어 다음 요청의 If-None-Match 로 보낸다(노출하지 않으면 JS 에서 안 보인다).
+        config.setExposedHeaders(List.of("ETag"));
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

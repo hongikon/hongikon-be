@@ -46,4 +46,16 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
         @Param("swLng") BigDecimal swLng,
         @Param("neLng") BigDecimal neLng
     );
+
+    /** GET /map/data · 관리자 목록 — 소속까지 한 번에(N+1 방지), sort_order·id 순. */
+    @Query("SELECT DISTINCT p FROM Partner p LEFT JOIN FETCH p.affiliations ORDER BY p.sortOrder ASC, p.id ASC")
+    List<Partner> findAllForMap();
+
+    @EntityGraph(attributePaths = "affiliations")
+    Optional<Partner> findWithAffiliationsByCode(String code);
+
+    boolean existsByCode(String code);
+
+    @Query("SELECT COALESCE(MAX(p.sortOrder), 0) FROM Partner p")
+    int findMaxSortOrder();
 }

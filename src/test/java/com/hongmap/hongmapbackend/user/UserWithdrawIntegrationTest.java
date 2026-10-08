@@ -17,6 +17,10 @@ import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
 import com.hongmap.hongmapbackend.notification.KeywordSubscription;
 import com.hongmap.hongmapbackend.notification.KeywordSubscriptionRepository;
+import com.hongmap.hongmapbackend.notification.ReportKeywordPushLog;
+import com.hongmap.hongmapbackend.notification.ReportKeywordPushLogRepository;
+import com.hongmap.hongmapbackend.notification.ReportKeywordSubscription;
+import com.hongmap.hongmapbackend.notification.ReportKeywordSubscriptionRepository;
 import com.hongmap.hongmapbackend.notification.NotificationCategory;
 import com.hongmap.hongmapbackend.notification.NotificationCategoryRepository;
 import com.hongmap.hongmapbackend.report.Report;
@@ -59,6 +63,8 @@ class UserWithdrawIntegrationTest {
     @Autowired NewsRepository newsRepository;
     @Autowired BookmarkRepository bookmarkRepository;
     @Autowired KeywordSubscriptionRepository keywordSubscriptionRepository;
+    @Autowired ReportKeywordSubscriptionRepository reportKeywordSubscriptionRepository;
+    @Autowired ReportKeywordPushLogRepository reportKeywordPushLogRepository;
     @Autowired NotificationCategoryRepository notificationCategoryRepository;
     @Autowired UserDepartmentRepository userDepartmentRepository;
     @Autowired UserDeviceRepository userDeviceRepository;
@@ -86,6 +92,8 @@ class UserWithdrawIntegrationTest {
 
         bookmarkRepository.save(Bookmark.builder().user(me).news(news).build());
         keywordSubscriptionRepository.save(KeywordSubscription.builder().user(me).keyword("장학").build());
+        reportKeywordSubscriptionRepository.save(ReportKeywordSubscription.builder().user(me).keyword("간식").build());
+        reportKeywordSubscriptionRepository.save(ReportKeywordSubscription.builder().user(other).keyword("간식").build());
         notificationCategoryRepository.save(NotificationCategory.builder().user(me).category("장학").enabled(false).build());
         notificationCategoryRepository.save(NotificationCategory.builder().user(me).category("행사").enabled(true).build());
         userDepartmentRepository.save(UserDepartment.builder().user(me).department(department).isPrimary(true).build());
@@ -101,6 +109,7 @@ class UserWithdrawIntegrationTest {
         Report otherReport = reportRepository.save(report(other, building));
         reportFlagRepository.save(ReportFlag.builder().report(myReport).user(other).reason("SPAM").build());
         reportFlagRepository.save(ReportFlag.builder().report(otherReport).user(me).reason("SPAM").build());
+        reportKeywordPushLogRepository.save(new ReportKeywordPushLog(otherReport.getId(), me.getId()));
 
         // 다른 유저의 같은 종류 데이터 — 탈퇴로 지워지면 안 된다
         notificationCategoryRepository.save(NotificationCategory.builder().user(other).category("장학").enabled(false).build());
@@ -110,12 +119,14 @@ class UserWithdrawIntegrationTest {
 
         assertThat(userRepository.findById(me.getId())).isEmpty();
         for (String table : new String[]{
-                "bookmarks", "keyword_subscriptions", "notification_categories", "user_departments",
+                "bookmarks", "keyword_subscriptions", "report_keyword_subscriptions", "report_keyword_push_log",
+                "notification_categories", "user_departments",
                 "user_devices", "refresh_tokens", "reports", "report_flags"}) {
             assertThat(countByUser(table, me.getId())).as(table).isZero();
         }
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM report_flags WHERE report_id = ?", Long.class, myReport.getId())).isZero();
+        assertThat(countByUser("report_keyword_subscriptions", other.getId())).isEqualTo(1L);
 
         // 문의는 내용만 남고 작성자·연락처(이메일)는 비워진다
         assertThat(jdbcTemplate.queryForObject(

@@ -165,6 +165,29 @@ class AppNicknameIntegrationTest {
     }
 
     @Test
+    void liveReportListIncludesContentUpTo2000Chars() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        String longContent = "간식 구성 안내 ".repeat(300).substring(0, 2000);
+        String body = """
+                {"buildingId":%d,"floor":3,"lat":37.55,"lng":126.925,"category":"FOOD_TRUCK",
+                 "title":"중간고사 간식행사","content":"%s","startsAt":"%s","endsAt":"%s"}
+                """.formatted(building.getId(), longContent, now.minusMinutes(5).withNano(0), now.plusHours(2).withNano(0));
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+        jdbcTemplate.update("UPDATE reports SET status = ? WHERE title = ?", ReportStatus.ACTIVE.name(), "중간고사 간식행사");
+
+        mockMvc.perform(get("/reports?live=true&buildingId=" + building.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reports[?(@.title == '중간고사 간식행사')].content").value(longContent));
+
+        String tooLong = body.replace(longContent, longContent + "넘");
+        mockMvc.perform(post("/reports").header("Authorization", bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON).content(tooLong))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createResponseUsesDisplayName() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         String body = """
