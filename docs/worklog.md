@@ -1055,6 +1055,33 @@
 - `AssumeRoleWithWebIdentity` 가 거부되면 실제 `sub` 를 확인하라는 안내와 확인 명령(`gh api repos/hongikon/hongikon-be/actions/oidc/customization/sub`) 추가.
 - 공개 저장소라 숫자 ID·계정 ID·인스턴스 ID·역할 ARN 은 적지 않고 자리표시자만 쓴다.
 - 코드·워크플로·스키마 변경 없음. 개인정보 없음.
+
+## 2026-10-08 — 경로망 서버 이전 (feat/path-network)
+
+- 앱이 `src/constants/pathNodes.ts` 에 하드코딩하던 경로망(점 145·간선 175)을 서버로 옮긴다. 경로 계산은 앱이 하고, 서버는 데이터만 준다.
+  기존 `route_nodes`/`route_edges`·`RouteGraphLoader`·`POST /routes/search`(건물+층 접속점 모델)는 건드리지 않고 공존.
+- 테이블(`db/create_path_network_tables.sql`):
+  - `path_nodes`(`mapdata.PathNode`): code(UNIQUE, 프론트 id 그대로), kind `WAYPOINT`(좌표 저장)/`ENTRANCE`(building_id FK + entrance_label, 좌표 저장 안 함),
+    UNIQUE(building_id, entrance_label), 종류별 필드 CHECK. 라벨은 `buildings.entrances`(JSON) 안의 값이라 외래키가 없다.
+  - `path_edges`(`mapdata.PathEdge`): 양방향 한 줄, `node_a_id < node_b_id` CHECK + (a, b) UNIQUE, 노드 FK RESTRICT.
+- `GET /map/data` 맨 끝에 `paths: { nodes: [{id, lat, lng, entrance?: {building, label}}], edges: [[id, id]] }` — 비어 있어도 항상.
+  출입구 노드 좌표는 응답을 만들 때 `buildings.entrances` 에서 읽는다. 라벨을 못 찾으면 그 점·간선만 빼고 WARN(지도 전체는 뜬다).
+  nodes 는 code 순, edges 는 [작은 id, 큰 id] 정렬이라 다시 임포트해도 같은 내용이면 version 이 같다.
+- 관리자(ADMIN, 감사 기록은 기존 인터셉터):
+  - `/admin/map/path-nodes` GET·POST·PUT(중간점 좌표만)·DELETE, `/admin/map/path-edges` GET·POST·DELETE.
+    같은 id·같은 출입구 노드·중복 간선(방향 무관)·간선이 이어진 점 삭제 → 409. 출입구 노드 id = `e-{건물 code}-{라벨}`, 중간점 id 를 비우면 `pn-xxxxxxxx`.
+  - `GET /admin/map/path-audit`: 깨진 출입구 참조, 고립된 점, 본망과 끊긴 덩어리, 경로에 없는 출입구, 100m(`LONG_EDGE_METERS`) 넘는 간선.
+  - `POST /admin/map/path-network/import?dryRun=true`: 앱이 내보낸 format 1 JSON. dryRun 기본, 오류가 있으면 적용 거부(400 + 리포트),
+    적용은 한 트랜잭션에서 전체 교체 + 캐시 무효화. id 변환 내역·출입구 참조(buildingCode → display_name → name)·오류·경고 리포트.
+- 출입구 편집 API 는 없어서 "경로가 쓰는 라벨 변경 409" 는 코드로 두지 않았다 — 동기화 SQL 은 COMMIT 전에 확인 쿼리(SQL 파일 끝),
+  적용 뒤 path-audit 로 본다.
+- 테스트: `PathNetworkIntegrationTest` 12(빈 paths·모양·출입구 좌표 해석·깨진 참조 제외·캐시 무효화·409·400·404·401/403·DB CHECK·점검),
+  `PathNetworkImportTest` 5(dryRun 리포트·적용·멱등·오류 11종 거부·format), `MapDataIntegrationTest`·`ExhibitionIntegrationTest` 키 순서에 paths.
+- 문서: `docs/admin-api-spec.md` "지도 경로망", `docs/deploy-runbook-path-network.md`.
+- **DB 변경**: 배포 전에 RDS 스냅샷 → `db/create_path_network_tables.sql` 실행(재실행 안전 — 빠뜨리면 validate 로 서버가 뜨지 않는다).
+  db/ 변경이라 Deploy 는 `sql_applied=true` 수동 실행. 배포 뒤 관리자 임포트로 데이터를 넣는다.
+- 개인정보 없음(공개 캠퍼스 좌표뿐).
+
 ## 2026-10-09 — 앱 심사용 데모 로그인 (dev)
 
 - 배경: TestFlight Beta App Review 가 "아이디/비밀번호로 들어갈 수 있는 데모 계정"이 없다며 반려. 앱은 카카오·Apple 로그인만 있어
