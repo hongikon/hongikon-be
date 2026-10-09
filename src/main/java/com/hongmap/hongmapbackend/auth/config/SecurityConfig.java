@@ -49,6 +49,8 @@ public class SecurityConfig {
                     auth.requestMatchers("/oauth2/**", "/login/oauth2/**", "/auth/token/exchange",
                             "/auth/reissue", "/auth/logout").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/auth/apple").permitAll();
+                    // 앱 심사용 데모 로그인(DemoLoginService). 꺼져 있으면 컨트롤러가 404.
+                    auth.requestMatchers(HttpMethod.POST, "/auth/demo").permitAll();
                     // AuthTestController와 동일하게 local 프로필에서만 인증 없이 열어준다.
                     if (environment.acceptsProfiles(Profiles.of("local"))) {
                         auth.requestMatchers("/auth/test-token").permitAll();
