@@ -25,7 +25,9 @@ public record NewsResponse(
          */
         String sourceId,
         Long buildingId,
-        LocalDateTime publishedAt
+        LocalDateTime publishedAt,
+        /** 게시판 상단 고정 공지인지. 고정을 구분하는 게시판(국제협력본부)만 true가 될 수 있다. */
+        boolean pinned
 ) {
     public static NewsResponse of(News n) {
         return NewsResponse.builder()
@@ -42,6 +44,7 @@ public record NewsResponse(
                 .sourceId(n.getSourceId())
                 .buildingId(n.getBuilding() != null ? n.getBuilding().getId() : null)
                 .publishedAt(n.getPublishedAt())
+                .pinned(n.isPinned())
                 .build();
     }
 }

@@ -42,6 +42,23 @@ public interface BoardParser {
     }
 
     /**
+     * 목록 한 페이지의 행 수가 사이트에서 고정돼 있어 요청한 pageSize를 따르지 않으면 그 값(예: 국제협력본부 10행).
+     * 크롤러는 이 값으로 페이지 수를 늘려 다른 게시판과 같은 건수(default-pages × page-size)까지 훑는다.
+     * 0이면 pageSize를 따른다는 뜻이다.
+     */
+    default int fixedPageSize() {
+        return 0;
+    }
+
+    /**
+     * parseList가 상단 고정 행을 ArticleSummary#pinned로 구분해 주는지. true면 크롤러가 첫 페이지의 고정 목록으로
+     * news.pinned를 맞춘다(새로 고정된 글은 켜고, 고정이 풀린 글은 끈다).
+     */
+    default boolean detectsPinned() {
+        return false;
+    }
+
+    /**
      * 본문 영역의 img src를 절대 URL로 모은다(순서 유지, 중복 제거).
      * data: URI(본문에 base64로 직접 박힌 이미지)는 한 장에 수십만 자가 되어 images 컬럼(TEXT)을 넘기므로 제외한다.
      */

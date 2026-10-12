@@ -1,8 +1,11 @@
 package com.hongmap.hongmapbackend.crawler;
 
+import com.hongmap.hongmapbackend.crawler.parser.ArticleDetail;
 import com.hongmap.hongmapbackend.crawler.parser.ArticleSummary;
+import com.hongmap.hongmapbackend.crawler.parser.Attachment;
 import com.hongmap.hongmapbackend.crawler.parser.HongikBoardParser;
 import com.hongmap.hongmapbackend.crawler.parser.ImwebBoardParser;
+import com.hongmap.hongmapbackend.crawler.parser.OiaBoardParser;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,7 @@ class BoardParserFixtureTest {
 
     private final HongikBoardParser hongik = new HongikBoardParser();
     private final ImwebBoardParser imweb = new ImwebBoardParser();
+    private final OiaBoardParser oia = new OiaBoardParser();
 
     @Test
     void 디자인엔지니어링전공_목록() throws IOException {
@@ -73,6 +77,80 @@ class BoardParserFixtureTest {
         assertThat(first.title()).isEqualTo("[바이오헬스 혁신융합대학] 2026학년도 2학기 다전공 신청 안내");
         assertThat(first.date()).isEqualTo("2026.09.21");
         assertThat(first.link()).startsWith("https://biohealth.hongik.ac.kr/22/?").contains("bmode=view&idx=174569154");
+    }
+
+    // ---- 국제협력본부(inno.hongik.ac.kr/oia, 2026.10.12 저장) ----
+
+    @Test
+    void 국제교류실_1페이지는_상단_고정_5개와_일반_글_5개다() throws IOException {
+        String listUrl = "https://inno.hongik.ac.kr/oia/board/1";
+        List<ArticleSummary> items = oia.parseList(load("oia-board-1.html", listUrl), listUrl, null);
+
+        assertThat(items).hasSize(10);
+        assertThat(items.subList(0, 5)).allMatch(ArticleSummary::pinned);
+        assertThat(items.subList(5, 10)).noneMatch(ArticleSummary::pinned);
+
+        ArticleSummary pinned = items.get(0);
+        assertThat(pinned.articleNo()).isEqualTo("527");
+        assertThat(pinned.title()).isEqualTo("(★중요★) [건축도시대학 건축학부] 교류학생 대체학점 관련 안내사항");
+        assertThat(pinned.date()).isEqualTo("2025.11.26");
+        assertThat(pinned.views()).isEqualTo(1370);
+        assertThat(pinned.link()).isEqualTo("https://inno.hongik.ac.kr/oia/boardview/1/527");
+
+        // 제목 뒤 "새로운 글" 아이콘 이미지는 제목에 섞이지 않는다(title 속성 사용).
+        ArticleSummary latest = items.get(5);
+        assertThat(latest.articleNo()).isEqualTo("618");
+        assertThat(latest.title()).isEqualTo("[한미교육위원단] 풀브라이트 미국유학 및 연구 장학금 설명회 안내(11.6)");
+        assertThat(latest.date()).isEqualTo("2026.10.12");
+        assertThat(latest.views()).isEqualTo(20);
+    }
+
+    @Test
+    void 국제교류실_2페이지부터는_고정_없이_일반_글_10개다() throws IOException {
+        String listUrl = "https://inno.hongik.ac.kr/oia/board/1";
+        List<ArticleSummary> items = oia.parseList(load("oia-board-1-p2.html", listUrl + "/2"), listUrl, null);
+
+        assertThat(items).hasSize(10).noneMatch(ArticleSummary::pinned);
+        assertThat(items.get(0).articleNo()).isEqualTo("613");
+        assertThat(items).allSatisfy(item -> {
+            assertThat(item.date()).matches("\\d{4}\\.\\d{2}\\.\\d{2}");
+            assertThat(item.link()).startsWith("https://inno.hongik.ac.kr/oia/boardview/1/");
+        });
+    }
+
+    @Test
+    void 글로벌역량_지원사업_목록() throws IOException {
+        String listUrl = "https://inno.hongik.ac.kr/oia/board/13";
+        List<ArticleSummary> items = oia.parseList(load("oia-board-13.html", listUrl), listUrl, null);
+
+        assertThat(items).hasSize(10).noneMatch(ArticleSummary::pinned);
+        assertThat(items.get(0).articleNo()).isEqualTo("78");
+        assertThat(items.get(0).date()).isEqualTo("2024.09.13");
+        assertThat(items.get(0).link()).isEqualTo("https://inno.hongik.ac.kr/oia/boardview/13/78");
+    }
+
+    @Test
+    void 국제협력본부_페이지는_경로로_넘긴다() {
+        String listUrl = "https://inno.hongik.ac.kr/oia/board/1";
+        assertThat(oia.buildListUrl(listUrl, 0, 50)).isEqualTo(listUrl);
+        assertThat(oia.buildListUrl(listUrl, 1, 50)).isEqualTo(listUrl + "/2");
+        assertThat(oia.buildListUrl(listUrl + "/", 2, 50)).isEqualTo(listUrl + "/3");
+    }
+
+    @Test
+    void 국제교류실_상세는_아이콘_글자를_빼고_작성자_날짜_조회수를_읽는다() throws IOException {
+        String pageUrl = "https://inno.hongik.ac.kr/oia/boardview/1/527";
+        ArticleDetail detail = oia.parseView(load("oia-boardview-1-527.html", pageUrl), pageUrl);
+
+        assertThat(detail.title()).isEqualTo("(★중요★) [건축도시대학 건축학부] 교류학생 대체학점 관련 안내사항");
+        assertThat(detail.writer()).isEqualTo("조희경");
+        assertThat(detail.date()).isEqualTo("2025.11.26");
+        assertThat(detail.views()).isEqualTo(1370);
+        // 첨부파일 목록(파일명)은 본문에 섞이지 않는다.
+        assertThat(detail.content()).contains("대체학점으로 인정받고자 하는 경우").doesNotContain(".hwp");
+        // 첨부는 ASP.NET postback이라 받을 주소가 없어 원문 페이지로 연결한다.
+        assertThat(detail.attachments()).containsExactly(
+                new Attachment("(양식)건축도시대학 교류학생 대체학점 사전승인 확인서.hwp", pageUrl));
     }
 
     private Document load(String name, String baseUri) throws IOException {

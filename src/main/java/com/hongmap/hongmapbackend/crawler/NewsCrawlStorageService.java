@@ -116,6 +116,19 @@ public class NewsCrawlStorageService {
         return newsRepository.fillMissingSourceId(board.sourceId(), sourceUrls);
     }
 
+    /**
+     * 첫 페이지에서 읽은 상단 고정 글(pinnedUrls)로 이 게시판의 news.pinned를 맞춘다. 바뀐 행 수를 돌려준다.
+     * 고정이 풀린 글은 sourceId로 찾으므로, 같은 sourceId를 나눠 쓰는 게시판이 둘 이상이면 서로의 고정을 끌 수 있다 —
+     * 지금 고정을 구분하는 게시판(국제협력본부)은 sourceId가 게시판마다 따로다.
+     */
+    @Transactional
+    public int syncPinned(BoardConfig board, Collection<String> pinnedUrls) {
+        if (pinnedUrls == null || pinnedUrls.isEmpty()) {
+            return newsRepository.unpinAll(board.sourceId());
+        }
+        return newsRepository.unpinExcept(board.sourceId(), pinnedUrls) + newsRepository.pinBySourceUrls(pinnedUrls);
+    }
+
     /** 새로 저장한 News를 돌려준다(푸시 발송용). 이미 저장된 글이면 저장하지 않고 빈 값을 돌려준다. */
     @Transactional
     public Optional<News> save(BoardConfig board, ArticleSummary summary, ArticleDetail detail) {
@@ -139,6 +152,7 @@ public class NewsCrawlStorageService {
                 .department(department)
                 .building(building)
                 .publishedAt(resolvePublishedAt(summary, detail))
+                .pinned(summary.pinned())
                 .build();
 
         return Optional.of(newsRepository.save(news));

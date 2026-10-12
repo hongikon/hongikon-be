@@ -228,7 +228,8 @@ public class CrawlerService {
         int saved = 0;
         int firstPageCount = 0;
 
-        for (int page = 0; page < properties.getDefaultPages(); page++) {
+        int pages = pagesToCrawl(parser);
+        for (int page = 0; page < pages; page++) {
             if (page > 0) {
                 httpClient.politeDelay();
             }
@@ -268,6 +269,13 @@ public class CrawlerService {
             }
             // source_id 컬럼 도입 전에 저장된 글이면 이번에 다시 만난 김에 게시판 출처를 채운다(채울 행이 있을 때만 UPDATE).
             storageService.fillMissingSourceId(board, known.linksMissingSourceId());
+            // 상단 고정 공지는 첫 페이지에만 나온다. 새 고정 글은 위에서 pinned=true로 저장됐고, 여기서 이미 있던 글을 켜고 풀린 글을 끈다.
+            if (page == 0 && parser.detectsPinned()) {
+                storageService.syncPinned(board, summaries.stream()
+                        .filter(ArticleSummary::pinned)
+                        .map(ArticleSummary::link)
+                        .toList());
+            }
 
             if (saved >= board.maxItems() || (incremental && reachedKnownRange(candidates, known))) {
                 break;
@@ -276,6 +284,20 @@ public class CrawlerService {
 
         log.info("게시판 크롤링 완료: {} — 목록 {}건, 신규 {}건", board.source(), firstPageCount, saved);
         return firstPageCount;
+    }
+
+    /**
+     * 훑을 페이지 수. 페이지 크기가 사이트에 고정된 게시판(BoardParser#fixedPageSize)은 페이지 수를 늘려
+     * 다른 게시판과 같은 건수(default-pages × page-size, 기본 2 × 50 = 100행)까지 본다 — 10행 게시판이면 10페이지.
+     * 증분 수집이라 평소에는 첫 페이지에서 이미 본 구간에 닿아 멈춘다.
+     */
+    private int pagesToCrawl(BoardParser parser) {
+        int fixed = parser.fixedPageSize();
+        if (fixed <= 0) {
+            return properties.getDefaultPages();
+        }
+        int rows = properties.getDefaultPages() * properties.getPageSize();
+        return Math.max(1, (rows + fixed - 1) / fixed);
     }
 
     /**

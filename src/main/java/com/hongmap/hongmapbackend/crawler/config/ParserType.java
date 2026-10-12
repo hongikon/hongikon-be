@@ -10,5 +10,7 @@ public enum ParserType {
     /** 건축학부(arch.hongik.ac.kr) PHP CMS. */
     ARCH,
     /** 도시공학과 등 Imweb으로 만든 사이트. */
-    IMWEB
+    IMWEB,
+    /** 국제협력본부(inno.hongik.ac.kr/oia) ASP.NET 게시판. 페이지를 경로(/board/1/2)로 넘긴다. */
+    OIA
 }

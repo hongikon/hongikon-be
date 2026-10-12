@@ -10,6 +10,7 @@ package com.hongmap.hongmapbackend.crawler.parser;
  * @param views         조회수. 없으면 null.
  * @param hasAttachment 첨부파일 아이콘 존재 여부
  * @param link          상세 페이지 절대 URL
+ * @param pinned        목록 맨 위 상단 고정 공지 행인지. 고정 행을 구분해 주는 파서(BoardParser#detectsPinned)만 채운다.
  */
 public record ArticleSummary(
         String articleNo,
@@ -18,6 +19,12 @@ public record ArticleSummary(
         String date,
         Integer views,
         boolean hasAttachment,
-        String link
+        String link,
+        boolean pinned
 ) {
+    /** 고정 행을 구분하지 않는 파서용. */
+    public ArticleSummary(String articleNo, String title, String boardCategory, String date,
+                          Integer views, boolean hasAttachment, String link) {
+        this(articleNo, title, boardCategory, date, views, hasAttachment, link, false);
+    }
 }

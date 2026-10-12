@@ -88,7 +88,13 @@ public final class CrawlerBoards {
             // 바이오헬스융합학부 = 바이오헬스 혁신융합대학사업단 사이트(Imweb). 메뉴 '공지사항'(/22)과 '학사공지'(/notice)는 같은 게시판이다.
             imweb("biohealth", "바이오헬스융합학부", "바이오헬스융합학부", "https://biohealth.hongik.ac.kr/22"),
             // 디자인엔지니어링 융합전공은 자체 사이트(smpd.hongik.ac.kr)가 있다.
-            hongik("smpd", "디자인엔지니어링전공", "디자인엔지니어링전공", "https://smpd.hongik.ac.kr/smpd/0401.do", "공지사항")
+            hongik("smpd", "디자인엔지니어링전공", "디자인엔지니어링전공", "https://smpd.hongik.ac.kr/smpd/0401.do", "공지사항"),
+
+            // 국제협력본부(inno.hongik.ac.kr/oia) — 학과가 아닌 본부 게시판이라 department_id는 비어 있다. ASP.NET 사이트라 전용 파서.
+            // sourceId는 앱 TREE_DATA '국제협력본부' 묶음의 리프 id와 같다. 국제교류실 공지는 상단 고정 공지가 있다.
+            oia("oia-exchange", "국제교류실", "국제교류실 공지사항", "https://inno.hongik.ac.kr/oia/board/1"),
+            // 대학교육혁신 지원사업(글로벌역량) 공지. 2024.09 뒤로 새 글이 없지만(2026.10 확인) 글이 올라오면 바로 수집된다.
+            oia("oia-global", "글로벌역량지원사업", "글로벌역량 지원사업 공지사항", "https://inno.hongik.ac.kr/oia/board/13")
     );
 
     /**
@@ -184,6 +190,10 @@ public final class CrawlerBoards {
 
     private static BoardConfig imweb(String boardKey, String sourceId, String source, String listUrl) {
         return new BoardConfig(boardKey, sourceId, source, listUrl, null, ParserType.IMWEB, null, false, DEPARTMENT_MAX_ITEMS);
+    }
+
+    private static BoardConfig oia(String boardKey, String sourceId, String source, String listUrl) {
+        return new BoardConfig(boardKey, sourceId, source, listUrl, null, ParserType.OIA, null, false, DEPARTMENT_MAX_ITEMS);
     }
 
     private CrawlerBoards() {

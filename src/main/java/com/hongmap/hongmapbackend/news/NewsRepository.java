@@ -41,6 +41,21 @@ public interface NewsRepository extends JpaRepository<News, Long>, JpaSpecificat
     @Query("UPDATE News n SET n.sourceId = :sourceId WHERE n.sourceUrl IN :sourceUrls AND n.sourceId IS NULL")
     int fillMissingSourceId(@Param("sourceId") String sourceId, @Param("sourceUrls") Collection<String> sourceUrls);
 
+    /** 상단 고정 목록에 들어온 글을 켠다. */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE News n SET n.pinned = true WHERE n.sourceUrl IN :sourceUrls AND n.pinned = false")
+    int pinBySourceUrls(@Param("sourceUrls") Collection<String> sourceUrls);
+
+    /** 이 게시판(sourceId)에서 상단 고정 목록(keep)에 없는 글의 고정을 끈다. */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE News n SET n.pinned = false WHERE n.sourceId = :sourceId AND n.pinned = true AND n.sourceUrl NOT IN :keep")
+    int unpinExcept(@Param("sourceId") String sourceId, @Param("keep") Collection<String> keep);
+
+    /** 이 게시판(sourceId)에 상단 고정 글이 하나도 없을 때. 빈 목록으로 NOT IN을 만들 수 없어 따로 둔다. */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE News n SET n.pinned = false WHERE n.sourceId = :sourceId AND n.pinned = true")
+    int unpinAll(@Param("sourceId") String sourceId);
+
     @Query("SELECT n FROM News n WHERE n.department IS NULL OR n.building IS NULL")
     List<News> findAllMissingLocation();
 }
