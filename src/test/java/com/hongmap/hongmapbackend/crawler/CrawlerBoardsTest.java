@@ -33,7 +33,8 @@ class CrawlerBoardsTest {
             "바이오헬스융합학부",
             "법학부",
             "교육학과", "국어교육과", "수학교육과", "역사교육과", "영어교육과",
-            "데이터사이언스전공", "디자인엔지니어링전공", "사물인터넷공학전공", "지능로봇공학전공"
+            "데이터사이언스전공", "디자인엔지니어링전공", "사물인터넷공학전공", "지능로봇공학전공",
+            "국제교류실", "글로벌역량지원사업"
     );
 
     private static final Set<String> BOARD_SOURCE_IDS = CrawlerBoards.ALL.stream()
@@ -42,7 +43,7 @@ class CrawlerBoardsTest {
 
     @Test
     void 앱의_구독_게시판_49개가_모두_크롤러_게시판이거나_상위_게시판_별칭이다() {
-        assertThat(APP_SOURCE_IDS).hasSize(49).doesNotHaveDuplicates();
+        assertThat(APP_SOURCE_IDS).hasSize(51).doesNotHaveDuplicates();
         assertThat(CrawlerBoards.KNOWN_SOURCE_IDS).containsAll(APP_SOURCE_IDS);
     }
 

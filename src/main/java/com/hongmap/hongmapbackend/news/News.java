@@ -93,6 +93,14 @@ public class News {
     @Column(name = "published_at", nullable = false)
     private LocalDateTime publishedAt;
 
+    /**
+     * 게시판 상단 고정 공지인지. 고정 행을 구분하는 파서(BoardParser#detectsPinned)의 게시판만 크롤링 때마다
+     * 첫 페이지 고정 목록으로 맞춘다(새로 고정되면 켜고, 풀리면 끈다). 그 밖의 게시판 글은 항상 false.
+     */
+    @Column(name = "pinned", nullable = false)
+    @Builder.Default
+    private boolean pinned = false;
+
     @CreationTimestamp
     @Column(name = "crawled_at", nullable = false, updatable = false)
     private LocalDateTime crawledAt;
