@@ -1107,3 +1107,11 @@
 - 테스트: `DemoLoginIntegrationTest` 6(성공·토큰 모양·같은 회원 재로그인·재발급, 틀린 아이디/비밀번호/형식 401 같은 응답, IP 별 429, ADMIN 거절,
   탈퇴 시 카카오·Apple 미호출, IP 가리기), `DemoLoginDisabledIntegrationTest` 2(꺼짐 404·GET 401, 불완전 설정은 꺼짐). 전체 558개 통과.
 - 운영: 켜고 끄는 법은 `docs/deploy-runbook-2026-10.md` "심사용 데모 로그인 켜기".
+
+## 2026-10-12 — 닉네임 예약어에 새 앱 이름(캠퍼스온) 추가
+
+- 앱 이름을 캠퍼스온(CAMPUS ON)으로 바꿀 수도 있어(지금은 보류, 앱 이름은 홍익온 유지), 미리 운영진 사칭을 막는 앱 닉네임 예약어에 `캠퍼스온`·`campuson` 을 더했다.
+  예전 이름 `홍익온`·`hongikon` 도 그대로 막는다. 대소문자·밑줄을 무시하는 기존 비교 그대로(`CampusOn`, `캠퍼스온_공식` 거절).
+- `AppNicknamePolicy.RESERVED_WORDS`, 프론트 `src/utils/nickname.ts` 와 같은 목록. API·SQL 변경 없음. 이미 이 말을 쓰는 닉네임은 바꾸지 않는다(변경할 때만 검사).
+- 테스트: `AppNicknamePolicyTest` 거절 목록에 `캠퍼스온공식`·`CampusOn` 추가, 통과.
+- 남은 것: 크롤러 User-Agent `HongikOnBot/1.0` 은 학교 서버 쪽에서 이 이름으로 허용해 뒀을 수 있어 그대로 둔다. Swagger 제목은 내부용이라 그대로.
