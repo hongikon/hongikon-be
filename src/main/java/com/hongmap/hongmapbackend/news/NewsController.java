@@ -30,7 +30,7 @@ public class NewsController {
     @Tag(name = SwaggerConfig.TAG_NEWS_NOTIFICATION)
     @Operation(summary = "공지사항 목록 조회", description = "카테고리, 학과, 건물, 수집 게시판(sourceId), 제목 키워드로 필터링된 공지사항 목록을 "
             + "최신순으로 페이지 단위 조회합니다. 조건끼리는 AND로 조합되고, sourceId는 여러 개 주면 그중 하나에 해당하는 글(sourceId=학사&sourceId=장학). "
-            + "keyword는 제목 부분 일치. page는 0부터, size는 기본 20·최대 50(넘으면 50으로 맞춤). sort는 무시되고 항상 작성일 최신순입니다.")
+            + "keyword는 제목 부분 일치. pinned=true면 게시판 상단 고정 공지만, pinned=false면 고정 공지를 뺀 목록(생략하면 구분 없음). page는 0부터, size는 기본 20·최대 50(넘으면 50으로 맞춤). sort는 무시되고 항상 작성일 최신순입니다.")
     @GetMapping("/news")
     public PageResponse<NewsSummaryResponse> getFiltered(
             @RequestParam(required = false) String category,
@@ -38,9 +38,10 @@ public class NewsController {
             @RequestParam(required = false) Long buildingId,
             @RequestParam(required = false) List<String> sourceId,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean pinned,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return newsService.getFiltered(new NewsFilter(category, departmentId, buildingId, sourceId, keyword), pageable);
+        return newsService.getFiltered(new NewsFilter(category, departmentId, buildingId, sourceId, keyword, pinned), pageable);
     }
 
     @Tag(name = SwaggerConfig.TAG_NEWS_NOTIFICATION)

@@ -162,10 +162,12 @@ class MapDataIntegrationTest {
         String version = body.get("version").asString();
         assertThat(version).matches("^[0-9a-f]{16}$");
         assertThat(result.getResponse().getHeader("ETag")).isEqualTo("\"" + version + "\"");
-        // 앞에서 보는 순서: version, buildings, facilities, partners, exhibitions. sort_order 가 가장 작으니 이 테스트 행이 맨 앞.
+        // 앞에서 보는 순서: version, buildings, facilities, partners, exhibitions, paths(맨 끝, 항상). sort_order 가 가장 작으니 이 테스트 행이 맨 앞.
         assertThat(body.properties().stream().map(e -> e.getKey()).toList())
-                .containsExactly("version", "buildings", "facilities", "partners", "exhibitions");
+                .containsExactly("version", "buildings", "facilities", "partners", "exhibitions", "paths");
         assertThat(body.get("exhibitions").isArray()).isTrue();
+        assertThat(body.get("paths").get("nodes").isArray()).isTrue();
+        assertThat(body.get("paths").get("edges").isArray()).isTrue();
         assertThat(body.get("buildings").get(0).get("code").asString()).isEqualTo(buildingCode);
 
         // version = 본문(version 제외)의 SHA-256 앞 16 hex

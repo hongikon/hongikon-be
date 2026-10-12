@@ -7,6 +7,7 @@ public record MapDataPayload(
         List<MapBuilding> buildings,
         List<MapFacility> facilities,
         List<MapPartner> partners,
-        List<MapExhibition> exhibitions
+        List<MapExhibition> exhibitions,
+        MapPaths paths
 ) {
 }

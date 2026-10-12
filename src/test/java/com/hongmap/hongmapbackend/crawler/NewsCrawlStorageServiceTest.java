@@ -3,6 +3,8 @@ package com.hongmap.hongmapbackend.crawler;
 import com.hongmap.hongmapbackend.crawler.config.BoardConfig;
 import com.hongmap.hongmapbackend.crawler.config.CrawlerBoards;
 import com.hongmap.hongmapbackend.crawler.parser.ArticleSummary;
+import com.hongmap.hongmapbackend.news.News;
+import com.hongmap.hongmapbackend.news.NewsFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -116,5 +118,66 @@ class NewsCrawlStorageServiceTest {
         assertThat(known.isKnown(recrawled)).isTrue();
         assertThat(known.isKnown(other)).isFalse();
         assertThat(known.linksMissingSourceId()).isEmpty();
+    }
+    // ---- 상단 고정 공지(국제협력본부) ----
+
+    private final BoardConfig oiaBoard = CrawlerBoards.ALL.stream()
+            .filter(b -> b.boardKey().equals("oia-exchange"))
+            .findFirst()
+            .orElseThrow();
+
+    private ArticleSummary oiaSummary(boolean pinned) {
+        String no = UUID.randomUUID().toString();
+        return new ArticleSummary(no, "국제교류실 글 " + no, "", "2026.10.12", null, false,
+                "https://inno.hongik.ac.kr/oia/boardview/1/" + no, pinned);
+    }
+
+    private boolean pinnedOf(String sourceUrl) {
+        return newsRepository.findAll().stream()
+                .filter(n -> n.getSourceUrl().equals(sourceUrl))
+                .findFirst()
+                .orElseThrow()
+                .isPinned();
+    }
+
+    @Test
+    void 고정_목록으로_새로_고정된_글은_켜고_풀린_글은_끈다() {
+        ArticleSummary wasPinned = oiaSummary(true);
+        ArticleSummary stillPinned = oiaSummary(true);
+        ArticleSummary nowPinned = oiaSummary(false);
+        storageService.save(oiaBoard, wasPinned, null);
+        storageService.save(oiaBoard, stillPinned, null);
+        storageService.save(oiaBoard, nowPinned, null);
+        assertThat(pinnedOf(wasPinned.link())).isTrue();
+        assertThat(pinnedOf(nowPinned.link())).isFalse();
+
+        storageService.syncPinned(oiaBoard, List.of(stillPinned.link(), nowPinned.link()));
+
+        assertThat(pinnedOf(wasPinned.link())).isFalse();
+        assertThat(pinnedOf(stillPinned.link())).isTrue();
+        assertThat(pinnedOf(nowPinned.link())).isTrue();
+
+        // 고정 공지가 모두 내려가면 이 게시판 글은 전부 고정 아님.
+        storageService.syncPinned(oiaBoard, List.of());
+        assertThat(pinnedOf(stillPinned.link())).isFalse();
+        assertThat(pinnedOf(nowPinned.link())).isFalse();
+    }
+
+    @Test
+    void 고정_여부_필터는_고정_글만_또는_고정_글을_뺀_목록을_준다() {
+        ArticleSummary pinned = oiaSummary(true);
+        ArticleSummary normal = oiaSummary(false);
+        storageService.save(oiaBoard, pinned, null);
+        storageService.save(oiaBoard, normal, null);
+
+        List<String> onlyPinned = newsRepository.findAll(
+                        new NewsFilter(null, null, null, List.of("국제교류실"), null, true).toSpecification())
+                .stream().map(News::getSourceUrl).toList();
+        List<String> withoutPinned = newsRepository.findAll(
+                        new NewsFilter(null, null, null, List.of("국제교류실"), null, false).toSpecification())
+                .stream().map(News::getSourceUrl).toList();
+
+        assertThat(onlyPinned).contains(pinned.link()).doesNotContain(normal.link());
+        assertThat(withoutPinned).contains(normal.link()).doesNotContain(pinned.link());
     }
 }

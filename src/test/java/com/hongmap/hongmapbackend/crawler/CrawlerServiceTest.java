@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -103,7 +104,7 @@ class CrawlerServiceTest {
 
     private CrawlerService service(boolean incremental, int parallelServers) {
         CrawlerProperties props = new CrawlerProperties(3, 2, 0, 0, 1000, "test", incremental, parallelServers, 3, 360);
-        BoardParserRegistry registry = new BoardParserRegistry(List.of(new FakeParser()));
+        BoardParserRegistry registry = new BoardParserRegistry(List.of(new FakeParser(), new FakeOiaParser()));
         return new CrawlerService(httpClient, registry, storage, pushDispatcher, props,
                 new CrawlerBoardCircuitBreaker(props, clock));
     }
@@ -119,6 +120,22 @@ class CrawlerServiceTest {
             list.add(new ArticleSummary(String.valueOf(no), "글 " + no, "", "2026.10.05", null, false,
                     board.listUrl() + "?view=" + no));
         }
+        pages.put(board.listUrl() + "#p" + page, list);
+    }
+
+    private static BoardConfig oiaBoard(String key, String listUrl) {
+        return new BoardConfig(key, key, key, listUrl, null, ParserType.OIA, null, false, 100);
+    }
+
+    /** 상단 고정 행(pinnedNos)을 맨 위에 붙인 page 목록. */
+    private void pinnedPage(BoardConfig board, int page, int[] pinnedNos, int... articleNos) {
+        List<ArticleSummary> list = new ArrayList<>();
+        for (int no : pinnedNos) {
+            list.add(new ArticleSummary(String.valueOf(no), "고정 " + no, "", "2025.01.01", null, false,
+                    board.listUrl() + "?view=" + no, true));
+        }
+        page(board, page, articleNos);
+        list.addAll(pages.get(board.listUrl() + "#p" + page));
         pages.put(board.listUrl() + "#p" + page, list);
     }
 
@@ -317,6 +334,65 @@ class CrawlerServiceTest {
 
     // ---- 가짜 파서 / 시계 ----
 
+    // ---- 페이지 크기가 고정된 게시판 · 상단 고정 공지 ----
+
+    @Test
+    void 페이지_크기가_고정된_게시판은_같은_건수까지_페이지를_더_훑는다() {
+        // 테스트 설정: page-size 3 × default-pages 2 = 6행. 고정 크기 2행 게시판이면 3페이지.
+        BoardConfig b = oiaBoard("oia", "https://oia.test/board/1");
+        page(b, 0, 10, 9);
+        page(b, 1, 8, 7);
+        page(b, 2, 6, 5);
+        page(b, 3, 4, 3);
+
+        service(false, 1).crawlAll(List.of(b));
+
+        assertThat(requested).contains("https://oia.test/board/1#p2").doesNotContain("https://oia.test/board/1#p3");
+        assertThat(savedLinks).hasSize(6);
+    }
+
+    @Test
+    void 첫_페이지의_상단_고정_목록으로_고정_여부를_맞추고_새_고정_글은_고정으로_저장한다() {
+        BoardConfig b = oiaBoard("oia", "https://oia.test/board/1");
+        pinnedPage(b, 0, new int[]{1, 2}, 10, 9);
+        page(b, 1, 8, 7);
+        store(b, 1, 9, 8, 7);
+
+        List<ArticleSummary> savedSummaries = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(inv -> {
+            ArticleSummary summary = inv.getArgument(1);
+            savedSummaries.add(summary);
+            stored.add(summary.link());
+            return Optional.of(News.builder().title(summary.title()).sourceUrl(summary.link()).build());
+        }).when(storage).save(any(), any(), any());
+
+        service(true, 1).crawlAll(List.of(b));
+
+        verify(storage).syncPinned(b, List.of("https://oia.test/board/1?view=1", "https://oia.test/board/1?view=2"));
+        assertThat(savedSummaries).extracting(ArticleSummary::articleNo, ArticleSummary::pinned)
+                .containsExactly(tuple("2", true), tuple("10", false));
+    }
+
+    @Test
+    void 첫_페이지를_못_읽으면_고정_여부를_건드리지_않는다() {
+        BoardConfig b = oiaBoard("oia", "https://oia.test/board/1");
+        // 목록이 비면(파싱 실패·빈 게시판) 고정을 모두 끄지 않도록 동기화 자체를 건너뛴다.
+
+        service(true, 1).crawlAll(List.of(b));
+
+        verify(storage, never()).syncPinned(any(), any());
+    }
+
+    @Test
+    void 고정_행을_구분하지_않는_게시판은_고정_동기화를_하지_않는다() {
+        BoardConfig b = board("a", "https://a.test/list");
+        page(b, 0, 10, 9);
+
+        service(true, 1).crawlAll(List.of(b));
+
+        verify(storage, never()).syncPinned(any(), any());
+    }
+
     private class FakeParser implements BoardParser {
         @Override
         public ParserType type() {
@@ -336,6 +412,24 @@ class CrawlerServiceTest {
         @Override
         public ArticleDetail parseView(Document document, String pageUrl) {
             return null;
+        }
+    }
+
+    /** 국제협력본부처럼 페이지 크기가 고정(2행)이고 상단 고정 행을 구분하는 게시판. */
+    private class FakeOiaParser extends FakeParser {
+        @Override
+        public ParserType type() {
+            return ParserType.OIA;
+        }
+
+        @Override
+        public int fixedPageSize() {
+            return 2;
+        }
+
+        @Override
+        public boolean detectsPinned() {
+            return true;
         }
     }
 
