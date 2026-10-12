@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "source": "테스트 샘플 — PathNetworkImportTest",
+  "nodes": [
+    { "id": "n1", "lat": 37.5500500, "lng": 126.9250500 },
+    { "id": "n2", "lat": 37.5501500, "lng": 126.9251500 },
+    { "id": "n 3", "lat": 37.5502500, "lng": 126.9252500 },
+    { "id": "n4", "lat": 37.5509000, "lng": 126.9259000 }
+  ],
+  "edges": [
+    ["n1", "n2"],
+    ["n2", "n 3"],
+    ["n2", "경로임포트 A동#A_1F"],
+    ["경로임포트 B동#B_1F", "n1"],
+    ["n 3", "경로임포트C#C_1F"]
+  ],
+  "entranceRefs": [
+    { "ref": "경로임포트 A동#A_1F", "buildingName": "경로임포트 B동", "buildingCode": "test_pi_alpha", "label": "A_1F" },
+    { "ref": "경로임포트 B동#B_1F", "buildingName": "경로임포트 B동", "label": "B_1F" },
+    { "ref": "경로임포트 A동#A_2F", "buildingCode": "test_pi_alpha", "label": "A_2F" }
+  ]
+}

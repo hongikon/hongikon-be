@@ -8,10 +8,11 @@ public record MapDataResponse(
         List<MapBuilding> buildings,
         List<MapFacility> facilities,
         List<MapPartner> partners,
-        List<MapExhibition> exhibitions
+        List<MapExhibition> exhibitions,
+        MapPaths paths
 ) {
     public static MapDataResponse of(String version, MapDataPayload payload) {
         return new MapDataResponse(version, payload.buildings(), payload.facilities(), payload.partners(),
-                payload.exhibitions());
+                payload.exhibitions(), payload.paths());
     }
 }

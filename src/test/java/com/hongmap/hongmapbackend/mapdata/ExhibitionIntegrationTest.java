@@ -163,7 +163,7 @@ class ExhibitionIntegrationTest {
         MvcResult result = mockMvc.perform(get("/map/data")).andExpect(status().isOk()).andReturn();
         JsonNode body = jsonMapper.readTree(result.getResponse().getContentAsByteArray());
         assertThat(body.properties().stream().map(e -> e.getKey()).toList())
-                .containsExactly("version", "buildings", "facilities", "partners", "exhibitions");
+                .containsExactly("version", "buildings", "facilities", "partners", "exhibitions", "paths");
 
         List<JsonNode> mine = mine(body);
         // venue2(...-a-gallery) 가 venue(...-b-gallery) 보다 앞(facilityId 순), 같은 장소는 시작일 순.
