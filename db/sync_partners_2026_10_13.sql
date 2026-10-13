@@ -42,11 +42,10 @@ INSERT INTO partners (code, name, category, latitude, longitude, benefit, addres
 SELECT 'culture-wally-experience', '월리를 찾아라 체험관', '문화', 37.5520324, 126.9237281, '정가 1인 25,000원 → 12,500원 (50% 할인)', '서울 마포구 와우산로 86', '매일 10:00~21:00 (입장 마감 20:00)', @base + 7, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'culture-wally-experience');
 
--- 에버랜드: 예매는 총학생회 게시물의 QR코드·인증코드로 한다. 시트 하단 버튼은 그 게시물로 보낸다(운영자 요청, 2026-10-14) —
--- 인증코드를 앱에 옮겨 적지 않고, 예매 방법이 바뀌어도 게시물이 기준이 되게.
--- (참고: QR 은 https://m.site.naver.com/1QWkr → reservation.everland.com/mobile/expay.do?method=validCh&entryKey=PRMO00000555 로 이어진다.)
-INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, link_label, link_url, sort_order, ends_on)
-SELECT 'culture-everland', '에버랜드', '문화', 37.2934745, 127.2024789, '정상가 62,000~71,000원 → 35,000원 (구매 10월 31일까지, 이용 11월 22일까지). 총학생회 게시물의 QR코드와 인증코드로 구매', '경기도 용인시 처인구 포곡읍 에버랜드로 199', '매일 10:00~22:00', '총학생회 게시물에서 예매 방법 보기', 'https://www.instagram.com/p/Ddp1YBIkgcN/?img_index=2', @base + 8, NULL
+-- 에버랜드: 학생증 제시가 아니라 총학생회 게시물의 QR코드·인증코드로 예매한다 — 이용 방법(usage_note)을 따로 적고,
+-- 시트 하단 버튼은 그 게시물로 보낸다(운영자 요청, 2026-10-14). 인증코드는 앱에 옮겨 적지 않는다(카카오톡 공지방 안내).
+INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, link_label, link_url, sort_order, ends_on, usage_note)
+SELECT 'culture-everland', '에버랜드', '문화', 37.2934745, 127.2024789, '정상가 62,000~71,000원 → 35,000원 (구매 10월 31일까지, 이용 11월 22일까지)', '경기도 용인시 처인구 포곡읍 에버랜드로 199', '매일 10:00~22:00', '총학생회 인스타그램 게시물 열기', 'https://www.instagram.com/p/Ddp1YBIkgcN/?img_index=2', @base + 8, NULL, '인스타그램 게시물 내 QR코드 스캔 / 홍익대학교 인증코드 입력(인증코드는 카카오톡 공지방 확인) / 이용권 구매'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'culture-everland');
 
 INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
@@ -57,8 +56,9 @@ WHERE p.code IN ('food-schedule-hapjeong', 'bar-gonggam-hapjeong', 'bar-gonggam-
 
 -- 보그헤어 상수역점: 게시글 기준으로 혜택 갱신(재방문 30% → 20%, 홍대생 회원권 30% 등), 영업시간 추가.
 UPDATE partners
-SET benefit = '첫 방문 40% 할인(커트 10%), 재방문 20% 할인(커트 10%), 홍대생 회원권 30% 할인, 네이버 플레이스 저장·알림받기 시 클리닉 50% 할인, 예약란 코드 기재 시 추가 할인. 네이버 예약 메모에 ''홍익대학교 학생'' 기재 후 학생증 확인',
-    hours = '매일 10:00~20:00'
+SET benefit = '첫 방문 40% 할인(커트 10%), 재방문 20% 할인(커트 10%), 홍대생 회원권 30% 할인, 네이버 플레이스 저장·알림받기 시 클리닉 50% 할인, 예약란 코드 기재 시 추가 할인',
+    hours = '매일 10:00~20:00',
+    usage_note = '네이버 예약 메모에 ''홍익대학교 학생'' 기재 / 방문 시 학생증 확인'
 WHERE code = 'care-vogue-hair-sangsu';
 
 -- ============================================
@@ -161,11 +161,11 @@ SELECT 'care-hair-the-beau-hongdae', '헤어더뷰 홍대점', '의료/미용', 
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'care-hair-the-beau-hongdae');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
-SELECT 'care-bay-heoseulgi-blanc', '베이바이허슬기 블랑점', '의료/미용', 37.5526977, 126.9237049, '펌·염색·탈색 이벤트가에서 10% 추가 할인, 케어 메뉴 추가 시 한 단계 무상 업그레이드, 담당 디자이너 지정 재방문 쿠폰, 커트 단품 20% 할인, 붙임머리 패키지 5% 할인. 네이버 예약 시 미지정 예약, 메모에 홍대 기재', '서울 마포구 와우산로21길 4 1, 2층', NULL, @base2 + 22, '2026-12-31'
+SELECT 'care-bay-heoseulgi-blanc', '베이바이허슬기 블랑점', '의료/미용', 37.5526977, 126.9237049, '펌·염색·탈색 이벤트가에서 10% 추가 할인, 케어 메뉴 추가 시 한 단계 무상 업그레이드, 담당 디자이너 지정 재방문 쿠폰, 커트 단품 20% 할인, 붙임머리 패키지 5% 할인', '서울 마포구 와우산로21길 4 1, 2층', NULL, @base2 + 22, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'care-bay-heoseulgi-blanc');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
-SELECT 'care-bay-heoseulgi-spa-bleach', '베이바이허슬기 스파앤블리치점', '의료/미용', 37.5559824, 126.9239304, '펌·염색·탈색 이벤트가에서 10% 추가 할인, 케어 메뉴 추가 시 한 단계 무상 업그레이드, 담당 디자이너 지정 재방문 쿠폰, 커트 단품 20% 할인, 붙임머리 패키지 5% 할인. 네이버 예약 시 미지정 예약, 메모에 홍대 기재', '서울 마포구 홍익로6길 42 3, 4, 5층', NULL, @base2 + 23, '2026-12-31'
+SELECT 'care-bay-heoseulgi-spa-bleach', '베이바이허슬기 스파앤블리치점', '의료/미용', 37.5559824, 126.9239304, '펌·염색·탈색 이벤트가에서 10% 추가 할인, 케어 메뉴 추가 시 한 단계 무상 업그레이드, 담당 디자이너 지정 재방문 쿠폰, 커트 단품 20% 할인, 붙임머리 패키지 5% 할인', '서울 마포구 홍익로6길 42 3, 4, 5층', NULL, @base2 + 23, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'care-bay-heoseulgi-spa-bleach');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
@@ -321,6 +321,16 @@ WHERE category IN ('카페', '음식', '주점') AND benefit LIKE '%품목%';
 UPDATE partner_affiliations a JOIN partners p ON p.id = a.partner_id
 SET a.benefit = REPLACE(a.benefit, '품목', '메뉴')
 WHERE p.category IN ('카페', '음식', '주점') AND a.benefit LIKE '%품목%';
+
+-- 업체별 이용 방법(학생증 제시 말고 따로 절차가 있는 곳). 에버랜드·보그헤어는 위에서 넣었다.
+UPDATE partners SET usage_note = '네이버 예약 시 미지정 예약으로 신청 / 예약 메모에 홍대 작성 / 방문 시 학생증 제시'
+WHERE code IN ('care-bay-heoseulgi-blanc', 'care-bay-heoseulgi-spa-bleach');
+-- 이미 에버랜드 행이 있는 DB(다시 실행)에도 같은 값이 되게 맞춘다.
+UPDATE partners
+SET benefit = '정상가 62,000~71,000원 → 35,000원 (구매 10월 31일까지, 이용 11월 22일까지)',
+    link_label = '총학생회 인스타그램 게시물 열기', link_url = 'https://www.instagram.com/p/Ddp1YBIkgcN/?img_index=2',
+    usage_note = '인스타그램 게시물 내 QR코드 스캔 / 홍익대학교 인증코드 입력(인증코드는 카카오톡 공지방 확인) / 이용권 구매'
+WHERE code = 'culture-everland';
 
 -- 확인용
 -- SELECT code, name, category, latitude, longitude, hours, ends_on FROM partners ORDER BY sort_order DESC LIMIT 34;

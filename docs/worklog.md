@@ -1187,3 +1187,14 @@
 - (10-14) 에버랜드: 게시글 QR코드를 읽어(https://m.site.naver.com/1QWkr → 에버랜드 예매 프로모션 페이지) 업체 링크 버튼("에버랜드 제휴 티켓 예매하기")으로 넣었다. 주소는 단축 주소 대신 에버랜드 예매 사이트의 프로모션 진입 주소(expay.do?method=validCh&entryKey=PRMO00000555)를 쓴다 — comm.do?cmethod=promotion 을 바로 열면 "프로모션이 존재하지 않습니다"가 뜬다. QR 이미지는 넣지 않는다(자기 화면의 QR은 찍을 수 없다).
 - (10-14) 에버랜드 링크 버튼을 총학생회 인스타그램 게시물(https://www.instagram.com/p/Ddp1YBIkgcN/?img_index=2)로 바꿨다(운영자 요청) — 인증코드·QR 은 게시물에서 보게 하고 앱에는 옮겨 적지 않는다.
 - (10-14) 배포 절차서 `docs/deploy-runbook-partner-ends-on.md` 추가(SQL 순서·확인 쿼리·12/15, 1/1 에 일어나는 일).
+
+## 2026-10-14 — 업체별 이용 방법(partners.usage_note) (dev)
+
+- 배경: 앱 제휴 시트의 "이용 방법"이 소속마다 고정 문구(학생증 제시)라, 에버랜드처럼 방법이 다른 업체(게시물 QR코드 스캔 → 인증코드 입력 → 이용권 구매)에도
+  "학생증 제시"가 붙었다.
+- `partners.usage_note VARCHAR(255) NULL`(`Partner.usageNote`). " / " 로 단계를 나눈다. 응답 partner 에 `usageNote`(있을 때만),
+  관리자 추가·수정 본문에 `usageNote`(선택, 255자, PUT 에서 비우면 지워짐). 없으면 앱이 지금처럼 소속별 기본 안내를 쓴다.
+- **DB 변경**: `db/alter_add_partner_ends_on.sql` 에 컬럼 추가를 더했다(아직 운영 실행 전이라 같은 파일).
+- 데이터(`db/sync_partners_2026_10_13.sql`): 에버랜드(이용 방법 + 버튼 문구 "총학생회 인스타그램 게시물 열기", 혜택 문구에서 구매 방법 설명 제거),
+  보그헤어 상수역점·베이바이허슬기 2곳(네이버 예약 방식 — 혜택 문구에 섞여 있던 안내를 이용 방법으로 옮김). 인증코드는 저장하지 않는다.
+- 테스트: `MapDataIntegrationTest` 1(있을 때만 내려감, 앞뒤 공백 제거, PUT 으로 지우기). 전체 594개 통과. 절차서 `docs/deploy-runbook-partner-ends-on.md` 갱신.

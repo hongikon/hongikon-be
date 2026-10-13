@@ -445,6 +445,22 @@ class MapDataIntegrationTest {
     }
 
     @Test
+    void 업체별_이용_방법은_있을_때만_내려가고_PUT_에서_비우면_지워진다() throws Exception {
+        String auth = bearer(admin);
+        String code = "adm-p-usage-" + partnerCode.substring(7);
+        String body = partnerJson(code, "이용 방법 다른 곳", "문화", "[\"총학생회\"]", "37.2934745", "127.2024789", null);
+        String withUsage = body.substring(0, body.length() - 1) + ",\"usageNote\":\" QR코드 스캔 / 인증코드 입력 / 이용권 구매 \"}";
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(withUsage))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.usageNote").value("QR코드 스캔 / 인증코드 입력 / 이용권 구매"));
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + code + "')].usageNote").value("QR코드 스캔 / 인증코드 입력 / 이용권 구매"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')].usageNote").isEmpty());
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.usageNote").doesNotExist());
+    }
+
+    @Test
     void If_None_Match_파싱() {
         assertThat(MapDataController.matches(null, "abc")).isFalse();
         assertThat(MapDataController.matches("\"abc\"", "abc")).isTrue();

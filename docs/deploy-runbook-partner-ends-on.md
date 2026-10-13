@@ -23,13 +23,14 @@
 
 ```sql
 SHOW COLUMNS FROM partners LIKE 'ends_on';
-SHOW COLUMNS FROM partner_affiliations LIKE 'ends_on';   -- 둘 다 있으면 1단계는 건너뛴다(다시 돌리면 Duplicate column 오류)
+SHOW COLUMNS FROM partners LIKE 'usage_note';
+SHOW COLUMNS FROM partner_affiliations LIKE 'ends_on';   -- 셋 다 있으면 1단계는 건너뛴다(다시 돌리면 Duplicate column 오류)
 ```
 
 ## 1. RDS 에 SQL 실행 (배포 전)
 
 1. **RDS 스냅샷**을 만든다.
-2. `db/alter_add_partner_ends_on.sql` 실행 — `partners.ends_on`, `partner_affiliations.ends_on` (둘 다 `DATE NULL`) 추가.
+2. `db/alter_add_partner_ends_on.sql` 실행 — `partners.ends_on`·`partner_affiliations.ends_on`(`DATE NULL`), `partners.usage_note`(`VARCHAR(255) NULL`, 업체별 이용 방법) 추가.
 
 ## 2. 서버 배포 (Deploy 워크플로)
 
@@ -39,16 +40,17 @@ SHOW COLUMNS FROM partner_affiliations LIKE 'ends_on';   -- 둘 다 있으면 1�
 2. Actions → **Deploy** → Run workflow — `image_tag` = 그 태그, `dry_run` = **해제**, `sql_applied` = **체크**.
 3. Environment `production` 승인 → 배포 후 확인까지 초록이면 끝.
 
-서버 환경변수(.env) 변경은 없다. API 는 추가만 있다(partner 의 `endsOn`, `affiliationEnds`, 관리자 본문의 `endsOn`) — 구버전 앱은 무시한다.
+서버 환경변수(.env) 변경은 없다. API 는 추가만 있다(partner 의 `endsOn`·`affiliationEnds`·`usageNote`, 관리자 본문의 `endsOn`·`usageNote`) — 구버전 앱은 무시한다.
 
 ## 3. 제휴 데이터 넣기 (배포 후)
 
 `db/sync_partners_2026_10_13.sql` 실행. **다시 실행해도 안전하다**(이미 있는 code·소속은 건너뛴다).
 
-- 총학생회: 새 업체 8곳(월리를 찾아라 체험관은 `ends_on` 2026-12-31), 보그헤어 상수역점 혜택·영업시간 갱신, 에버랜드는 총학생회 게시물 링크 버튼.
+- 총학생회: 새 업체 8곳(월리를 찾아라 체험관은 `ends_on` 2026-12-31), 보그헤어 상수역점 혜택·영업시간 갱신, 에버랜드는 총학생회 게시물 링크 버튼과 업체별 이용 방법(`usage_note`: QR코드 스캔 → 인증코드 입력 → 이용권 구매).
 - 미술대학(노바랑, ~12/31): 새 업체 25곳(`ends_on` 2026-12-31) + 이미 등록된 17곳에 미술대학 소속·전용 혜택(소속 `ends_on` 2026-12-31).
 - 경영대학(~12/14): 티하오 홍대입구점 추가, **기존 경영대학 소속 전체에 소속 `ends_on` 2026-12-14**.
 - 카페·음식·주점 혜택 문구의 '품목' → '메뉴'.
+- 업체별 이용 방법(`usage_note`) 4곳: 에버랜드, 보그헤어 상수역점, 베이바이허슬기 2곳(네이버 예약 방식).
 
 관리자 API 가 아닌 SQL 이라 지도 데이터 캐시는 **최대 5분 뒤**에 바뀐다.
 
@@ -58,6 +60,7 @@ SHOW COLUMNS FROM partner_affiliations LIKE 'ends_on';   -- 둘 다 있으면 1�
 SELECT COUNT(*) FROM partners;                                             -- 154 (120 + 8 + 25 + 1)
 SELECT COUNT(*) FROM partners WHERE ends_on IS NOT NULL;                   -- 27
 SELECT affiliation, COUNT(*) FROM partner_affiliations WHERE ends_on IS NOT NULL GROUP BY affiliation;   -- 미술대학 17, 경영대학 19
+SELECT COUNT(*) FROM partners WHERE usage_note IS NOT NULL;               -- 4
 ```
 
 - `GET https://api.hongikon.com/map/data` 의 partners 가 154곳이고, 월리를 찾아라 체험관에 `"endsOn":"2026-12-31"`, 소코아 홍대점에 `affiliationEnds` 가 있다.

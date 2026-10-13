@@ -64,6 +64,13 @@ public class Partner {
     private int sortOrder;
 
     /**
+     * 이 업체만의 이용 방법(예: "인스타그램 게시물의 QR코드 스캔 / 인증코드 입력 / 이용권 구매"). " / " 로 단계를 나눈다.
+     * NULL 이면 앱이 소속별 기본 안내(학생증 제시 등)를 보여 준다.
+     */
+    @Column(name = "usage_note", length = 255)
+    private String usageNote;
+
+    /**
      * 제휴가 끝나는 날(이 날까지 보인다). NULL 이면 기한 없음.
      * 이 날이 지나면(한국 날짜 기준) GET /map/data 에서 빠진다 — 행은 남아 관리자 목록에는 계속 보인다.
      */
@@ -78,7 +85,7 @@ public class Partner {
     public Partner(String name, String category, BigDecimal latitude, BigDecimal longitude,
                     String benefit, String address, String roadAddress, String hours,
                     String contact, String mapIcon, String linkLabel, String linkUrl,
-                    String code, Integer sortOrder, LocalDate endsOn) {
+                    String code, Integer sortOrder, LocalDate endsOn, String usageNote) {
         this.name = name;
         this.category = category;
         this.latitude = latitude;
@@ -94,12 +101,13 @@ public class Partner {
         this.code = code;
         this.sortOrder = sortOrder != null ? sortOrder : 0;
         this.endsOn = endsOn;
+        this.usageNote = usageNote;
     }
 
     /** 관리자 지도 편집(PUT /admin/map/partners/{code}) — code·sortOrder·roadAddress 는 그대로 둔다. */
     public void updateMapInfo(String name, String category, BigDecimal latitude, BigDecimal longitude,
                               String benefit, String address, String hours, String contact, String mapIcon,
-                              String linkLabel, String linkUrl, LocalDate endsOn) {
+                              String linkLabel, String linkUrl, LocalDate endsOn, String usageNote) {
         this.name = name;
         this.category = category;
         this.latitude = latitude;
@@ -112,6 +120,7 @@ public class Partner {
         this.linkLabel = linkLabel;
         this.linkUrl = linkUrl;
         this.endsOn = endsOn;
+        this.usageNote = usageNote;
     }
 
     /**
