@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,7 +48,15 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
         @Param("neLng") BigDecimal neLng
     );
 
-    /** GET /map/data · 관리자 목록 — 소속까지 한 번에(N+1 방지), sort_order·id 순. */
+    /** GET /map/data — 관리자 목록과 같되, 종료일(ends_on)이 지난 업체는 뺀다(종료일 당일까지 보인다). */
+    @Query("""
+        SELECT DISTINCT p FROM Partner p LEFT JOIN FETCH p.affiliations
+        WHERE p.endsOn IS NULL OR p.endsOn >= :today
+        ORDER BY p.sortOrder ASC, p.id ASC
+        """)
+    List<Partner> findActiveForMap(@Param("today") LocalDate today);
+
+    /** 관리자 목록 — 종료일이 지난 업체도 포함. 소속까지 한 번에(N+1 방지), sort_order·id 순. */
     @Query("SELECT DISTINCT p FROM Partner p LEFT JOIN FETCH p.affiliations ORDER BY p.sortOrder ASC, p.id ASC")
     List<Partner> findAllForMap();
 

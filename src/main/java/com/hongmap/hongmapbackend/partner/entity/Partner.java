@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +63,13 @@ public class Partner {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    /**
+     * 제휴가 끝나는 날(이 날까지 보인다). NULL 이면 기한 없음.
+     * 이 날이 지나면(한국 날짜 기준) GET /map/data 에서 빠진다 — 행은 남아 관리자 목록에는 계속 보인다.
+     */
+    @Column(name = "ends_on")
+    private LocalDate endsOn;
+
     @OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<PartnerAffiliation> affiliations = new ArrayList<>();
@@ -70,7 +78,7 @@ public class Partner {
     public Partner(String name, String category, BigDecimal latitude, BigDecimal longitude,
                     String benefit, String address, String roadAddress, String hours,
                     String contact, String mapIcon, String linkLabel, String linkUrl,
-                    String code, Integer sortOrder) {
+                    String code, Integer sortOrder, LocalDate endsOn) {
         this.name = name;
         this.category = category;
         this.latitude = latitude;
@@ -85,12 +93,13 @@ public class Partner {
         this.linkUrl = linkUrl;
         this.code = code;
         this.sortOrder = sortOrder != null ? sortOrder : 0;
+        this.endsOn = endsOn;
     }
 
     /** 관리자 지도 편집(PUT /admin/map/partners/{code}) — code·sortOrder·roadAddress 는 그대로 둔다. */
     public void updateMapInfo(String name, String category, BigDecimal latitude, BigDecimal longitude,
                               String benefit, String address, String hours, String contact, String mapIcon,
-                              String linkLabel, String linkUrl) {
+                              String linkLabel, String linkUrl, LocalDate endsOn) {
         this.name = name;
         this.category = category;
         this.latitude = latitude;
@@ -102,6 +111,7 @@ public class Partner {
         this.mapIcon = mapIcon;
         this.linkLabel = linkLabel;
         this.linkUrl = linkUrl;
+        this.endsOn = endsOn;
     }
 
     /**

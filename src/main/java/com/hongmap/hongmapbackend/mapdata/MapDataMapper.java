@@ -88,7 +88,8 @@ public class MapDataMapper {
                 p.getAddress(),
                 p.getHours(),
                 p.getContact(),
-                MapLink.of(p.getLinkLabel(), p.getLinkUrl()));
+                MapLink.of(p.getLinkLabel(), p.getLinkUrl()),
+                p.getEndsOn() == null ? null : p.getEndsOn().toString());
     }
 
     /** code 가 없는 행(동기화 SQL 전, 또는 예전 POST /partners 로 넣은 행)은 DB id 로 대신한다 — 관리자 화면에서는 고칠 수 없다. */

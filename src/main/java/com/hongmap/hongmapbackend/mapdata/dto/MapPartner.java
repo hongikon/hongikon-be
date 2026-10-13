@@ -22,6 +22,8 @@ public record MapPartner(
         String address,
         String hours,
         String contact,
-        MapLink link
+        MapLink link,
+        /** 제휴가 끝나는 날(yyyy-MM-dd, 이 날까지). 기한 없으면 생략. */
+        String endsOn
 ) {
 }

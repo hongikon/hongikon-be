@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
@@ -66,7 +67,7 @@ public class AdminMapService {
                 .sortOrder(partnerRepository.findMaxSortOrder() + 1)
                 .name(f.name).category(f.category).latitude(f.lat).longitude(f.lng)
                 .benefit(f.benefit).address(f.address).hours(f.hours).contact(f.contact)
-                .mapIcon(f.mapIcon).linkLabel(f.linkLabel).linkUrl(f.linkUrl)
+                .mapIcon(f.mapIcon).linkLabel(f.linkLabel).linkUrl(f.linkUrl).endsOn(f.endsOn)
                 .build();
         partner.replaceAffiliations(f.affiliations);
         Partner saved = partnerRepository.save(partner);
@@ -80,7 +81,7 @@ public class AdminMapService {
                 .orElseThrow(() -> notFound("존재하지 않는 제휴업체예요."));
         PartnerFields f = partnerFields(request);
         partner.updateMapInfo(f.name, f.category, f.lat, f.lng, f.benefit, f.address, f.hours, f.contact,
-                f.mapIcon, f.linkLabel, f.linkUrl);
+                f.mapIcon, f.linkLabel, f.linkUrl, f.endsOn);
         partner.replaceAffiliations(f.affiliations);
         partnerRepository.flush();
         mapDataService.invalidateAfterCommit();
@@ -101,7 +102,8 @@ public class AdminMapService {
 
     private record PartnerFields(String name, String category, BigDecimal lat, BigDecimal lng, String benefit,
                                  String address, String hours, String contact, String mapIcon,
-                                 String linkLabel, String linkUrl, LinkedHashMap<String, String> affiliations) {
+                                 String linkLabel, String linkUrl, LinkedHashMap<String, String> affiliations,
+                                 LocalDate endsOn) {
     }
 
     private PartnerFields partnerFields(AdminMapPartnerRequest r) {
@@ -147,7 +149,18 @@ public class AdminMapService {
         String linkUrl = r.link() == null ? null : r.link().url().trim();
         return new PartnerFields(r.name().trim(), category, coord(r.lat()), coord(r.lng()), benefit,
                 blankToNull(r.address()), blankToNull(r.hours()), blankToNull(r.contact()), mapIcon,
-                linkLabel, linkUrl, affiliations);
+                linkLabel, linkUrl, affiliations, partnerEndsOn(r.endsOn()));
+    }
+
+    /** 종료일. 지난 날짜도 받는다(이미 끝난 제휴를 기록해 두는 용도) — 지도에는 나가지 않는다. */
+    private LocalDate partnerEndsOn(String raw) {
+        String value = blankToNull(raw);
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw badRequest("종료일이 올바른 날짜가 아니에요.");
+        }
     }
 
     // ── 편의시설 ─────────────────────────────────────────
