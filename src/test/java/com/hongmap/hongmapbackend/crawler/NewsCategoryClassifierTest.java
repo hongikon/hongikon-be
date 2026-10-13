@@ -30,6 +30,14 @@ class NewsCategoryClassifierTest {
     }
 
     @Test
+    void 채용정보_게시판_글은_제목_본문과_상관없이_취업() {
+        assertThat(NewsCategoryClassifier.classify("[경주시] 임기제공무원 임용시험 홍보", "장학재단 근무 경력 우대", "채용정보"))
+                .isEqualTo("취업");
+        // 취업진로지원센터 공지사항은 다른 게시판과 같은 규칙을 따른다.
+        assertThat(NewsCategoryClassifier.classify("어학인증시험 응시장학금 지원 안내", null, "취업진로공지")).isEqualTo("장학");
+    }
+
+    @Test
     void 다른_규칙은_그대로() {
         assertThat(NewsCategoryClassifier.classify("2학기 수강신청 안내", null, "학사")).isEqualTo("수강");
         assertThat(NewsCategoryClassifier.classify("본관 정전 안내", "", "학사")).isEqualTo("시설");

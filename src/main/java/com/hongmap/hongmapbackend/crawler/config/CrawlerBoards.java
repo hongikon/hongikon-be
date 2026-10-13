@@ -94,7 +94,14 @@ public final class CrawlerBoards {
             // sourceId는 앱 TREE_DATA '국제협력본부' 묶음의 리프 id와 같다. 국제교류실 공지는 상단 고정 공지가 있다.
             oia("oia-exchange", "국제교류실", "국제교류실 공지사항", "https://inno.hongik.ac.kr/oia/board/1"),
             // 대학교육혁신 지원사업(글로벌역량) 공지. 2024.09 뒤로 새 글이 없지만(2026.10 확인) 글이 올라오면 바로 수집된다.
-            oia("oia-global", "글로벌역량지원사업", "글로벌역량 지원사업 공지사항", "https://inno.hongik.ac.kr/oia/board/13")
+            oia("oia-global", "글로벌역량지원사업", "글로벌역량 지원사업 공지사항", "https://inno.hongik.ac.kr/oia/board/13"),
+
+            // 취업진로지원센터(inno.hongik.ac.kr/career) — 국제협력본부와 같은 사이트·같은 마크업이라 같은 파서를 쓴다.
+            // sourceId는 앱 TREE_DATA '취업진로지원센터' 묶음의 리프 id와 같다. 공지사항은 상단 고정 공지가 있고,
+            // 고정 글이 아래 일반 목록에도 한 번 더 나온다(파서가 글 번호로 중복을 걸러 고정 쪽만 남긴다).
+            oia("career-notice", "취업진로공지", "취업진로지원센터 공지사항", "https://inno.hongik.ac.kr/career/board/1"),
+            // 채용정보는 하루 10~20건씩 올라온다(2026.10 확인). 100행이면 일주일 남짓이라 매시간 수집으로 빠짐없이 받는다.
+            oia("career-jobs", "채용정보", "취업진로지원센터 채용정보", "https://inno.hongik.ac.kr/career/board/2")
     );
 
     /**
