@@ -1115,3 +1115,19 @@
 - `AppNicknamePolicy.RESERVED_WORDS`, 프론트 `src/utils/nickname.ts` 와 같은 목록. API·SQL 변경 없음. 이미 이 말을 쓰는 닉네임은 바꾸지 않는다(변경할 때만 검사).
 - 테스트: `AppNicknamePolicyTest` 거절 목록에 `캠퍼스온공식`·`CampusOn` 추가, 통과.
 - 남은 것: 크롤러 User-Agent `HongikOnBot/1.0` 은 학교 서버 쪽에서 이 이름으로 허용해 뒀을 수 있어 그대로 둔다. Swagger 제목은 내부용이라 그대로.
+
+## 2026-10-13 — 취업진로지원센터 게시판 수집 (dev, 로컬 확인까지)
+
+- `inno.hongik.ac.kr/career` 공지사항(board/1, sourceId `취업진로공지`)·채용정보(board/2, sourceId `채용정보`)를 수집 대상에 추가.
+  국제협력본부와 같은 사이트·같은 마크업이라 `OiaBoardParser` 를 그대로 쓴다(`ParserType.OIA`, 파서 변경 없음). `CrawlerBoards` 에 두 줄.
+  - 공지사항은 상단 고정 5개가 아래 일반 목록에도 한 번 더 나온다 — 파서가 글 번호로 중복을 걸러 고정 쪽만 남긴다(1페이지 10행 → 8건).
+  - 채용정보는 하루 10~20건씩 올라온다. 100행(10쪽)까지 훑으므로 매시간 수집이면 빠지지 않는다.
+- `NewsCategoryClassifier`: `채용정보` 게시판 글은 제목·본문과 상관없이 `취업`(본문에 "장학"이 있어도 장학으로 가지 않게). 공지사항은 기존 규칙 그대로.
+- API·SQL 변경 없음(`news.source_id` 값만 늘어난다). 구독 검증(`KNOWN_SOURCE_IDS`)에 두 id 가 자동으로 들어간다.
+- 푸시: 기존 기준 그대로 — 그 게시판을 구독하고 알림을 켠 사람에게만 간다. 채용정보는 글이 많아 구독자에게 알림이 잦을 수 있다(앱에서 게시판별 알림 끄기 가능).
+  배포 뒤 첫 수집 때는 `news-max-age-days` 안의 글만 푸시된다(그때는 구독자가 아직 없다).
+- 테스트: `BoardParserFixtureTest` 2(고정 중복 제거, 채용정보 목록·페이지 주소), `CrawlerBoardsTest`(앱 게시판 id 53개, 두 게시판 설정),
+  `NewsCategoryClassifierTest` 1. 픽스처 `career-board-1.html`·`career-board-2.html` 은 게시판 표만 남기고 작성자(직원) 이름은 지웠다.
+- 로컬 확인(local 프로필, 푸시 끔): 전체 수집 게시판 55개 실패 0, 취업진로공지 95건(고정 5)·채용정보 100건 저장, `GET /news?sourceId=` 응답 확인.
+- 개인정보: 공개 게시판의 제목·본문·작성일만 저장한다(기존 게시판과 같다). 작성자 이름은 저장하지 않는다.
+- 남은 결정: 공지사항에 `[세종/…]` 글이 섞여 있다(서울·세종 공용 게시판). 대학공지처럼 제목으로 거를지 미정 — 지금은 그대로 받는다.

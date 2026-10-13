@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  * "시설"이 전부 기본값(공지)으로 흘러갔다 — 이 포팅에서는 시설 규칙을 추가했다.
  * 순서가 우선순위다: 앞 규칙에 먼저 걸리면 뒤는 보지 않는다.
  *
+ * 채용정보 게시판 글은 제목과 상관없이 취업이다.
  * 장학은 제목 키워드보다 먼저 본다 — 장학 게시판 글이거나 본문에 "장학"이 있으면 장학이다.
  * ("2026년 든든 학업지원금 공고문" 같은 장학 공지가 제목의 '공고' 때문에 취업으로 분류됐다.)
  * '공고'는 학교 공지 대부분에 붙는 말이라 취업 키워드에서 뺐다(채용 공고는 '채용'으로 잡힌다).
@@ -24,6 +25,9 @@ public final class NewsCategoryClassifier {
     private static final String SCHOLARSHIP = "장학";
     /** 이 게시판(BoardConfig.sourceId)에서 온 글은 제목과 상관없이 장학이다. */
     private static final String SCHOLARSHIP_BOARD = "장학";
+    /** 취업진로지원센터 채용정보 게시판 글은 전부 채용 공고라 제목·본문과 상관없이 취업이다(본문의 "장학" 한마디에 장학으로 가지 않게). */
+    private static final String JOB_BOARD = "채용정보";
+    private static final String JOB = "취업";
     private static final Pattern SCHOLARSHIP_IN_CONTENT = Pattern.compile("장학");
 
     private static final List<Map.Entry<String, Pattern>> RULES = List.of(
@@ -44,6 +48,7 @@ public final class NewsCategoryClassifier {
      */
     public static String classify(String title, String content, String sourceId) {
         if (SCHOLARSHIP_BOARD.equals(sourceId)) return SCHOLARSHIP;
+        if (JOB_BOARD.equals(sourceId)) return JOB;
         String byTitle = classify(title);
         if (SCHOLARSHIP.equals(byTitle)) return SCHOLARSHIP;
         if (content != null && SCHOLARSHIP_IN_CONTENT.matcher(content).find()) return SCHOLARSHIP;

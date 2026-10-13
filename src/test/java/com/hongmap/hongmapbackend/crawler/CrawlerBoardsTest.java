@@ -12,12 +12,12 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 크롤러 게시판 목록이 앱(hongikon-fe src/constants/news.ts TREE_DATA)의 구독 가능한 게시판 49개를 모두 덮는지.
+ * 크롤러 게시판 목록이 앱(hongikon-fe src/constants/news.ts TREE_DATA)의 구독 가능한 게시판 53개를 모두 덮는지.
  * 앱에서 고를 수 있는데 서버가 모르는 id면 구독이 400으로 막히고 소식 탭이 영영 비어 있다.
  */
 class CrawlerBoardsTest {
 
-    /** TREE_DATA → SUBSCRIBABLE_ITEMS 리프 id 49개(2026.10 기준). 앱 목록이 바뀌면 같이 고친다. */
+    /** TREE_DATA → SUBSCRIBABLE_ITEMS 리프 id 53개(2026.10 기준). 앱 목록이 바뀌면 같이 고친다. */
     private static final List<String> APP_SOURCE_IDS = List.of(
             "교수학습지원", "대학혁신지원사업", "장학", "학사", "학생상담", "학생활동",
             "건축학부", "도시학과",
@@ -34,7 +34,8 @@ class CrawlerBoardsTest {
             "법학부",
             "교육학과", "국어교육과", "수학교육과", "역사교육과", "영어교육과",
             "데이터사이언스전공", "디자인엔지니어링전공", "사물인터넷공학전공", "지능로봇공학전공",
-            "국제교류실", "글로벌역량지원사업"
+            "국제교류실", "글로벌역량지원사업",
+            "취업진로공지", "채용정보"
     );
 
     private static final Set<String> BOARD_SOURCE_IDS = CrawlerBoards.ALL.stream()
@@ -42,8 +43,8 @@ class CrawlerBoardsTest {
             .collect(Collectors.toSet());
 
     @Test
-    void 앱의_구독_게시판_49개가_모두_크롤러_게시판이거나_상위_게시판_별칭이다() {
-        assertThat(APP_SOURCE_IDS).hasSize(51).doesNotHaveDuplicates();
+    void 앱의_구독_게시판이_모두_크롤러_게시판이거나_상위_게시판_별칭이다() {
+        assertThat(APP_SOURCE_IDS).hasSize(53).doesNotHaveDuplicates();
         assertThat(CrawlerBoards.KNOWN_SOURCE_IDS).containsAll(APP_SOURCE_IDS);
     }
 
@@ -69,6 +70,12 @@ class CrawlerBoardsTest {
         assertThat(board("biohealth"))
                 .extracting(BoardConfig::sourceId, BoardConfig::listUrl, BoardConfig::parser)
                 .containsExactly("바이오헬스융합학부", "https://biohealth.hongik.ac.kr/22", ParserType.IMWEB);
+        assertThat(board("career-notice"))
+                .extracting(BoardConfig::sourceId, BoardConfig::listUrl, BoardConfig::parser)
+                .containsExactly("취업진로공지", "https://inno.hongik.ac.kr/career/board/1", ParserType.OIA);
+        assertThat(board("career-jobs"))
+                .extracting(BoardConfig::sourceId, BoardConfig::listUrl, BoardConfig::parser)
+                .containsExactly("채용정보", "https://inno.hongik.ac.kr/career/board/2", ParserType.OIA);
     }
 
     @Test
