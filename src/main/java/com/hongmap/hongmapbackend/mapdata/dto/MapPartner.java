@@ -22,6 +22,12 @@ public record MapPartner(
         String address,
         String hours,
         String contact,
-        MapLink link
+        MapLink link,
+        /** 제휴가 끝나는 날(yyyy-MM-dd, 이 날까지). 기한 없으면 생략. */
+        String endsOn,
+        /** 소속별 제휴 종료일(기한 있는 소속만). 그 날이 지나면 그 소속만 빠진다. 없으면 생략. */
+        List<MapAffiliationEnd> affiliationEnds,
+        /** 이 업체만의 이용 방법(" / " 로 단계 구분). 없으면 생략 — 앱이 소속별 기본 안내를 쓴다. */
+        String usageNote
 ) {
 }

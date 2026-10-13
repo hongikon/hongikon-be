@@ -24,6 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -374,6 +376,91 @@ class MapDataIntegrationTest {
     }
 
     @Test
+    void 종료일이_지난_제휴업체는_지도에서_빠지고_관리자_목록에는_남는다() throws Exception {
+        String auth = bearer(admin);
+        LocalDate today = LocalDate.now(MapDataService.KST);
+        String ended = "adm-p-ended-" + partnerCode.substring(7);
+        String lastDay = "adm-p-lastday-" + partnerCode.substring(7);
+        String body = partnerJson("%s", "기간 한정 체험관", "문화", "[\"총학생회\"]", "37.5520324", "126.9237281", null);
+        // 어제 끝난 제휴: 저장은 되지만 지도에는 안 나간다.
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(withEndsOn(body.formatted(ended), today.minusDays(1).toString())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.endsOn").value(today.minusDays(1).toString()));
+        // 오늘이 마지막 날: 오늘까지는 보인다.
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(withEndsOn(body.formatted(lastDay), today.toString())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + ended + "')]").isEmpty())
+                .andExpect(jsonPath("$.partners[?(@.id == '" + lastDay + "')].endsOn").value(today.toString()))
+                // 기한 없는 업체는 endsOn 을 내보내지 않는다.
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')].endsOn").isEmpty());
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", auth))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + ended + "')].name").value("기간 한정 체험관"));
+
+        // 종료일을 비워 PUT 하면 기한이 지워져 다시 보인다. 날짜가 아니면 400.
+        mockMvc.perform(put("/admin/map/partners/" + ended).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(body.formatted(ended)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.endsOn").doesNotExist());
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + ended + "')].name").value("기간 한정 체험관"));
+        for (String bad : List.of("2026-13-40", "12/31", "2026-1-1")) {
+            mockMvc.perform(put("/admin/map/partners/" + ended).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                            .content(withEndsOn(body.formatted(ended), bad)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void 종료일이_지난_소속만_지도에서_빠지고_남은_소속이_없으면_업체도_빠진다() throws Exception {
+        LocalDate today = LocalDate.now(MapDataService.KST);
+        String suffix = partnerCode.substring(7);
+        String mixed = "adm-p-mixed-" + suffix;
+        String allEnded = "adm-p-allended-" + suffix;
+        Partner a = Partner.builder().code(mixed).sortOrder(-999).name("소속 기한 섞임").category("음식")
+                .latitude(new BigDecimal("37.55")).longitude(new BigDecimal("126.92")).benefit("기본 혜택").build();
+        a.addAffiliation("공과대학", null);
+        a.addAffiliation("미술대학", "미대 전용 혜택", today.minusDays(1));
+        a.addAffiliation("경영대학", "오늘까지", today);
+        partnerRepository.save(a);
+        Partner b = Partner.builder().code(allEnded).sortOrder(-998).name("소속 모두 끝남").category("음식")
+                .latitude(new BigDecimal("37.55")).longitude(new BigDecimal("126.92")).build();
+        b.addAffiliation("미술대학", null, today.minusDays(1));
+        partnerRepository.save(b);
+        mapDataService.invalidate();
+
+        String p = "$.partners[?(@.id == '" + mixed + "')]";
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath(p + ".affiliations[*]").value(org.hamcrest.Matchers.contains("공과대학", "경영대학")))
+                .andExpect(jsonPath(p + ".affiliationBenefits[*].affiliation").value(org.hamcrest.Matchers.contains("경영대학")))
+                .andExpect(jsonPath(p + ".affiliationEnds[*].endsOn").value(org.hamcrest.Matchers.contains(today.toString())))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + allEnded + "')]").isEmpty());
+        // 관리자 목록에는 끝난 소속도 종료일과 함께 그대로 보인다.
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath(p + ".affiliations[*]").value(org.hamcrest.Matchers.contains("공과대학", "미술대학", "경영대학")))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + allEnded + "')].affiliationEnds[0].endsOn")
+                        .value(today.minusDays(1).toString()));
+    }
+
+    @Test
+    void 업체별_이용_방법은_있을_때만_내려가고_PUT_에서_비우면_지워진다() throws Exception {
+        String auth = bearer(admin);
+        String code = "adm-p-usage-" + partnerCode.substring(7);
+        String body = partnerJson(code, "이용 방법 다른 곳", "문화", "[\"총학생회\"]", "37.2934745", "127.2024789", null);
+        String withUsage = body.substring(0, body.length() - 1) + ",\"usageNote\":\" QR코드 스캔 / 인증코드 입력 / 이용권 구매 \"}";
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(withUsage))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.usageNote").value("QR코드 스캔 / 인증코드 입력 / 이용권 구매"));
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + code + "')].usageNote").value("QR코드 스캔 / 인증코드 입력 / 이용권 구매"))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')].usageNote").isEmpty());
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.usageNote").doesNotExist());
+    }
+
+    @Test
     void If_None_Match_파싱() {
         assertThat(MapDataController.matches(null, "abc")).isFalse();
         assertThat(MapDataController.matches("\"abc\"", "abc")).isTrue();
@@ -385,6 +472,10 @@ class MapDataIntegrationTest {
 
     private String bearer(User user) {
         return "Bearer " + jwtTokenProvider.generateAccessToken(user.getId());
+    }
+
+    private static String withEndsOn(String partnerJson, String endsOn) {
+        return partnerJson.substring(0, partnerJson.length() - 1) + ",\"endsOn\":\"" + endsOn + "\"}";
     }
 
     private static String partnerJson(String id, String name, String category, String affiliations,

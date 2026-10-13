@@ -35,6 +35,10 @@ public record AdminMapPartnerRequest(
         @Size(max = 255, message = "주소는 255자 이하로 입력해 주세요.") String address,
         @Size(max = 100, message = "영업시간은 100자 이하로 입력해 주세요.") String hours,
         @Size(max = 50, message = "연락처는 50자 이하로 입력해 주세요.") String contact,
-        @Valid MapLinkRequest link
+        @Valid MapLinkRequest link,
+        /** 제휴 종료일(이 날까지 지도에 보인다). 비우면 기한 없음 — PUT 에서 비우면 기한이 지워진다. */
+        @Pattern(regexp = "^$|^\\d{4}-\\d{2}-\\d{2}$", message = "종료일은 2026-12-31 처럼 입력해 주세요.") String endsOn,
+        /** 이 업체만의 이용 방법. 비우면 소속별 기본 안내 — PUT 에서 비우면 지워진다. */
+        @Size(max = 255, message = "이용 방법은 255자 이하로 입력해 주세요.") String usageNote
 ) {
 }

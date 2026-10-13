@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 쿼리 6번: 건물, 편의시설+건물(fetch join), 제휴업체+소속(fetch join), 전시(오늘 KST 기준 진행 중·{@value #EXHIBITION_HORIZON_DAYS}일 안 시작),
  *   경로망 점+건물(fetch join)·간선+양 끝 점(fetch join). 출입구 노드 좌표는 같은 건물 목록의 entrances 에서 해석한다.
  * - 캐시는 최대 ttl(기본 5분). 관리자 쓰기는 커밋 직후 {@link #invalidateAfterCommit()} 로 바로 비운다.
- * - 전시 목록이 날짜에 따라 달라지므로 캐시는 만든 KST 날짜가 지나면(자정) ttl 과 상관없이 다시 만든다.
+ * - 전시 목록과 기한 있는 제휴업체(ends_on)가 날짜에 따라 달라지므로 캐시는 만든 KST 날짜가 지나면(자정) ttl 과 상관없이 다시 만든다.
  *   DB 를 SQL 로 직접 고친 경우(동기화 스크립트 등)는 ttl 이 지나면 반영된다.
  * - 조립 도중 무효화되면(세대 번호가 바뀌면) 그 결과는 응답에만 쓰고 캐시에 넣지 않는다 — 커밋 전 값을 5분간 들고 있지 않게.
  */
@@ -146,7 +147,8 @@ public class MapDataService {
             return new MapDataPayload(
                     buildings.stream().map(mapper::building).toList(),
                     facilityRepository.findAllForMap().stream().map(mapper::facility).toList(),
-                    partnerRepository.findAllForMap().stream().map(mapper::partner).toList(),
+                    partnerRepository.findActiveForMap(today).stream()
+                            .map(p -> mapper.partner(p, today)).filter(Objects::nonNull).toList(),
                     exhibitionRepository.findForMap(today, today.plusDays(EXHIBITION_HORIZON_DAYS)).stream()
                             .map(mapper::exhibition).toList(),
                     paths(buildings));
