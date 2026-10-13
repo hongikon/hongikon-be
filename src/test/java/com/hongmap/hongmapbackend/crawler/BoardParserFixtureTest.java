@@ -129,6 +129,38 @@ class BoardParserFixtureTest {
         assertThat(items.get(0).link()).isEqualTo("https://inno.hongik.ac.kr/oia/boardview/13/78");
     }
 
+    // ---- 취업진로지원센터(inno.hongik.ac.kr/career, 2026.10.13 저장) — 국제협력본부와 같은 마크업 ----
+
+    @Test
+    void 취업진로지원센터_공지는_고정_글이_일반_목록에_또_나와도_한_번만_읽는다() throws IOException {
+        String listUrl = "https://inno.hongik.ac.kr/career/board/1";
+        List<ArticleSummary> items = oia.parseList(load("career-board-1.html", listUrl), listUrl, null);
+
+        // 표는 10행(고정 5 + 일반 5)인데 일반 5행 중 899·898은 고정 글과 같은 글이라 8개가 남는다.
+        assertThat(items).extracting(ArticleSummary::articleNo)
+                .containsExactly("899", "898", "897", "890", "889", "902", "901", "900");
+        assertThat(items.subList(0, 5)).allMatch(ArticleSummary::pinned);
+        assertThat(items.subList(5, 8)).noneMatch(ArticleSummary::pinned);
+
+        ArticleSummary latest = items.get(5);
+        assertThat(latest.title()).isEqualTo("[대학혁신지원사업/취업진로지원센터] 2026학년도 NCS 집중교육(직업기초능력평가) 2기 참여자 모집");
+        assertThat(latest.date()).isEqualTo("2026.10.12");
+        assertThat(latest.link()).isEqualTo("https://inno.hongik.ac.kr/career/boardview/1/902");
+    }
+
+    @Test
+    void 취업진로지원센터_채용정보_목록() throws IOException {
+        String listUrl = "https://inno.hongik.ac.kr/career/board/2";
+        List<ArticleSummary> items = oia.parseList(load("career-board-2.html", listUrl), listUrl, null);
+
+        assertThat(items).hasSize(10).noneMatch(ArticleSummary::pinned);
+        assertThat(items.get(1).articleNo()).isEqualTo("25443");
+        assertThat(items.get(1).title()).isEqualTo("[일반채용][한진] 2027 신입사원 채용");
+        assertThat(items.get(1).date()).isEqualTo("2026.10.13");
+        assertThat(items.get(1).link()).isEqualTo("https://inno.hongik.ac.kr/career/boardview/2/25443");
+        assertThat(oia.buildListUrl(listUrl, 1, 50)).isEqualTo(listUrl + "/2");
+    }
+
     @Test
     void 국제협력본부_페이지는_경로로_넘긴다() {
         String listUrl = "https://inno.hongik.ac.kr/oia/board/1";
