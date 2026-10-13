@@ -414,6 +414,37 @@ class MapDataIntegrationTest {
     }
 
     @Test
+    void 종료일이_지난_소속만_지도에서_빠지고_남은_소속이_없으면_업체도_빠진다() throws Exception {
+        LocalDate today = LocalDate.now(MapDataService.KST);
+        String suffix = partnerCode.substring(7);
+        String mixed = "adm-p-mixed-" + suffix;
+        String allEnded = "adm-p-allended-" + suffix;
+        Partner a = Partner.builder().code(mixed).sortOrder(-999).name("소속 기한 섞임").category("음식")
+                .latitude(new BigDecimal("37.55")).longitude(new BigDecimal("126.92")).benefit("기본 혜택").build();
+        a.addAffiliation("공과대학", null);
+        a.addAffiliation("미술대학", "미대 전용 혜택", today.minusDays(1));
+        a.addAffiliation("경영대학", "오늘까지", today);
+        partnerRepository.save(a);
+        Partner b = Partner.builder().code(allEnded).sortOrder(-998).name("소속 모두 끝남").category("음식")
+                .latitude(new BigDecimal("37.55")).longitude(new BigDecimal("126.92")).build();
+        b.addAffiliation("미술대학", null, today.minusDays(1));
+        partnerRepository.save(b);
+        mapDataService.invalidate();
+
+        String p = "$.partners[?(@.id == '" + mixed + "')]";
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath(p + ".affiliations[*]").value(org.hamcrest.Matchers.contains("공과대학", "경영대학")))
+                .andExpect(jsonPath(p + ".affiliationBenefits[*].affiliation").value(org.hamcrest.Matchers.contains("경영대학")))
+                .andExpect(jsonPath(p + ".affiliationEnds[*].endsOn").value(org.hamcrest.Matchers.contains(today.toString())))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + allEnded + "')]").isEmpty());
+        // 관리자 목록에는 끝난 소속도 종료일과 함께 그대로 보인다.
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath(p + ".affiliations[*]").value(org.hamcrest.Matchers.contains("공과대학", "미술대학", "경영대학")))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + allEnded + "')].affiliationEnds[0].endsOn")
+                        .value(today.minusDays(1).toString()));
+    }
+
+    @Test
     void If_None_Match_파싱() {
         assertThat(MapDataController.matches(null, "abc")).isFalse();
         assertThat(MapDataController.matches("\"abc\"", "abc")).isTrue();

@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -146,7 +147,8 @@ public class MapDataService {
             return new MapDataPayload(
                     buildings.stream().map(mapper::building).toList(),
                     facilityRepository.findAllForMap().stream().map(mapper::facility).toList(),
-                    partnerRepository.findActiveForMap(today).stream().map(mapper::partner).toList(),
+                    partnerRepository.findActiveForMap(today).stream()
+                            .map(p -> mapper.partner(p, today)).filter(Objects::nonNull).toList(),
                     exhibitionRepository.findForMap(today, today.plusDays(EXHIBITION_HORIZON_DAYS)).stream()
                             .map(mapper::exhibition).toList(),
                     paths(buildings));

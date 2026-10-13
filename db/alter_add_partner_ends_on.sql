@@ -13,5 +13,11 @@
 ALTER TABLE partners
     ADD COLUMN ends_on DATE NULL AFTER sort_order;
 
+-- 소속별 종료일: 같은 업체가 여러 소속과 제휴했을 때 한 소속 제휴만 끝나는 경우(예: 미술대학 제휴만 12/31 까지).
+-- 그 날이 지나면 그 소속만 지도에서 빠지고, 남은 소속이 하나도 없으면 업체도 빠진다. NULL 이면 기한 없음.
+ALTER TABLE partner_affiliations
+    ADD COLUMN ends_on DATE NULL AFTER benefit;
+
 -- 확인용
 -- SELECT code, name, ends_on FROM partners WHERE ends_on IS NOT NULL;
+-- SELECT p.name, a.affiliation, a.ends_on FROM partner_affiliations a JOIN partners p ON p.id = a.partner_id WHERE a.ends_on IS NOT NULL;

@@ -136,7 +136,12 @@ public class Partner {
 
     // benefit이 null이면 이 업체의 기본 benefit을 따른다.
     public void addAffiliation(String affiliation, String benefit) {
-        this.affiliations.add(new PartnerAffiliation(this, affiliation, benefit));
+        addAffiliation(affiliation, benefit, null);
+    }
+
+    /** endsOn 이 있으면 그 날까지만 이 소속 제휴가 지도에 나온다. */
+    public void addAffiliation(String affiliation, String benefit, LocalDate endsOn) {
+        this.affiliations.add(new PartnerAffiliation(this, affiliation, benefit, endsOn));
     }
 
     public void removeAffiliation(String affiliation) {

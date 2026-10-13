@@ -8,6 +8,8 @@ import com.hongmap.hongmapbackend.mapdata.dto.MapExhibition;
 import com.hongmap.hongmapbackend.mapdata.dto.MapFacility;
 import com.hongmap.hongmapbackend.mapdata.dto.MapLink;
 import com.hongmap.hongmapbackend.mapdata.dto.MapPartner;
+import com.hongmap.hongmapbackend.mapdata.dto.MapAffiliationEnd;
+import java.time.LocalDate;
 import com.hongmap.hongmapbackend.partner.entity.Partner;
 import com.hongmap.hongmapbackend.partner.entity.PartnerAffiliation;
 import lombok.RequiredArgsConstructor;
@@ -66,14 +68,32 @@ public class MapDataMapper {
                 e.getEndsOn().toString(), e.getHours(), e.getDescription(), MapLink.of(e.getLinkLabel(), e.getLinkUrl()));
     }
 
+    /** 관리자 목록용 — 종료일이 지난 소속도 그대로 보여 준다. */
     public MapPartner partner(Partner p) {
-        List<PartnerAffiliation> affiliations = p.getAffiliations().stream()
+        return partner(p, null);
+    }
+
+    /**
+     * 지도 데이터용. today 가 있으면 종료일이 지난 소속을 뺀다.
+     * 소속이 있던 업체인데 유효한 소속이 하나도 남지 않으면 null(지도에서 뺀다) — 소속이 원래 없는 업체는 그대로 나온다.
+     */
+    public MapPartner partner(Partner p, LocalDate today) {
+        List<PartnerAffiliation> all = p.getAffiliations().stream()
                 .sorted(Comparator.comparing(PartnerAffiliation::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+        List<PartnerAffiliation> affiliations = today == null ? all
+                : all.stream().filter(a -> a.isActiveOn(today)).toList();
+        if (!all.isEmpty() && affiliations.isEmpty()) {
+            return null;
+        }
         List<String> names = affiliations.stream().map(PartnerAffiliation::getAffiliation).toList();
         List<MapAffiliationBenefit> exceptions = affiliations.stream()
                 .filter(a -> a.getBenefit() != null)
                 .map(a -> new MapAffiliationBenefit(a.getAffiliation(), a.getBenefit()))
+                .toList();
+        List<MapAffiliationEnd> ends = affiliations.stream()
+                .filter(a -> a.getEndsOn() != null)
+                .map(a -> new MapAffiliationEnd(a.getAffiliation(), a.getEndsOn().toString()))
                 .toList();
         return new MapPartner(
                 partnerId(p),
@@ -89,7 +109,8 @@ public class MapDataMapper {
                 p.getHours(),
                 p.getContact(),
                 MapLink.of(p.getLinkLabel(), p.getLinkUrl()),
-                p.getEndsOn() == null ? null : p.getEndsOn().toString());
+                p.getEndsOn() == null ? null : p.getEndsOn().toString(),
+                ends.isEmpty() ? null : ends);
     }
 
     /** code 가 없는 행(동기화 SQL 전, 또는 예전 POST /partners 로 넣은 행)은 DB id 로 대신한다 — 관리자 화면에서는 고칠 수 없다. */

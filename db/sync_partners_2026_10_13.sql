@@ -62,8 +62,7 @@ WHERE code = 'care-vogue-hair-sangsu';
 -- 학생증(실물 또는 모바일) 제시.
 -- - 새 업체 25곳: ends_on 2026-12-31 — 2027-01-01 부터 지도에서 자동으로 빠진다.
 -- - 이미 다른 소속 제휴로 등록된 17곳: 업체는 그대로 두고 '미술대학' 소속과 그 소속 전용 혜택만 더한다(주소·좌표·기본 혜택은 건드리지 않는다).
---   종료일(ends_on)은 업체 단위라 넣지 않았다(넣으면 다른 소속 제휴까지 사라진다) — 기간은 혜택 문구에 적었고,
---   기간이 끝나면 관리자 화면에서 미술대학 소속을 빼야 한다.
+--   소속 행에 ends_on 2026-12-31 을 넣어 2027-01-01 부터 미술대학 소속만 자동으로 빠진다(다른 소속 제휴는 그대로 남는다).
 -- - 넣지 않은 곳: 훈훈스튜디오(독막로19길 15)·런드리고아파트(독막로19길 32)·어반플루토(영등포구 양평로22나길 3-2)는 주소가 건물 번지까지
 --   변환되지 않아 좌표를 확인하지 못했다. 구공스테이는 전국 지점 대상(프로모션 코드)이라 지도에 찍을 위치가 없다.
 -- - 팩토리는 게시글 카드에 '팩토리 상수점'으로 적혀 있으나 표기 오류라는 정정에 따라 '팩토리'로 넣었다. 좌표는 센터플러스 건물.
@@ -183,107 +182,107 @@ WHERE p.code IN ('food-geunamja-bokkeumbap', 'food-bistro-sarangbang', 'food-mom
                  'etc-root-hongdae')
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
--- 이미 등록된 업체에 미술대학 소속과 전용 혜택 더하기
+-- 이미 등록된 업체에 미술대학 소속과 전용 혜택 더하기(소속 종료일 2026-12-31)
 
 -- 찜이로닭 상수본점
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '메뉴당 음료 1개(제로콜라·제로사이다 중 택 1) 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '메뉴당 음료 1개(제로콜라·제로사이다 중 택 1) 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-jjimirodak-sangsu'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 네코노유부
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '방문 식사: 인당 유부 1피스 제공, 제휴 학생 3인 이상 방문 시 인당 가라아게 1피스 제공 / 포장: 10% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '방문 식사: 인당 유부 1피스 제공, 제휴 학생 3인 이상 방문 시 인당 가라아게 1피스 제공 / 포장: 10% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-nekono-yubu'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 홍대 마포껍데기
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전 메뉴 10% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전 메뉴 10% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-mapo-kkeopdegi'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 연어초밥
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '1인당 음료수 1개 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '1인당 음료수 1개 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-yeoneo-chobap'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 고토히라 우동
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전체 금액에서 10% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전체 금액에서 10% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-kotohira-udon'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 꼬치꼬치 양꼬치
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '테이블당 음료수 1개 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '테이블당 음료수 1개 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-kkochikkochi-yangkkochi'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 샌디빌리지
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '10,000원 이상 주문 시 10% 할인(리뷰이벤트와 중복 가능) (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '10,000원 이상 주문 시 10% 할인(리뷰이벤트와 중복 가능) (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-sandy-village'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 또보겠지 떡볶이집(깐따삐아점)
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '2인 떡볶이 주문 시 음료수 1개, 3인 주문 시 사리 1개(세트·차돌 사리 제외), 4인 주문 시 버터갈릭감자튀김 또는 달콤베이컨감자튀김 택 1 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '2인 떡볶이 주문 시 음료수 1개, 3인 주문 시 사리 1개(세트·차돌 사리 제외), 4인 주문 시 버터갈릭감자튀김 또는 달콤베이컨감자튀김 택 1 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-ttoboketji-kkantapia'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 또보겠지 떡볶이집(해피토스점)
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '2인 떡볶이 주문 시 음료수 1개, 3인 주문 시 사리 1개(세트·차돌 사리 제외), 4인 주문 시 버터갈릭감자튀김 또는 달콤베이컨감자튀김 택 1 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '2인 떡볶이 주문 시 음료수 1개, 3인 주문 시 사리 1개(세트·차돌 사리 제외), 4인 주문 시 버터갈릭감자튀김 또는 달콤베이컨감자튀김 택 1 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-ttoboketji-happytoast'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 45년의정부부대찌개 홍대점
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '13시 이후 방문 시 2인당 음료 1개 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '13시 이후 방문 시 2인당 음료 1개 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-jeongbu-45nyeon-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 소코아 홍대점
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '1인 방문 시 음료 1잔(주스, 캔음료) / 2~4인 방문 시 사이드 택 1(샌드류 인원수별 커팅, 고로케류 2개, 어니언링 8피스, 에비후라이) (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '1인 방문 시 음료 1잔(주스, 캔음료) / 2~4인 방문 시 사이드 택 1(샌드류 인원수별 커팅, 고로케류 2개, 어니언링 8피스, 에비후라이) (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-socoa-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 아웃닭 홍대점
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '테이블당 사이드나 음료 택 1 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '테이블당 사이드나 음료 택 1 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'food-outdak-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 요거트월드 홍대점
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전 품목 15% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전 품목 15% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-yogurtworld-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 밀가루 인쇄소
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전 품목 10% 할인, 2만원 이상 구매 시 케이크 1조각 증정, 홀케이크 주문 시 20% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전 품목 10% 할인, 2만원 이상 구매 시 케이크 1조각 증정, 홀케이크 주문 시 20% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-milgaru-inswaeso'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 하르카쿠키
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전 메뉴 10% 할인, 5% 적립 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전 메뉴 10% 할인, 5% 적립 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-harka-cookie'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 영보스
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '개인주문: 음료 1잔당 쿠폰 1개 적립(5개 아메리카노 무료, 10개 영화쿠폰) / 단체주문: 2만원 이상 결제 2번 또는 3만원 이상 결제 시 영화쿠폰 제공 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '개인주문: 음료 1잔당 쿠폰 1개 적립(5개 아메리카노 무료, 10개 영화쿠폰) / 단체주문: 2만원 이상 결제 2번 또는 3만원 이상 결제 시 영화쿠폰 제공 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-yeongbos'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 별헤는잔
-INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
-SELECT p.id, '미술대학', '전체 금액에서 10% 할인 (2026년 9월 6일 ~ 12월 31일)' FROM partners p
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
+SELECT p.id, '미술대학', '전체 금액에서 10% 할인 (2026년 9월 6일 ~ 12월 31일)', '2026-12-31' FROM partners p
 WHERE p.code = 'bar-byeolhaeneun-jan'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
