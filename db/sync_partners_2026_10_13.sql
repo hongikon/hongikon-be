@@ -42,12 +42,11 @@ INSERT INTO partners (code, name, category, latitude, longitude, benefit, addres
 SELECT 'culture-wally-experience', '월리를 찾아라 체험관', '문화', 37.5520324, 126.9237281, '정가 1인 25,000원 → 12,500원 (50% 할인)', '서울 마포구 와우산로 86', '매일 10:00~21:00 (입장 마감 20:00)', @base + 7, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'culture-wally-experience');
 
--- 에버랜드: 게시글의 QR코드(https://m.site.naver.com/1QWkr)가 최종으로 여는 에버랜드 예매 사이트의 프로모션 진입 주소를 시트 하단 버튼으로 넣는다.
--- 진입 주소(expay.do?method=validCh&entryKey=…)로 들어가야 프로모션 화면이 뜬다 — 그 뒤 주소(comm.do?cmethod=promotion)를 바로 열면
--- "프로모션이 존재하지 않습니다"가 나온다(2026-10-14 확인).
--- 휴대폰 화면의 QR은 그 휴대폰으로 찍을 수 없어 이미지 대신 링크로 둔다.
+-- 에버랜드: 예매는 총학생회 게시물의 QR코드·인증코드로 한다. 시트 하단 버튼은 그 게시물로 보낸다(운영자 요청, 2026-10-14) —
+-- 인증코드를 앱에 옮겨 적지 않고, 예매 방법이 바뀌어도 게시물이 기준이 되게.
+-- (참고: QR 은 https://m.site.naver.com/1QWkr → reservation.everland.com/mobile/expay.do?method=validCh&entryKey=PRMO00000555 로 이어진다.)
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, link_label, link_url, sort_order, ends_on)
-SELECT 'culture-everland', '에버랜드', '문화', 37.2934745, 127.2024789, '정상가 62,000~71,000원 → 35,000원 (구매 10월 31일까지, 이용 11월 22일까지). 아래 예매 페이지에서 총학생회 게시물의 인증코드로 구매', '경기도 용인시 처인구 포곡읍 에버랜드로 199', '매일 10:00~22:00', '에버랜드 제휴 티켓 예매하기', 'https://reservation.everland.com/mobile/expay.do?method=validCh&entryKey=PRMO00000555', @base + 8, NULL
+SELECT 'culture-everland', '에버랜드', '문화', 37.2934745, 127.2024789, '정상가 62,000~71,000원 → 35,000원 (구매 10월 31일까지, 이용 11월 22일까지). 총학생회 게시물의 QR코드와 인증코드로 구매', '경기도 용인시 처인구 포곡읍 에버랜드로 199', '매일 10:00~22:00', '총학생회 게시물에서 예매 방법 보기', 'https://www.instagram.com/p/Ddp1YBIkgcN/?img_index=2', @base + 8, NULL
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'culture-everland');
 
 INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
