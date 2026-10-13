@@ -312,12 +312,12 @@ UPDATE partner_affiliations
 SET ends_on = '2026-12-14'
 WHERE affiliation = '경영대학' AND ends_on IS NULL;
 
--- 카페·음식점 혜택 문구의 '품목'을 '메뉴'로 통일(운영자 요청, 2026-10-14). 이미 등록된 문구도 고친다(예: 써브웨이 상수점 경제학부 혜택).
+-- 카페·음식점·주점 혜택 문구의 '품목'을 '메뉴'로 통일(운영자 요청, 2026-10-14). 이미 등록된 문구도 고친다(예: 써브웨이 상수점 경제학부 혜택).
 UPDATE partners SET benefit = REPLACE(benefit, '품목', '메뉴')
-WHERE category IN ('카페', '음식') AND benefit LIKE '%품목%';
+WHERE category IN ('카페', '음식', '주점') AND benefit LIKE '%품목%';
 UPDATE partner_affiliations a JOIN partners p ON p.id = a.partner_id
 SET a.benefit = REPLACE(a.benefit, '품목', '메뉴')
-WHERE p.category IN ('카페', '음식') AND a.benefit LIKE '%품목%';
+WHERE p.category IN ('카페', '음식', '주점') AND a.benefit LIKE '%품목%';
 
 -- 확인용
 -- SELECT code, name, category, latitude, longitude, hours, ends_on FROM partners ORDER BY sort_order DESC LIMIT 34;
