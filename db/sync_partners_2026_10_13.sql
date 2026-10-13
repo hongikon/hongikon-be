@@ -291,7 +291,8 @@ WHERE p.code = 'bar-byeolhaeneun-jan'
 -- ============================================
 -- 경영대학 학생회 BE:st 26-2 제휴(@hongik_business). 제휴 기간 2026-09-01 ~ 2026-12-14, 대상은 경영대학 재·휴학생, 학생증 제시.
 -- - 티하오 홍대입구점: 새 업체. ends_on 2026-12-14 — 12-15 부터 지도에서 자동으로 빠진다.
--- - T12: 같은 혜택으로 이미 등록돼 있다(bar-t12, 경영대학). 업체는 그대로 두고 경영대학 소속 종료일만 넣는다.
+-- - T12: 같은 혜택으로 이미 등록돼 있다(bar-t12, 경영대학). 새로 넣지 않는다.
+-- - 기존 경영대학 제휴 전체: 소속 종료일 2026-12-14.
 -- ============================================
 
 SET @base3 := (SELECT COALESCE(MAX(sort_order), 0) FROM partners);
@@ -305,9 +306,11 @@ SELECT p.id, '경영대학', NULL FROM partners p
 WHERE p.code = 'cafe-tihao-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '경영대학');
 
-UPDATE partner_affiliations a JOIN partners p ON p.id = a.partner_id
-SET a.ends_on = '2026-12-14'
-WHERE p.code = 'bar-t12' AND a.affiliation = '경영대학';
+-- 경영대학 제휴는 전부 12/14 까지(운영자 확인, 2026-10-13). 이미 등록된 경영대학 소속 전체에 종료일을 넣는다 —
+-- 12-15 부터 경영대학 소속만 빠지고, 다른 소속 제휴가 없는 업체는 지도에서도 빠진다. 이미 종료일이 있는 행은 건드리지 않는다.
+UPDATE partner_affiliations
+SET ends_on = '2026-12-14'
+WHERE affiliation = '경영대학' AND ends_on IS NULL;
 
 -- 확인용
 -- SELECT code, name, category, latitude, longitude, hours, ends_on FROM partners ORDER BY sort_order DESC LIMIT 34;
