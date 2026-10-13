@@ -1,7 +1,8 @@
 -- ============================================
 -- 총학생회·미술대학 제휴 추가·갱신 (2026-10-13).
 -- 출처: 총학생회 제휴 안내 게시글(@hongik_chance) 9건,
---       미술대학 학생회 NOVA 제휴사업 '노바랑' 게시글(@hongik_art_) 7편(음식점 1·2, 카페, 주점, 화방/스튜디오, 문화, 기타).
+--       미술대학 학생회 NOVA 제휴사업 '노바랑' 게시글(@hongik_art_) 7편(음식점 1·2, 카페, 주점, 화방/스튜디오, 문화, 기타),
+--       경영대학 학생회 BE:st 26-2 제휴 안내(@hongik_business) 2건.
 -- 선행: db/alter_add_partner_ends_on.sql (partners.ends_on)
 --
 -- - 새 업체 8곳 추가, 보그헤어 상수역점은 혜택·영업시간만 갱신(좌표·주소 그대로).
@@ -286,6 +287,27 @@ INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
 SELECT p.id, '미술대학', '전체 금액에서 10% 할인', '2026-12-31' FROM partners p
 WHERE p.code = 'bar-byeolhaeneun-jan'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
+
+-- ============================================
+-- 경영대학 학생회 BE:st 26-2 제휴(@hongik_business). 제휴 기간 2026-09-01 ~ 2026-12-14, 대상은 경영대학 재·휴학생, 학생증 제시.
+-- - 티하오 홍대입구점: 새 업체. ends_on 2026-12-14 — 12-15 부터 지도에서 자동으로 빠진다.
+-- - T12: 같은 혜택으로 이미 등록돼 있다(bar-t12, 경영대학). 업체는 그대로 두고 경영대학 소속 종료일만 넣는다.
+-- ============================================
+
+SET @base3 := (SELECT COALESCE(MAX(sort_order), 0) FROM partners);
+
+INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
+SELECT 'cafe-tihao-hongdae', '티하오 홍대입구점', '카페', 37.5535057, 126.9238198, '전 메뉴 10% 할인', '서울 마포구 홍익로 10 B147호', NULL, @base3 + 1, '2026-12-14'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'cafe-tihao-hongdae');
+
+INSERT INTO partner_affiliations (partner_id, affiliation, benefit)
+SELECT p.id, '경영대학', NULL FROM partners p
+WHERE p.code = 'cafe-tihao-hongdae'
+  AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '경영대학');
+
+UPDATE partner_affiliations a JOIN partners p ON p.id = a.partner_id
+SET a.ends_on = '2026-12-14'
+WHERE p.code = 'bar-t12' AND a.affiliation = '경영대학';
 
 -- 확인용
 -- SELECT code, name, category, latitude, longitude, hours, ends_on FROM partners ORDER BY sort_order DESC LIMIT 34;
