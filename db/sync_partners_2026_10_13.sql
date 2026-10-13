@@ -102,11 +102,11 @@ SELECT 'food-samcheongdang-hongdae', '삼청당 홍대본점', '음식', 37.5531
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'food-samcheongdang-hongdae');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
-SELECT 'cafe-kkuul-gwajajeom', '꾸울과자점', '카페', 37.5494100, 126.9241018, '전 품목 10% 할인(5만원 제한, 중복 할인 불가)', '서울 마포구 와우산로22길 70 102호', NULL, @base2 + 8, '2026-12-31'
+SELECT 'cafe-kkuul-gwajajeom', '꾸울과자점', '카페', 37.5494100, 126.9241018, '전 메뉴 10% 할인(5만원 제한, 중복 할인 불가)', '서울 마포구 와우산로22길 70 102호', NULL, @base2 + 8, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'cafe-kkuul-gwajajeom');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
-SELECT 'cafe-beargels', '베어글스', '카페', 37.5480302, 126.9209184, '전 품목 10% 할인', '서울 마포구 독막로 65-1 1층', NULL, @base2 + 9, '2026-12-31'
+SELECT 'cafe-beargels', '베어글스', '카페', 37.5480302, 126.9209184, '전 메뉴 10% 할인', '서울 마포구 독막로 65-1 1층', NULL, @base2 + 9, '2026-12-31'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM partners WHERE code = 'cafe-beargels');
 
 INSERT INTO partners (code, name, category, latitude, longitude, benefit, address, hours, sort_order, ends_on)
@@ -260,13 +260,13 @@ WHERE p.code = 'food-outdak-hongdae'
 
 -- 요거트월드 홍대점
 INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
-SELECT p.id, '미술대학', '전 품목 15% 할인', '2026-12-31' FROM partners p
+SELECT p.id, '미술대학', '전 메뉴 15% 할인', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-yogurtworld-hongdae'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
 -- 밀가루 인쇄소
 INSERT INTO partner_affiliations (partner_id, affiliation, benefit, ends_on)
-SELECT p.id, '미술대학', '전 품목 10% 할인, 2만원 이상 구매 시 케이크 1조각 증정, 홀케이크 주문 시 20% 할인', '2026-12-31' FROM partners p
+SELECT p.id, '미술대학', '전 메뉴 10% 할인, 2만원 이상 구매 시 케이크 1조각 증정, 홀케이크 주문 시 20% 할인', '2026-12-31' FROM partners p
 WHERE p.code = 'cafe-milgaru-inswaeso'
   AND NOT EXISTS (SELECT 1 FROM partner_affiliations a WHERE a.partner_id = p.id AND a.affiliation = '미술대학');
 
@@ -311,6 +311,13 @@ WHERE p.code = 'cafe-tihao-hongdae'
 UPDATE partner_affiliations
 SET ends_on = '2026-12-14'
 WHERE affiliation = '경영대학' AND ends_on IS NULL;
+
+-- 카페·음식점 혜택 문구의 '품목'을 '메뉴'로 통일(운영자 요청, 2026-10-14). 이미 등록된 문구도 고친다(예: 써브웨이 상수점 경제학부 혜택).
+UPDATE partners SET benefit = REPLACE(benefit, '품목', '메뉴')
+WHERE category IN ('카페', '음식') AND benefit LIKE '%품목%';
+UPDATE partner_affiliations a JOIN partners p ON p.id = a.partner_id
+SET a.benefit = REPLACE(a.benefit, '품목', '메뉴')
+WHERE p.category IN ('카페', '음식') AND a.benefit LIKE '%품목%';
 
 -- 확인용
 -- SELECT code, name, category, latitude, longitude, hours, ends_on FROM partners ORDER BY sort_order DESC LIMIT 34;
