@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 -- 새로 넣지 않고 종류를 은행·ATM 으로 옮기고, ATM 운영시간을 더한다(홍익대 편의시설 페이지, docs/campus-facilities-research.md 2.1).
 UPDATE campus_facilities
 SET kind = '은행·ATM',
-    note = '신한은행 홍익대학교 지점 · 창구 평일 09:00~16:00 · ATM 07:00~23:30 · 02-6023-3950',
+    note = '신한은행 홍익대학교 지점 · 창구 평일 09:00~16:00 · ATM 07:00~23:30 · 유어스마트라운지 평일 09:00~21:00, 주말·공휴일 12:00~18:00 · 02-6023-3950',
     updated_at = NOW(6)
 WHERE code = 'hi-r-1f-office-04';
 
