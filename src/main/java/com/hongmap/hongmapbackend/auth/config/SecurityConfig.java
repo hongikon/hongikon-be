@@ -74,6 +74,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
                     // 문의하기는 비로그인(게스트)도 보낼 수 있다. 토큰이 있으면 작성자로 연결된다.
                     auth.requestMatchers(HttpMethod.POST, "/feedback").permitAll();
+                    // 챗봇 질문·피드백 로그는 게스트도 남긴다. 토큰이 있어도 사용자는 저장하지 않고 빈도 제한 키로만 쓴다.
+                    auth.requestMatchers(HttpMethod.POST, "/ask/feedback").permitAll();
                     // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
                     auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
                             new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));
