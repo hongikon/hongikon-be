@@ -12,7 +12,8 @@ import java.time.Duration;
 
 /**
  * POST /ask/feedback 도배 방지. 댓글 신고 제한(CommentFlagLimiter)과 같은 방식 — 서버 메모리의
- * SlidingWindowRateLimiter 로 기본 10분에 10번, 넘으면 429.
+ * SlidingWindowRateLimiter 로 기본 10분에 60번, 넘으면 429.
+ * 질문 하나에 호출이 2번(답변 직후, 해결 여부 응답)이고 캠퍼스 와이파이처럼 IP 하나를 여럿이 쓸 수 있어 신고(10번)보다 넉넉히 둔다.
  * 키는 로그인했으면 사용자(user:id), 아니면 접속 IP(ip:주소). IP 는 FeedbackRateLimiter 와 같은 request.getRemoteAddr().
  * 서버 1대 메모리 기준이라 재시작하면 초기화된다. 로그 자체에는 사용자·IP 를 남기지 않는다.
  */
@@ -24,7 +25,7 @@ public class AskFeedbackRateLimiter {
     private final SlidingWindowRateLimiter limiter;
 
     @Autowired
-    public AskFeedbackRateLimiter(@Value("${ask.feedback.rate-limit.max-requests:10}") int maxRequests,
+    public AskFeedbackRateLimiter(@Value("${ask.feedback.rate-limit.max-requests:60}") int maxRequests,
                                   @Value("${ask.feedback.rate-limit.window-minutes:10}") long windowMinutes) {
         this(maxRequests, Duration.ofMinutes(windowMinutes), Clock.systemUTC());
     }

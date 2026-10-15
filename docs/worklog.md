@@ -1219,7 +1219,7 @@
 - 인증: `/map/data`·`/feedback` 처럼 비로그인 허용(`SecurityConfig` 에 `POST /ask/feedback` permitAll 추가 — 없으면
   `anyRequest().authenticated()` 에 걸려 게스트가 401). 토큰이 있으면 빈도 제한 키로만 쓰고 user_id 는 저장하지 않는다.
 - 빈도 제한: `AskFeedbackRateLimiter` — 댓글 신고 제한(`CommentFlagLimiter`)과 같은 `SlidingWindowRateLimiter` 서버 메모리 방식,
-  기본 10분에 10번(`ask.feedback.rate-limit.max-requests`·`window-minutes`, 기본값이 있어 환경변수 추가 없음). 키는 로그인이면
+  기본 10분에 60번(질문 하나에 호출 2번 + 공용 IP 공유를 감안, `ask.feedback.rate-limit.max-requests`·`window-minutes`, 기본값이 있어 환경변수 추가 없음). 키는 로그인이면
   `user:id`, 아니면 `ip:getRemoteAddr()`. 본문 검증(400)을 통과한 요청만 센다.
 - 엔티티 `ask.AskFeedbackLog`(`@Builder` + `@NoArgsConstructor(PROTECTED)` + `@AllArgsConstructor(PRIVATE)`, `@CreationTimestamp`).
 - **DB 변경**: 배포 전 `db/create_ask_feedback_logs_table.sql` 실행(빠뜨리면 validate 로 서버가 뜨지 않는다). 재실행 안전(IF NOT EXISTS).
@@ -1227,6 +1227,6 @@
 - 조회 예시: `docs/ask-feedback-queries.sql`(못 찾은 질문 상위 20, flowId/nodeId 별 해결 안 됨 비율, outcome 별 요약).
   created_at 은 UTC 로 저장되므로 `UTC_TIMESTAMP()` 와 비교한다.
 - 테스트: `AskFeedbackServiceTest` 7(Mockito 단위), `AskFeedbackRateLimiterTest` 2, `AskFeedbackControllerTest` 7
-  (비로그인 204·저장, 400 각종, 10번 뒤 429).
+  (비로그인 204·저장, 400 각종, 60번 뒤 429).
 - 개인정보: 질문 원문에 개인정보가 섞일 수 있다. 사용자·IP 는 저장하지 않지만 원문 보관기간은 정하지 않았다 —
   90일 지난 행을 지우는 정리 배치와 개인정보 처리방침 반영을 제안(이번 범위 밖).

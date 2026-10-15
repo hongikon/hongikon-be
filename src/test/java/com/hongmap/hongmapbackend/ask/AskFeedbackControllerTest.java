@@ -98,11 +98,11 @@ class AskFeedbackControllerTest {
     }
 
     @Test
-    void 같은_IP에서_10분에_10번까지_받고_그다음은_429() throws Exception {
+    void 같은_IP에서_10분에_60번까지_받고_그다음은_429() throws Exception {
         String ip = randomIp();
         // 본문이 잘못된 요청(400)은 세지 않는다.
         mockMvc.perform(ask(ip, "{\"question\":\" \",\"outcome\":\"NONE\"}")).andExpect(status().isBadRequest());
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 60; i++) {
             mockMvc.perform(ask(ip, "{\"question\":\"질문 " + i + "\",\"outcome\":\"NONE\"}"))
                     .andExpect(status().isNoContent());
         }
