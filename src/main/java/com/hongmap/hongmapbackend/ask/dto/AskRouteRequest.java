@@ -2,6 +2,7 @@ package com.hongmap.hongmapbackend.ask.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -10,12 +11,18 @@ import java.util.List;
  * @param question 이번 질문
  * @param hint     앱 낱말 찾기가 고른 안내(흐름/단계, 없으면 비움). 분류에 참고로만 넘기고 카탈로그에 있는 것만 쓴다.
  * @param history  직전 대화(오래된 것부터, 최대 3턴).
+ * @param conversationId 앱 탭마다 만든 임의 대화 id — 기록에서 같은 대화의 질문끼리 잇는다(사람과는 잇지 않는다).
  */
 public record AskRouteRequest(
         @NotBlank @Size(max = 200, message = "질문은 200자까지 쓸 수 있어요.") String question,
         @Size(max = 200) String hint,
-        @Size(max = 3) List<@Valid Turn> history
+        @Size(max = 3) List<@Valid Turn> history,
+        @Pattern(regexp = "[A-Za-z0-9-]{8,64}") String conversationId
 ) {
+
+    public AskRouteRequest(String question, String hint, List<Turn> history) {
+        this(question, hint, history, null);
+    }
 
     /**
      * @param nodeId 그 질문에 열린 안내(흐름/단계). 없었으면 비운다.

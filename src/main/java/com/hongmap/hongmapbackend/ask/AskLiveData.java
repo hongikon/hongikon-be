@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.cafeteria.CafeteriaMenuService;
 import com.hongmap.hongmapbackend.cafeteria.dto.CafeteriaDayResponse;
 import com.hongmap.hongmapbackend.cafeteria.dto.CafeteriaMealResponse;
 import com.hongmap.hongmapbackend.cafeteria.dto.CafeteriaRestaurantResponse;
+import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -13,6 +14,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -37,6 +40,56 @@ public class AskLiveData {
 
     private final NewsRepository newsRepository;
     private final CafeteriaMenuService cafeteriaMenuService;
+    private final MapDataService mapDataService;
+    private final JsonMapper jsonMapper;
+
+    static final int FACILITY_SEARCH_LIMIT = 8;
+
+    /**
+     * 지도 편의시설(GET /map/data 의 facilities — 건물·층·종류·메모) 낱말 검색. 공동학습실·프레젠테이션룸·학과 라운지처럼 학교 홈페이지 안내에는 없고
+     * 운영진이 지도에 넣어 둔 운영시간·예약 방법(헤이영캠퍼스 공간예약 등)을 답에 쓰게 한다(10-16, 'K동 공동학습실'·'멀티미디어실'을 못 찾았다).
+     * 맞은 낱말이 많은 순. 참조는 `facility:{id}`(앱이 위치 버튼으로 그린다).
+     */
+    public List<Reference> searchFacilities(String query, StringBuilder text) {
+        List<String> words = new ArrayList<>();
+        for (String word : query.split("[\\s,·/()?!.]+")) {
+            if (word.length() >= 2 && words.size() < 6) {
+                words.add(word.toLowerCase());
+            }
+        }
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
+        record Hit(JsonNode node, String line, int score) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode facility : facilities) {
+            String floor = facility.path("floor").isNumber()
+                    ? (facility.path("floor").asInt() < 0 ? "지하 " + (-facility.path("floor").asInt()) + "층" : facility.path("floor").asInt() + "층")
+                    : "";
+            String line = facility.path("buildingName").asString("") + " " + floor + " · [" + facility.path("kind").asString("") + "] "
+                    + facility.path("note").asString("");
+            String lower = line.toLowerCase();
+            int score = 0;
+            for (String word : words) {
+                if (lower.contains(word)) {
+                    score++;
+                }
+            }
+            if (score > 0) {
+                hits.add(new Hit(facility, line, score));
+            }
+        }
+        hits.sort((a, b) -> b.score() - a.score());
+        List<Reference> references = new ArrayList<>();
+        for (Hit hit : hits.subList(0, Math.min(FACILITY_SEARCH_LIMIT, hits.size()))) {
+            String ref = "facility:" + hit.node().path("id").asString("");
+            text.append(ref).append(" · ").append(hit.line()).append('\n');
+            references.add(new Reference(ref, hit.line(), null, null));
+        }
+        return references;
+    }
 
     /** 근거로 붙일 바깥 자료(공지·학식). */
     public record Reference(String ref, String title, String url, String date) {

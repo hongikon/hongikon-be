@@ -49,15 +49,14 @@ public class AskRouteService {
 
     public AskRouteResponse route(AskRouteRequest request, AskProgress progress) {
         List<String> picked = new ArrayList<>();
-        for (String id : llmClient.classify(classifyMessage(request))) {
+        for (String id : llmClient.classify(classifyMessage(request), progress)) {
             if (catalog.contains(id) && !AskCatalog.NONE.equals(id) && !picked.contains(id)) {
                 picked.add(id);
             }
         }
-        if (picked.isEmpty()) {
-            return new AskRouteResponse(AskCatalog.NONE, List.of(), null, null, catalog.version());
-        }
-        String primary = picked.get(0);
+        // 맞는 안내를 못 골라도(none) 바로 끝내지 않는다 — 지도 시설·공지에 답이 있을 수 있다('K동 공동학습실', '프레젠테이션룸 예약').
+        // 답 쓰기가 도구로 찾아보고, 그래도 없으면 모른다고 한다.
+        String primary = picked.isEmpty() ? AskCatalog.NONE : picked.get(0);
         // 되묻기 단계를 골랐으면 버튼으로 되묻지 않고 버튼이 가리키는 안내 원문까지 읽혀 답을 쓴다 — '학생증 재발급'처럼 이미 분명한
         // 질문에 "어떤 점이 궁금하세요?"를 되풀이하지 않게(10-15 사용자 지적). 정말 모호하면 답 쓰기가 글로 되묻는다.
         List<String> answerIds = new ArrayList<>();
@@ -69,7 +68,7 @@ public class AskRouteService {
                 }
             }
         }
-        if (answerIds.isEmpty()) {
+        if (answerIds.isEmpty() && !picked.isEmpty()) {
             return new AskRouteResponse(primary, List.of(primary), null, null, catalog.version());
         }
         List<String> anchors = anchorsFor(answerIds);
@@ -83,17 +82,22 @@ public class AskRouteService {
             AskLlmClient.Answer answer = llmClient.answer(answerIds, answerContext(request), progress);
             // 모델이 근거를 짚지 않았으면 처음 고른 안내 하나만 — 고른 것 전부(되묻기 버튼 안내 포함)를 근거로 붙이면 쓰지도 않은 안내가 줄줄이 나온다.
             List<String> sources = new ArrayList<>(anchors);
-            for (String id : answer.sourceIds().isEmpty() ? answerIds.subList(0, 1) : answer.sourceIds()) {
+            for (String id : answer.sourceIds().isEmpty() ? answerIds.subList(0, Math.min(1, answerIds.size())) : answer.sourceIds()) {
                 if (!sources.contains(id)) {
                     sources.add(id);
                 }
             }
             List<AskRouteResponse.Link> links = answer.references().stream()
+                    .filter(reference -> !reference.ref().startsWith("facility:"))
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
-            return withButtons(new AskRouteResponse(sources.get(0), sources, answer.text(), answer.found(), catalog.version(), links));
+            return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
+                    answer.found(), catalog.version(), links), answer.references());
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
+            if (answerIds.isEmpty()) {
+                return new AskRouteResponse(AskCatalog.NONE, List.of(), null, null, catalog.version());
+            }
             return new AskRouteResponse(primary, answerIds, null, null, catalog.version());
         }
     }
@@ -140,7 +144,7 @@ public class AskRouteService {
     }
 
     /** 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3), 처음 나온 위치. */
-    private AskRouteResponse withButtons(AskRouteResponse response) {
+    private AskRouteResponse withButtons(AskRouteResponse response, List<AskLiveData.Reference> references) {
         List<AskRouteResponse.Link> pages = new ArrayList<>();
         List<AskRouteResponse.Phone> phones = new ArrayList<>();
         String facilityId = null;
@@ -165,6 +169,11 @@ public class AskRouteService {
             if (facilityId == null) {
                 facilityId = meta.facilityId();
             }
+        }
+        if (facilityId == null) {
+            // 안내에 위치가 없으면 답에 쓴 지도 시설의 위치(facility:{id}).
+            facilityId = references.stream().map(AskLiveData.Reference::ref).filter(ref -> ref.startsWith("facility:"))
+                    .map(ref -> ref.substring("facility:".length())).findFirst().orElse(null);
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId);

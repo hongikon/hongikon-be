@@ -14,17 +14,27 @@ import java.util.List;
  * @param phones         근거 안내의 담당 부서 전화 버튼(같은 번호는 한 번, 최대 3).
  * @param facilityId     근거 안내의 위치(지도 편의시설 id, 처음 나온 것). 없으면 null.
  *                       버튼은 서버가 정해 보낸다 — 링크 순서·전화를 바꿀 때 앱 배포 없이 서버만 고치면 된다.
+ * @param logId          이 답의 기록 id(ask_conversation_logs). 앱이 '해결됐나요' 응답을 붙일 때 쓴다. 기록이 꺼졌으면 null.
  */
 public record AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
-                               List<Link> references, List<Link> pages, List<Phone> phones, String facilityId) {
+                               List<Link> references, List<Link> pages, List<Phone> phones, String facilityId, Long logId) {
 
     public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion) {
-        this(nodeId, nodeIds, answer, found, catalogVersion, List.of(), List.of(), List.of(), null);
+        this(nodeId, nodeIds, answer, found, catalogVersion, List.of(), List.of(), List.of(), null, null);
     }
 
     public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
                             List<Link> references) {
-        this(nodeId, nodeIds, answer, found, catalogVersion, references, List.of(), List.of(), null);
+        this(nodeId, nodeIds, answer, found, catalogVersion, references, List.of(), List.of(), null, null);
+    }
+
+    public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
+                            List<Link> references, List<Link> pages, List<Phone> phones, String facilityId) {
+        this(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, null);
+    }
+
+    public AskRouteResponse withLogId(Long id) {
+        return new AskRouteResponse(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, id);
     }
 
     public record Phone(String label, String phone) {
