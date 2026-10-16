@@ -1,5 +1,5 @@
 {
- "version": "ea8d8a7d83ad",
+ "version": "4b7a2dd926e7",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -258,6 +258,11 @@
    "id": "injury/emergency",
    "kind": "answer",
    "line": "생명이 위급하거나 크게 다쳤으면 바로 119에 전화하세요. 가벼운 상처는 학생회관(G동) 1층 건강진료센터에서 응급처치를 받을 수 있어요. #응급 #119"
+  },
+  {
+   "id": "t-classroom-booking/start",
+   "kind": "answer",
+   "line": "T동(제4공학관) 강의실은 호실에 따라 대여를 받는 곳이 달라요. T0101·T0011·T501은 교양교육원 소속이라 교양교육원에서, 나머지 T… #t동강의실 #제4공학관강의실 #강의실 #예약 #대여"
   },
   {
    "id": "dropout/faq0",

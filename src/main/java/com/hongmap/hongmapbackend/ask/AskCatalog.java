@@ -37,6 +37,7 @@ public class AskCatalog {
     private final Set<String> idSet;
     private final Map<String, Entry> entries;
     private final Map<String, String> sources;
+    private final Map<String, Meta> meta;
     private final String systemPrompt;
 
     @Autowired
@@ -69,6 +70,7 @@ public class AskCatalog {
         this.idSet = Collections.unmodifiableSet(unique);
         this.entries = Collections.unmodifiableMap(byId);
         this.sources = sourcesFile.sources() == null ? Map.of() : Map.copyOf(sourcesFile.sources());
+        this.meta = sourcesFile.meta() == null ? Map.of() : Map.copyOf(sourcesFile.meta());
         this.systemPrompt = PROMPT_HEAD + lines + NONE + ": 위 어디에도 맞지 않거나 학교 생활·행정과 무관한 질문\n";
     }
 
@@ -124,6 +126,11 @@ public class AskCatalog {
         return id == null ? null : sources.get(id);
     }
 
+    /** 답 카드 아래 버튼용 링크·전화·위치. 없으면 null. */
+    public Meta meta(String id) {
+        return id == null ? null : meta.get(id);
+    }
+
     /** 고르는 데 쓰는 한 줄 요약. */
     public String line(String id) {
         Entry entry = id == null ? null : entries.get(id);
@@ -177,7 +184,21 @@ public class AskCatalog {
     record CatalogFile(String version, List<Entry> entries) {
     }
 
-    record SourcesFile(String version, Map<String, String> sources) {
+    /** @param meta 노드별 버튼 정보(링크·전화·위치) — 앱이 답 카드 아래에 그대로 그린다. */
+    record SourcesFile(String version, Map<String, String> sources, Map<String, Meta> meta) {
+        SourcesFile(String version, Map<String, String> sources) {
+            this(version, sources, null);
+        }
+    }
+
+    /** @param facilityId 지도 편의시설 id(앱이 위치를 그린다) */
+    public record Meta(List<Link> links, List<Phone> phones, String facilityId) {
+    }
+
+    public record Link(String label, String url) {
+    }
+
+    public record Phone(String label, String phone) {
     }
 
     /** @param next 되묻기 단계면 버튼이 가리키는 안내들(없으면 null). */
