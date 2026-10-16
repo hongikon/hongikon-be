@@ -1,0 +1,3734 @@
+{
+ "version": "d0574f0f98c7",
+ "entries": [
+  {
+   "id": "leave-of-absence/start",
+   "kind": "question",
+   "line": "어떤 휴학을 하려고 하세요? 종류마다 신청 방법이 달라요. (되묻기: 일반휴학 / 군입대휴학 / 질병휴학 / 임신·출산·육아휴학 / 창업(준비)휴학 / 휴학 종류와 몇 학기까지 쉴 수 있는지 / 휴학하면 등록금은 어떻게 되나요?) #휴학",
+   "next": [
+    "leave-of-absence/general",
+    "leave-of-absence/military",
+    "leave-of-absence/sick",
+    "leave-of-absence/parental",
+    "leave-of-absence/startup",
+    "leave-of-absence/limits",
+    "leave-of-absence/tuition"
+   ]
+  },
+  {
+   "id": "leave-of-absence/general",
+   "kind": "answer",
+   "line": "일반휴학은 일신상의 사유로 하는 휴학이에요. 정해진 신청 기간에 클래스넷으로 신청해요. #휴학 #기간 #언제"
+  },
+  {
+   "id": "leave-of-absence/military",
+   "kind": "answer",
+   "line": "군입대휴학은 입대일 10일 전부터 입대일 전날까지 클래스넷으로 신청해요. #휴학 #군입대 #입대 #군휴학 #군입대휴학"
+  },
+  {
+   "id": "leave-of-absence/military-retro",
+   "kind": "answer",
+   "line": "군입대휴학을 신청하지 않고 학기가 지났다면 서류를 내서 소급 신청해요. #휴학 #군휴학 #소급 #군휴 #군 #입대"
+  },
+  {
+   "id": "leave-of-absence/sick",
+   "kind": "answer",
+   "line": "질병휴학은 서류를 들고 학사지원팀에 직접 방문해 신청해요. #휴학 #질병 #아파"
+  },
+  {
+   "id": "leave-of-absence/parental",
+   "kind": "answer",
+   "line": "임신·출산·육아휴학은 임신, 출산, 만 8세 이하 자녀 양육 때문에 하는 휴학이에요. 서류를 들고 학사지원팀에 방문 신청해요. #휴학 #임신 #출산"
+  },
+  {
+   "id": "leave-of-absence/startup",
+   "kind": "answer",
+   "line": "창업(준비)휴학은 일반휴학 신청 기간에 서류를 들고 학사지원팀에 방문 신청해요. #휴학 #창업 #사업자"
+  },
+  {
+   "id": "leave-of-absence/limits",
+   "kind": "answer",
+   "line": "휴학은 한 번에 최대 2학기까지 신청할 수 있고, 복학할 때 부득이하면 이어서 다시 신청할 수 있어요. #휴학 #몇학기 #최대"
+  },
+  {
+   "id": "leave-of-absence/tuition",
+   "kind": "answer",
+   "line": "직전 학기까지 다니던 학생은 일반·군입대·창업휴학을 할 때 휴학하는 학기의 등록금을 낼지 말지 고를 수 있어요(장학금 대상자는 내는 걸 권해요)… #휴학 #등록금 #환불"
+  },
+  {
+   "id": "student-card/start",
+   "kind": "question",
+   "line": "학생증의 어떤 점이 궁금하세요? (되묻기: 새로 발급·재발급 받고 싶어요 / 잃어버렸어요 / 모바일 학생증을 쓰고 싶어요 / 밤에 건물 출입할 때 쓰고 싶어요 / 학생증 사진을 바꾸고 싶어요) #학생증",
+   "next": [
+    "student-card/level",
+    "student-card/lost",
+    "student-card/mobile",
+    "student-card/access",
+    "student-card/photo"
+   ]
+  },
+  {
+   "id": "student-card/level",
+   "kind": "question",
+   "line": "학부생인가요, 대학원생인가요? (되묻기: 학부생이에요 / 대학원생이에요) #학생증 #발급 #신청",
+   "next": [
+    "student-card/nationality",
+    "student-card/grad"
+   ]
+  },
+  {
+   "id": "student-card/level-foreign",
+   "kind": "question",
+   "line": "학부생인가요, 대학원생인가요? (되묻기: 학부생이에요 / 대학원생이에요) #학생증 #외국인 #외국국적",
+   "next": [
+    "student-card/apply-foreign",
+    "student-card/grad"
+   ]
+  },
+  {
+   "id": "student-card/nationality",
+   "kind": "question",
+   "line": "내국인인가요, 외국 국적인가요? 신청 방법이 달라요. (되묻기: 내국인이에요 / 외국 국적이에요 / 쏠(SOL) 앱으로 신청이 안 돼요)",
+   "next": [
+    "student-card/apply-sol",
+    "student-card/apply-foreign"
+   ]
+  },
+  {
+   "id": "student-card/apply-sol",
+   "kind": "answer",
+   "line": "학부 학생증(신규·재발급)은 신한 쏠(SOL) 앱에서 학생증 체크카드로 신청해요. 언제든 신청할 수 있고 수수료는 없어요."
+  },
+  {
+   "id": "student-card/apply-foreign",
+   "kind": "answer",
+   "line": "신한은행 홈페이지 '금융서비스 › 기타금융 › 학생증체크카드 예약서비스'에서 예약 신청한 뒤, 홍문관 로비 신한은행 홍익대학교 지점에 꼭 방문해…"
+  },
+  {
+   "id": "student-card/grad",
+   "kind": "answer",
+   "line": "대학원 신입생은 매 학기 공지된 기간에, 재학생은 신입생 집중 발급 기간 뒤에 신한 쏠(SOL) 앱에서 '학생증 체크카드'를 신청해요. 외국 국… #학생증 #대학원"
+  },
+  {
+   "id": "student-card/lost",
+   "kind": "answer",
+   "line": "체크카드(금융) 분실등록은 신한은행 콜센터에서 해요. 밤 9시 이후 교내 건물 출입에 쓰던 학생증이면 와우관 2층 종합통제실에서도 분실등록해요.… #학생증 #학생카드 #분실 #잃어버"
+  },
+  {
+   "id": "student-card/access",
+   "kind": "answer",
+   "line": "밤 9시(21시) 이후 서울캠퍼스 건물에 드나들어야 하면 학생증을 받은 뒤 와우관 2층 종합통제실에 가서 카드 사용등록을 해요. 잃어버렸을 때 … #학생증 #출입등록 #사용등록 #카드"
+  },
+  {
+   "id": "student-card/photo",
+   "kind": "answer",
+   "line": "모바일 학생증에 사진이 없거나 바꾸고 싶으면, 사진 파일과 신분증을 들고 소속 학과 사무실에 가서 변경 신청해요. 파일 이름은 '학번.jpg'로… #학생증 #사진"
+  },
+  {
+   "id": "student-card/mobile",
+   "kind": "answer",
+   "line": "'헤이영캠퍼스' 앱에서 홍익대학교를 고르고 클래스넷 아이디·비밀번호로 로그인한 뒤 '모바일 학생증 발급하기'를 눌러요(신한은행 계좌 인증 필요)… #모바일학생증 #모바일신분증 #학생증 #신분증 #모바일 #qr"
+  },
+  {
+   "id": "aircon/start",
+   "kind": "question",
+   "line": "어떤 상황인가요? (되묻기: 켜거나 끄고 싶어요 / 고장 난 것 같아요) #에어컨 #냉방",
+   "next": [
+    "aircon/on-off",
+    "aircon/broken"
+   ]
+  },
+  {
+   "id": "aircon/on-off",
+   "kind": "answer",
+   "line": "강의실·건물 에어컨(냉난방)을 켜고 끄는 건 아래 번호로 전화해 요청해요. 건물과 강의실 호수를 말하면 돼요. #에어컨 #냉방 #켜 #꺼 #춥 #덥"
+  },
+  {
+   "id": "aircon/broken",
+   "kind": "answer",
+   "line": "냉난방 설비 관리는 건설관리팀이 맡아요. 고장 난 건물·강의실 호수와 증상을 알려 주세요. #에어컨 #냉방 #고장 #물새"
+  },
+  {
+   "id": "wifi/start",
+   "kind": "question",
+   "line": "학교 와이파이는 'Hongik_wifi'예요. 아이디는 학번, 비밀번호는 학교 홈페이지 비밀번호예요. 어떤 기기로 연결하세요? (되묻기: 아이폰·아이패드 / 안드로이드폰(갤럭시 등) / 윈도우 노트북 / 맥북 / 아이디·비밀번호가 뭔가요? / 연결이 안 돼요 / 다른 학교에서 쓰고 싶어요(eduroam)) #와이파이 #와파",
+   "next": [
+    "wifi/ios",
+    "wifi/android",
+    "wifi/windows",
+    "wifi/mac",
+    "wifi/account",
+    "wifi/trouble",
+    "wifi/eduroam"
+   ]
+  },
+  {
+   "id": "wifi/ios",
+   "kind": "answer",
+   "line": "설정 › Wi-Fi에서 'Hongik_wifi'를 골라 학번과 학교 홈페이지 비밀번호를 넣어요. #와이파이 #와파 #아이폰 #아이패드"
+  },
+  {
+   "id": "wifi/android",
+   "kind": "answer",
+   "line": "'Hongik_wifi'를 골라 EAP 방식은 PEAP, CA 인증서는 '인증 안 함'으로 두고 학번과 학교 홈페이지 비밀번호를 넣어요. #와이파이 #와파 #안드로이드 #갤럭시"
+  },
+  {
+   "id": "wifi/windows",
+   "kind": "answer",
+   "line": "'Hongik_wifi'를 골라 [연결]을 누르고 사용자 이름에 학번, 암호에 학교 홈페이지 비밀번호를 넣어요(Windows 10 이상). #와이파이 #와파 #윈도우 #windows"
+  },
+  {
+   "id": "wifi/mac",
+   "kind": "answer",
+   "line": "Wi-Fi 신호 중 'Hongik_wifi'를 골라 계정 이름에 학번, 암호에 학교 홈페이지 비밀번호(대소문자 구분)를 넣고 연결해요. '인증서… #와이파이 #와파 #맥북 #macbook"
+  },
+  {
+   "id": "wifi/trouble",
+   "kind": "answer",
+   "line": "설정대로 했는데도 안 되면 정보전산원(정보통신센터 Q동 906호)에 문의해요. #와이파이 #와파 #안돼 #안되"
+  },
+  {
+   "id": "wifi/account",
+   "kind": "answer",
+   "line": "'Hongik_wifi' 아이디는 학번(알파벳은 대문자), 비밀번호는 학교 홈페이지 비밀번호예요. #와이파이 #와파 #비번 #비밀번호"
+  },
+  {
+   "id": "wifi/eduroam",
+   "kind": "answer",
+   "line": "eduroam은 가입한 국내외 대학·연구기관에서 함께 쓰는 와이파이예요. 'eduroam' 신호에 학번@hongik.ac.kr 과 학교 홈페이지… #eduroam #에듀롬 #와이파이 #와파 #다른학교 #타학교"
+  },
+  {
+   "id": "school-mail/start",
+   "kind": "question",
+   "line": "학생 학교 메일은 두 가지예요. 학교 Gmail(아이디@g.hongik.ac.kr)과 학생용 Office365(아이디@mail.hongik.ac… (되묻기: 학교 Gmail(@g.hongik.ac.kr) / Office365 메일(@mail.hongik.ac.kr) / 메일이 안 오거나 안 보내져요 / 해외에서 로그인이 막혀요 / 비밀번호를 잊었어요) #학교 #홍익 #메일주소 #이메일주소 #메일 #이메일",
+   "next": [
+    "school-mail/gmail",
+    "school-mail/office365",
+    "school-mail/not-working",
+    "school-mail/abroad",
+    "school-mail/password"
+   ]
+  },
+  {
+   "id": "school-mail/gmail",
+   "kind": "answer",
+   "line": "학교 Gmail은 gmail.hongik.ac.kr 에서 가입하고, 학교 통합로그인 아이디와 비밀번호로 로그인해요. 주소는 아이디@g.hongi… #gmail #지메일"
+  },
+  {
+   "id": "school-mail/office365",
+   "kind": "answer",
+   "line": "학생용 Office365는 재학생(학부·대학원)이 가입 페이지에서 계정을 만들면 바로 써요. 계정은 아이디@mail.hongik.ac.kr 이에… #office365 #오피스365 #로그인 #접속"
+  },
+  {
+   "id": "school-mail/password",
+   "kind": "answer",
+   "line": "학교 Gmail은 학교 통합로그인 아이디·비밀번호를 써요. 잊었으면 gmail.hongik.ac.kr 로그인 화면 안내대로 통합로그인(SSO) … #메일 #이메일 #비밀번호 #비번"
+  },
+  {
+   "id": "school-mail/not-working",
+   "kind": "answer",
+   "line": "학교 Gmail이 안 오거나 안 보내질 때 정보전산원이 안내하는 방법이에요. #메일 #이메일 #안와 #안옵"
+  },
+  {
+   "id": "school-mail/abroad",
+   "kind": "answer",
+   "line": "학교 Gmail은 해외에서 접속하면 차단돼요. 국내에서 gmail.hongik.ac.kr 에 로그인해 2차 인증(PIN 또는 OTP)을 설정해 … #메일 #이메일 #해외 #외국"
+  },
+  {
+   "id": "injury/start",
+   "kind": "question",
+   "line": "많이 다쳤으면 먼저 119에 연락하세요. 어떤 도움이 필요하세요? (되묻기: 학교에서 치료를 받고 싶어요 / 학교 보험으로 치료비를 받고 싶어요 / 많이 다쳤어요(응급)) #다쳤 #다치",
+   "next": [
+    "injury/clinic",
+    "injury/insurance",
+    "injury/emergency"
+   ]
+  },
+  {
+   "id": "injury/clinic",
+   "kind": "answer",
+   "line": "학생회관(G동) 1층 건강진료센터에서 내과 진료·투약과 일반적인 외상 치료, 일차 응급처치를 받을 수 있어요. 09:00~17:30(동절기 09… #건강진료 #보건실 #아파 #아픈"
+  },
+  {
+   "id": "injury/insurance",
+   "kind": "answer",
+   "line": "학교경영자배상책임보험 청구는 총무팀이 맡아요. 다친 경위를 말하고, 보상 대상인지와 낼 서류를 총무팀에 먼저 확인하세요. 병원 진단서와 진료비 … #보험 #보상 #다쳤 #다치 #배상책임 #학교경영자"
+  },
+  {
+   "id": "injury/emergency",
+   "kind": "answer",
+   "line": "생명이 위급하거나 크게 다쳤으면 바로 119에 전화하세요. 가벼운 상처는 학생회관(G동) 1층 건강진료센터에서 응급처치를 받을 수 있어요. #응급 #119"
+  },
+  {
+   "id": "dropout/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '자퇴' 답변이에요."
+  },
+  {
+   "id": "dropout/start",
+   "kind": "answer",
+   "line": "자퇴는 자퇴원서(학생·보호자 도장)를 써서 소속 학과 → 단과대학 행정실 → 장학팀 → 중앙도서관 대출실 확인 도장을 받은 뒤 학사지원팀에 내요… #자퇴 #중퇴 #환불 #환급 #학교 #대학"
+  },
+  {
+   "id": "return/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '복학' 답변이에요."
+  },
+  {
+   "id": "return/start",
+   "kind": "answer",
+   "line": "복학은 정해진 복학신청 기간에 클래스넷 › 학사/학적 › 휴/복학/휴학연장 신청 메뉴에서 해요. 휴학이 끝나도 저절로 복학되지 않아요. #복학 #복교 #전역 #제대 #학교 #상치복학"
+  },
+  {
+   "id": "reserve-forces/start",
+   "kind": "answer",
+   "line": "학생예비군은 클래스넷 › 학사/학적 › 예비군전입신고 메뉴에서 신청할 수 있어요. 아래는 그 안내가 실린 복학 안내예요. #예비군 #전입 #신고"
+  },
+  {
+   "id": "expulsion/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '제적' 답변이에요."
+  },
+  {
+   "id": "expulsion/faq1",
+   "kind": "answer",
+   "line": "학사 FAQ '성적경고와 제적' 답변이에요."
+  },
+  {
+   "id": "expulsion/start",
+   "kind": "answer",
+   "line": "제적은 등록하지 않았을 때(미등록), 휴학이 끝났는데 복학·휴학연장을 안 했을 때(미복학), 재학연한을 넘겼을 때, 성적경고를 연속 3번 받았을… #제적 #미복학"
+  },
+  {
+   "id": "readmission/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '재입학' 답변이에요."
+  },
+  {
+   "id": "readmission/start",
+   "kind": "answer",
+   "line": "자퇴·제적한 학생은 여석이 있으면 재입학을 신청할 수 있어요(2회까지). 1학기는 전년도 10월 중순~11월 중순, 2학기는 5월 초~5월 말에… #재입학 #다시입학 #자퇴 #제적 #다시다니 #다시다닐"
+  },
+  {
+   "id": "change-major/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '전과' 답변이에요."
+  },
+  {
+   "id": "change-major/start",
+   "kind": "answer",
+   "line": "전과는 재학 중 한 번만 할 수 있어요. 1·2학년 학생이 매년 11월 대학공지로 안내되는 전과 전형(취득학점·평점, 기초교과, 면접)에 지원해… #전과 #학점 #자격 #학과 #과를 #바꾸"
+  },
+  {
+   "id": "main-major/a0",
+   "kind": "answer",
+   "line": "학사 FAQ '주전공 선정' 답변이에요."
+  },
+  {
+   "id": "main-major/a1",
+   "kind": "answer",
+   "line": "학사 FAQ '주전공 변경' 답변이에요."
+  },
+  {
+   "id": "main-major/start",
+   "kind": "question",
+   "line": "주전공을 처음 정하는 건가요, 이미 정한 주전공을 바꾸는 건가요? (되묻기: 주전공 선정 / 주전공 변경) #주전공 #전공 #선정 #배정",
+   "next": [
+    "main-major/a0",
+    "main-major/a1"
+   ]
+  },
+  {
+   "id": "main-major-pick/start",
+   "kind": "answer",
+   "line": "학사 FAQ '주전공 선정' 답변이에요. #주전공 #세부전공 #선정 #정하 #자율전공 #전공"
+  },
+  {
+   "id": "main-major-change/start",
+   "kind": "answer",
+   "line": "학사 FAQ '주전공 변경' 답변이에요. #주전공 #세부전공 #변경 #바꾸"
+  },
+  {
+   "id": "academic-record/start",
+   "kind": "answer",
+   "line": "개명처럼 학적부에 적힌 성명·주민등록번호가 바뀌었으면 주민등록초본 원본·신분증·학적부 기재 정정원을 갖고 문헌관 1층 학사지원팀에 가거나 우편으… #학적부 #학적정정"
+  },
+  {
+   "id": "military-service/start",
+   "kind": "answer",
+   "line": "학사 FAQ '병무' 답변이에요. #병무 #병역 #군대 #입대 #연기 #미루"
+  },
+  {
+   "id": "military-leave/start",
+   "kind": "answer",
+   "line": "학사 FAQ '군입대휴학 신청 방법' 답변이에요. #군대가 #군대간"
+  },
+  {
+   "id": "double-major/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '복수전공 이수 요건' 답변이에요."
+  },
+  {
+   "id": "double-major/start",
+   "kind": "answer",
+   "line": "복수전공은 1월·7월 중순에 클래스넷으로 신청하고, 학과 면접을 거쳐 2월·8월 수강신청 전에 합격이 정해져요. 같은 캠퍼스는 2학년 이상·35… #복수전공 #복전 #학점 #자격"
+  },
+  {
+   "id": "minor/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '부전공' 답변이에요."
+  },
+  {
+   "id": "minor/start",
+   "kind": "answer",
+   "line": "부전공은 2학년 이상이고 직전 두 학기 평점평균이 B0(3.00) 이상이면 1월·7월에 클래스넷으로 신청해요. 지정과목 21학점 이상을 평균평점… #부전공 #학점 #자격"
+  },
+  {
+   "id": "convergence-major/start",
+   "kind": "answer",
+   "line": "융합전공은 여러 학과가 함께 여는 독립 전공과정이에요. 2학년 이상·35학점(2016학년도 이후 입학생은 33학점) 이상이면 1월·7월에 클래스… #융합전공 #융전 #학점 #자격"
+  },
+  {
+   "id": "fine-major/start",
+   "kind": "answer",
+   "line": "미세전공은 이미 있는 교과목을 몇 학점 단위로 묶은 작은 교육과정이에요. 정규학기 2학기 이상 등록하고 33학점 이상 딴 학생이 1월·7월에 클… #미세전공 #마이크로전공 #마이크로디그리 #학점 #자격"
+  },
+  {
+   "id": "teaching/start",
+   "kind": "answer",
+   "line": "중등학교 2급 정교사 자격증을 따려면 2학년 1학기에 교직과정 이수 신청서를 소속 학과장에게 내고, 3학년 1학기에 교직과정 이수 예정자로 뽑혀… #교직 #교원자격 #학점 #자격"
+  },
+  {
+   "id": "bachelor-master/start",
+   "kind": "answer",
+   "line": "정규 4학기(건축학·건축디자인전공은 6학기) 이상 마치고 수료학점을 채우고 총 평점평균이 B0(3.0) 이상이면 학·석사 연계과정에 지원할 수 … #학석사 #석사연계 #대학원 #학부때 #학부생때"
+  },
+  {
+   "id": "exchange/start",
+   "kind": "answer",
+   "line": "국외학점교류는 협약된 해외 자매대학에서 공부하고 딴 학점을 본교 학점으로 인정받는 제도예요(교환·방문·복수학위). 본교 내부선발 → 상대교 지원… #교환학생 #교류학생 #국외 #해외 #학점교류 #교류"
+  },
+  {
+   "id": "exchange-partners/start",
+   "kind": "answer",
+   "line": "본교와 협약한 국외 자매대학 목록이에요. 대학마다 학술교류(MoU)·교환학생(SEA)·방문학생(VSA)·복수학위(DDA) 중 어떤 교류를 하는지… #자매대학 #자매학교 #교환 #교류 #어느학교 #어느대학"
+  },
+  {
+   "id": "exchange-inbound/start",
+   "kind": "answer",
+   "line": "자매대학에서 선발·파견되어 홍익대에서 공부하는 교환학생 안내예요. 가을학기는 5월 31일, 봄학기는 전년도 11월 30일까지 지원해요. #외국인교환 #인바운드"
+  },
+  {
+   "id": "semester-retake/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '재수강(과목재수강 및 학기재수강)' 답변이에요."
+  },
+  {
+   "id": "semester-retake/start",
+   "kind": "answer",
+   "line": "학기재수강은 성적이 안 좋은 학기를 통째로 지우고 같은 학년·학기를 다시 다니는 제도예요. 지우려는 학기부터 직전 학기까지 모두 신청해야 하고,… #학기재수강 #학기재수 #학기 #학년 #통째 #통으로"
+  },
+  {
+   "id": "retake-predelete/start",
+   "kind": "answer",
+   "line": "학사 FAQ '4학년 학생의 과목재수강 선삭제' 답변이에요. #선삭제 #먼저삭제 #재수강 #재수 #4학년 #미리"
+  },
+  {
+   "id": "course-retake/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '재수강(과목재수강 및 학기재수강)' 답변이에요."
+  },
+  {
+   "id": "course-retake/faq1",
+   "kind": "answer",
+   "line": "학사 FAQ '4학년 학생의 과목재수강 선삭제' 답변이에요."
+  },
+  {
+   "id": "course-retake/start",
+   "kind": "answer",
+   "line": "C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능). 학기당 1과목까지(F 과목은 개수에서… #재수강 #재수 #계절"
+  },
+  {
+   "id": "course-change/start",
+   "kind": "answer",
+   "line": "수강정정은 개강일부터 일주일 동안 수강신청시스템(sugang.hongik.ac.kr)에서 해요. 인원이 다 찬 과목은 학생 클래스넷 › 수강신청… #수강정정 #정정기간"
+  },
+  {
+   "id": "course-drop/start",
+   "kind": "answer",
+   "line": "수강철회는 정정기간이 끝난 뒤 2~3일, 그리고 개강 후 3~4주차 중 2일(추가 수강철회)에 클래스넷 › 수강신청 › 정규학기 수강신청 › 「… #수강철회 #철회"
+  },
+  {
+   "id": "course-cancelled/start",
+   "kind": "answer",
+   "line": "폐강 공고는 수강철회 기간이 끝난 뒤 대학공지·학생 클래스넷 공지에 올라오고, 학생이 직접 확인해야 해요. 폐강된 과목은 공고일부터 하루 동안 … #폐강"
+  },
+  {
+   "id": "classes/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '학점 및 성적관리' 답변이에요."
+  },
+  {
+   "id": "classes/start",
+   "kind": "answer",
+   "line": "수강신청은 수강과목 사전선택(미리 담아두기) → 학년별 수강신청(4·3·2·1학년 순) → 개강 후 일주일 수강정정 → 수강철회 순서예요. 자세… #수강신청 #수강싱청 #수강"
+  },
+  {
+   "id": "military-elearning/start",
+   "kind": "answer",
+   "line": "군 휴학 중(입영 또는 복무 중)에는 국방부 e-러닝(나라사랑포털)으로 본교 정규학기 사이버강좌 중 교양교과목을 들을 수 있어요. 한 학기 최대… #군이러닝 #군e러닝 #군 #입대 #이러닝 #e러닝"
+  },
+  {
+   "id": "ocu/start",
+   "kind": "answer",
+   "line": "OCU(한국열린사이버대학교) 공동개설교과목은 3학년 이상 재학생이 본교 클래스넷으로 수강신청하고, 일반선택으로 인정돼요. 시스템사용료를 안 내면… #ocu #열린사이버"
+  },
+  {
+   "id": "special-liberal/start",
+   "kind": "answer",
+   "line": "2019학번부터는 특성화교양 3과목(컴퓨팅사고·디자인씽킹·창업과실용법률) 중 1과목을 따야 졸업할 수 있어요. 단과대학·전공에 따라 들을 수 없… #특성화교양 #컴퓨팅사고"
+  },
+  {
+   "id": "cyber/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '사이버강좌 수강안내' 답변이에요."
+  },
+  {
+   "id": "cyber/start",
+   "kind": "answer",
+   "line": "사이버강좌는 학기당 최대 2과목(외국인 학생은 1과목)까지 듣고, 졸업까지 2022학번부터 누적 24학점, 2016~2021학번 26학점, 20… #사이버강좌 #사이버강의"
+  },
+  {
+   "id": "pf/start",
+   "kind": "answer",
+   "line": "학사 FAQ 'PF 교과목' 답변이에요. #pf #패스페일"
+  },
+  {
+   "id": "english-course/start",
+   "kind": "answer",
+   "line": "학사 FAQ '영어전용강좌' 답변이에요. #영어전용 #영어강의"
+  },
+  {
+   "id": "job-absence/start",
+   "kind": "answer",
+   "line": "학사 FAQ '취업공결제 관련 안내' 답변이에요. #취업공결 #조기취업 #취업 #회사 #출석 #결석"
+  },
+  {
+   "id": "attendance/start",
+   "kind": "answer",
+   "line": "학사 FAQ '출석인정 절차 안내' 답변이에요. #출석인정 #출결인정 #예비군 #민방위 #출석 #결석"
+  },
+  {
+   "id": "absence-limit/start",
+   "kind": "answer",
+   "line": "한 학기 수업시간의 3분의 1 이상 결석한 과목은 성적을 인정하지 않아요. 시험·과제 점수와 상관없이 F가 되니, 필수과목이면 다시 들어야 해요… #결석 #출석 #몇번 #몇회"
+  },
+  {
+   "id": "seasonal/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '수강신청' 안내예요."
+  },
+  {
+   "id": "seasonal/start",
+   "kind": "answer",
+   "line": "계절학기는 15일 동안 열리고, 수강신청은 1차 학년별 → 2차 전학년(하루) → 수강철회 → 폐강과목 공지 순서예요. 수강료는 고지서의 전체 … #계절학기 #계절수업"
+  },
+  {
+   "id": "military-grade/start",
+   "kind": "answer",
+   "line": "학사 FAQ '기말고사 전에 군입대하는 경우 성적처리' 답변이에요. #군입대 #입대 #성적 #기말"
+  },
+  {
+   "id": "grade-check/start",
+   "kind": "answer",
+   "line": "학사 FAQ '성적확인' 답변이에요. #성적확인 #성적조회 #성적 #학점 #언제 #나와"
+  },
+  {
+   "id": "gpa/start",
+   "kind": "answer",
+   "line": "학사 FAQ '평점계산 및 백점으로 환산하는 방법' 답변이에요. #평점 #평균평점"
+  },
+  {
+   "id": "warning/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '성적경고와 제적' 답변이에요."
+  },
+  {
+   "id": "warning/start",
+   "kind": "answer",
+   "line": "직전 학기 평균평점이 1.75에 못 미치거나 F가 2과목 이상이면 성적경고를 받아요. 성적경고를 받으면 이수학점이 제한될 수 있고, 3개 학기 … #성적경고 #학사경고 #제적 #3번 #경고 #성적"
+  },
+  {
+   "id": "relative-grading/start",
+   "kind": "answer",
+   "line": "교양·1~3학년 전공·전공기초·일반선택은 상대평가예요. 21명 이상 수업은 A가 최대 40%, A+B가 최대 80%이고, 4·5학년 전공과 영어… #상대평가 #절대평가"
+  },
+  {
+   "id": "credit-limit/start",
+   "kind": "answer",
+   "line": "한 학기에는 12학점 이상 17학점까지 듣는 게 원칙이에요(2015학년도 이전 입학생은 18학점까지). 직전 학기 성적이 평균 B+ 이상이면 3… #최대학점 #최소학점"
+  },
+  {
+   "id": "grades/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '성적확인' 답변이에요."
+  },
+  {
+   "id": "grades/faq1",
+   "kind": "answer",
+   "line": "학사 FAQ '학점 및 성적관리' 답변이에요."
+  },
+  {
+   "id": "grades/start",
+   "kind": "answer",
+   "line": "성적은 A+(4.5)부터 F(0.0)까지 매기고, D0 이상이 취득학점이 돼요. 수업의 3분의 1 이상 결석한 과목은 F이고, 한 학기에 12~… #성적 #학점"
+  },
+  {
+   "id": "early-graduation/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '조기졸업' 답변이에요."
+  },
+  {
+   "id": "early-graduation/start",
+   "kind": "answer",
+   "line": "7학기(5년제 건축학전공은 9학기) 동안 졸업요건을 모두 채우고 평균평점이 A0(4.0) 이상이면 조기졸업을 신청할 수 있어요(편입생 제외). … #조기졸업 #일찍졸업"
+  },
+  {
+   "id": "deferred/start",
+   "kind": "answer",
+   "line": "졸업요건을 다 채우고도 졸업을 미루고 싶으면 학사학위취득유예를 신청해요. 1학기는 5월 초~7월 말, 2학기는 11월 초~1월 말에 클래스넷에서… #졸업유예 #학위취득유예"
+  },
+  {
+   "id": "thesis/start",
+   "kind": "answer",
+   "line": "학사 FAQ '졸업논문' 답변이에요. #졸업논문 #졸논"
+  },
+  {
+   "id": "graduation-credit/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '졸업논문' 답변이에요."
+  },
+  {
+   "id": "graduation-credit/faq1",
+   "kind": "answer",
+   "line": "학사 FAQ '수료학점 및 수료(예정)증명서' 답변이에요."
+  },
+  {
+   "id": "graduation-credit/start",
+   "kind": "answer",
+   "line": "학교 안내의 4학년 수료 요건은 정규 8학기 이상 등록과 132학점 이상 취득이에요(2015학년도 입학생까지는 140학점). 4학년은 졸업논문을… #졸업학점 #졸업요건 #졸업 #학점 #몇학점"
+  },
+  {
+   "id": "completion/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '수료학점 및 수료(예정)증명서' 답변이에요."
+  },
+  {
+   "id": "completion/start",
+   "kind": "answer",
+   "line": "수료는 학년마다 정해진 학기 이상 등록하고 학점을 채우면 인정돼요. 2016학년도 입학생부터 4학년 수료는 정규 8학기 이상 등록과 132학점 … #수료"
+  },
+  {
+   "id": "installment/start",
+   "kind": "answer",
+   "line": "학사 FAQ '등록금 연기(분할납부)' 답변이에요. #분할납부 #분납 #등록금 #납부 #분할"
+  },
+  {
+   "id": "excess-semester/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '미졸업자(학기 초과자)의 등록금' 답변이에요."
+  },
+  {
+   "id": "excess-semester/start",
+   "kind": "answer",
+   "line": "8학기(5년제 10학기)를 마치고 졸업을 못 했으면 수강신청한 학점에 따라 등록금을 내요(1~3학점 1/6, 4~6학점 1/3, 7~9학점 1/… #학기초과 #초과학기 #졸업못 #졸업을못 #등록금 #등록"
+  },
+  {
+   "id": "registration-zero/start",
+   "kind": "answer",
+   "line": "장학금으로 낼 돈이 0원이어도 등록은 꼭 해야 해요. 클래스넷 > 등록(고지서/납부확인서)에서 [전액장학금 수혜자 0원 등록] 버튼을 누르면 돼… #0원등록 #등록금0원 #0원 #고지서 #등록금 #안내도"
+  },
+  {
+   "id": "tuition-receipt/start",
+   "kind": "answer",
+   "line": "등록금납부확인서는 등록금을 낸 다음 날 정오 이후(토·일 제외)부터 클래스넷 '고지서/납입증명서 출력 → 등록금납부확인서'에서 볼 수 있어요. #납부확인서 #납입증명서 #등록금 #납부 #증명서 #확인서"
+  },
+  {
+   "id": "tuition-refund/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '휴학과 등록금의 관계' 답변이에요."
+  },
+  {
+   "id": "tuition-refund/start",
+   "kind": "answer",
+   "line": "낸 등록금은 개인 사정으로 중간에 돌려받을 수 없고, 휴학하면 복학 학기 등록금으로만 써요. 미복학 제적 때 돌려받는 기준과 서류는 아래 '휴학… #등록금 #납부금 #환불 #반환"
+  },
+  {
+   "id": "tuition-committee/start",
+   "kind": "answer",
+   "line": "등록금심의위원회 회의록을 학년도별로 공개해요. 회차마다 회의록 PDF를 볼 수 있어요. #등록금심의 #등심위"
+  },
+  {
+   "id": "registration/start",
+   "kind": "answer",
+   "line": "등록금은 1학기 2월 말, 2학기 8월 말 등록기간에 클래스넷에서 고지서를 출력해 내요. 고지서의 신한은행 가상계좌로 이체하거나 신한·농협·국민… #등록금 #고지서"
+  },
+  {
+   "id": "scholarship-hide/start",
+   "kind": "answer",
+   "line": "학사 FAQ '부모님 직장에서 지원하는 학자금 지원을 이중으로 받기 위해 학교 장학금을 숨길 수 있나?' 답변이에요. #직장 #회사 #학자금 #장학 #숨기 #숨길"
+  },
+  {
+   "id": "double-support/start",
+   "kind": "answer",
+   "line": "한 학기에 받은 장학금(교내+교외+국가)과 학자금대출을 합한 돈이 등록금을 넘으면, 넘은 만큼 1개월 안에 대출을 갚거나 장학금을 돌려줘야 해요… #중복지원 #학자금중복 #장학금 #대출 #학자금 #중복"
+  },
+  {
+   "id": "loan/start",
+   "kind": "answer",
+   "line": "학자금대출은 한국장학재단 제도로, 등록금(수업료)과 생활비(숙식비·교재비·교통비 등)로 나눠요. 취업 후 상환, 일반 상환, 농촌출신대학생 학자… #학자금대출 #학자금"
+  },
+  {
+   "id": "scholarship-income10/start",
+   "kind": "answer",
+   "line": "학사 FAQ '소득분위가 10분위라서 국가장학금 신청을 안했는데 교내장학금은 받을 수 있나?' 답변이에요. #10분위 #십분위"
+  },
+  {
+   "id": "scholarship-double/start",
+   "kind": "answer",
+   "line": "학사 FAQ '장학금을 여러 개 동시에 받을 수 있나?' 답변이에요. #장학 #국가장학 #중복수혜 #이중수혜"
+  },
+  {
+   "id": "national-excellence/start",
+   "kind": "answer",
+   "line": "국가우수장학금(이공계)은 자연과학·공학계열, 인문100년은 인문·사회계열, 예술체육비전은 미술대학·공연예술학부의 1학년 또는 3학년이 대상이에요… #국가우수 #이공계장학"
+  },
+  {
+   "id": "national-work/start",
+   "kind": "answer",
+   "line": "국가근로장학은 한국장학재단이 정한 가계곤란 자격(소득분위·성적·학기 수 등)에 맞는 학생이 한국장학재단 홈페이지에서 신청해요. 신청은 매 학기 … #국가근로 #국근"
+  },
+  {
+   "id": "work-wage/start",
+   "kind": "answer",
+   "line": "학사 FAQ '국가근로 근무시간과 시급은?' 답변이에요. #근로 #국근 #시급 #시간당"
+  },
+  {
+   "id": "school-work/start",
+   "kind": "answer",
+   "line": "학사 FAQ '행정부서 및 학과에서 근무하는 봉사장학생의 선발 절차 및 자격요건은?' 답변이에요. #교내근로 #봉사장학"
+  },
+  {
+   "id": "outside-scholarship/start",
+   "kind": "answer",
+   "line": "교외장학금은 장학재단·기업·정부기관·지자체 같은 외부 단체가 주는 장학금이에요. 공개모집은 학교 홈페이지 게시판에 공고가 올라오고, 받은 장학금… #교외장학 #외부장학 #장학 #외부 #기업"
+  },
+  {
+   "id": "national-scholarship/start",
+   "kind": "answer",
+   "line": "국가장학금(1·2유형)은 소득분위 9분위 이내이고 성적 요건을 채운 학생이 한국장학재단 홈페이지에서 신청해요. 신청은 매 학기 말(신입생은 3월… #국가장학 #국장"
+  },
+  {
+   "id": "scholarship-sibling/start",
+   "kind": "answer",
+   "line": "학사 FAQ '형제와 같이 우리 대학교에 입학할 경우 관련 장학금이 있나?' 답변이에요. #장학 #형제 #자매"
+  },
+  {
+   "id": "scholarship-equal/start",
+   "kind": "answer",
+   "line": "학사 FAQ '고른기회전형으로 입학하면 교내장학금을 받을 수 있나?' 답변이에요. #고른기회"
+  },
+  {
+   "id": "scholarship-freshman/start",
+   "kind": "answer",
+   "line": "학사 FAQ '신입생은 1학년 1학기에 교내장학금을 못 받는지?' 답변이에요. #장학 #신입생 #새내기"
+  },
+  {
+   "id": "scholarship-15credits/start",
+   "kind": "answer",
+   "line": "학사 FAQ '직전학기 15학점 이상 이수 요건이 적용되지 않는 장학금도 있나?' 답변이에요. #장학 #15학점 #학점미달"
+  },
+  {
+   "id": "scholarship-volunteer/start",
+   "kind": "answer",
+   "line": "교내 성적우수 장학금 중 홍익인간·자주·창조·협동 4종은 직전 학기 기간에 사회봉사활동 실적이 10시간 이상이어야 받아요(26-2학기 선발부터,… #장학 #봉사시간 #봉사활동"
+  },
+  {
+   "id": "scholarship-criteria/start",
+   "kind": "answer",
+   "line": "학사 FAQ '장학금 종류와 장학금 최저 기준은?' 답변이에요. #장학 #기준 #최저"
+  },
+  {
+   "id": "scholarship-check/start",
+   "kind": "answer",
+   "line": "장학금을 받았는지는 학생클래스넷 > 장학/사회봉사활동 > 장학금 수혜내역 조회에서 확인해요. 입학 뒤 받은 장학금 내역은 인터넷증명발급에서 장학… #장학 #결과 #조회"
+  },
+  {
+   "id": "scholarship-pay/start",
+   "kind": "answer",
+   "line": "교내장학금(7종)과 계속지급장학금(입학성적·보훈 등)은 등록금 고지서에서 미리 빼 줘요. 봉사·공로장학금처럼 학기 중에 뽑거나 특정 자격으로 받… #장학 #입금 #들어와"
+  },
+  {
+   "id": "scholarship-rules/start",
+   "kind": "answer",
+   "line": "홍익대학교 장학금지급규정이에요. 장학생 선정과 장학금 지급에 필요한 사항(장학금 종류, 지급 기준, 수혜 자격)을 정해 둔 규정이에요. #장학금지급규정 #장학규정"
+  },
+  {
+   "id": "scholarship/faq0",
+   "kind": "answer",
+   "line": "학사 FAQ '교내 7종 장학금(홍익인간, 자주, 창조, 협동, 정진, 한마음, 면학) 신청 방법은?' 답변이에요."
+  },
+  {
+   "id": "scholarship/faq1",
+   "kind": "answer",
+   "line": "학사 FAQ '장학금 종류와 장학금 최저 기준은?' 답변이에요."
+  },
+  {
+   "id": "scholarship/start",
+   "kind": "answer",
+   "line": "교내장학금 대부분(7종)은 따로 신청하지 않아요. 매 학기 한국장학재단 국가장학금 1차 신청을 하면 자동으로 신청되고, 성적이 나온 뒤 학과가 … #장학 #홍익인간"
+  },
+  {
+   "id": "certificate-kiosk/start",
+   "kind": "answer",
+   "line": "학적증명서는 문헌관(MH동) 1층 증명서 발급기에서 08:00~21:00에 뗄 수 있어요. 인터넷증명발급센터에서도 발급돼요. #증명서 #증명발급 #발급기 #무인 #증명서발급기 #증명발급기"
+  },
+  {
+   "id": "certificate-mail/start",
+   "kind": "answer",
+   "line": "행정복지(주민)센터에서 FAX민원으로 신청하면 3시간 이내에 받을 수 있어요. 우편민원은 우체국에서 신청하고 평일 기준 3~5일 걸려요. 1부 … #증명서 #증명발급 #팩스 #fax"
+  },
+  {
+   "id": "certificate/start",
+   "kind": "answer",
+   "line": "학적증명서(재학·졸업·성적 등)는 인터넷증명발급센터나 문헌관(MH동) 1층 발급기(08:00~21:00)에서 뗄 수 있어요. #증명서 #재학증명 #성적표 #출력 #뽑"
+  },
+  {
+   "id": "cafeteria/start",
+   "kind": "answer",
+   "line": "학생식당(기숙사식당)은 제2기숙사 지하2층에 있어요. 학생은 아침 1,000원(천원의 아침밥, 정원 초과 시 5,800원), 점심·저녁 5,80… #학식 #학생식당 #점심 #저녁 #밥 #먹"
+  },
+  {
+   "id": "cafe/start",
+   "kind": "answer",
+   "line": "교내 카페는 인문사회관(A동) 1층 카페드림, 홍문관(R동) 2층 그라찌에·파브리카, 중앙도서관(H동) 3층 북카페, 제2기숙사 지하1층 캠퍼 … #카페 #커피 #기숙사 #생활관"
+  },
+  {
+   "id": "convenience-store/start",
+   "kind": "answer",
+   "line": "편의점은 제2기숙사 지하1층 이마트24(24시간)와 홍문관(R동) 3층 바이스마트(무인운영 05:30~23:00)가 있어요. #편의점 #매점 #기숙사 #생활관"
+  },
+  {
+   "id": "bank/start",
+   "kind": "answer",
+   "line": "홍문관(R동) 로비층에 신한은행이 있어요. 영업점은 평일 09:00~16:00, 자동화기기(ATM)는 07:00~23:30에 쓸 수 있어요. #은행 #atm"
+  },
+  {
+   "id": "print-center/start",
+   "kind": "answer",
+   "line": "출력센터(에이제이네트웍스)는 학생회관(G동) 1층과 홍문관(R동) 지하2층에 있어요. 각 건물 출력기에서 후불교통카드(T-머니·신용카드)로 사이… #출력센터 #출력기 #프린트 #프린터 #학생회관 #홍문관"
+  },
+  {
+   "id": "bookstore/start",
+   "kind": "answer",
+   "line": "서점(대학서적)은 홍문관(R동) 지하2층, 문구·화방(한가람문구)은 홍문관(R동) 로비층에 있어요. #서점 #문구"
+  },
+  {
+   "id": "photo-studio/start",
+   "kind": "answer",
+   "line": "사진관(스튜디오홍대)은 홍문관(R동) 지하2층에 있어요. 증명사진(반명함·여권·비자 등)과 학사모 촬영을 해요. #사진관 #증명사진"
+  },
+  {
+   "id": "facility/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 카페·편의점·서점·문구·은행 같은 편의시설의 위치·전화·영업시간이에요. #편의시설 #여행사"
+  },
+  {
+   "id": "makerspace/start",
+   "kind": "answer",
+   "line": "홍익 메이커스페이스는 제2기숙사 지하 1·2층에 있는 제작·교육 공간이에요. 정규 안전교육을 이수한 재학생은 공유 공간과 3D프린터·레이저 커팅… #메이커스페이스 #메이커"
+  },
+  {
+   "id": "facility-rental/start",
+   "kind": "answer",
+   "line": "체육관·대운동장 같은 체육시설은 관재팀에 문의해 이용해요. 대운동장과 농구장은 학기 전에 학생지원팀이 일괄 추첨하고, 학기 중에는 관재팀에 문의… #대관 #빌리 #운동장 #체육관 #시설대관 #장소대관"
+  },
+  {
+   "id": "gym/start",
+   "kind": "answer",
+   "line": "체력단련실(헬스장)은 제2기숙사 지하 4층에 있고 07:00~22:00에 열어요. 재학생은 제2기숙사 지하 3층 헬스반에서 일반회원으로 등록해 … #헬스 #체력단련 #기숙사 #생활관 #학생증 #이용"
+  },
+  {
+   "id": "sports/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 체육시설(농구장·배구장·탁구장·대운동장 등)의 위치·이용시간·이용방법이에요. #체육관 #운동장"
+  },
+  {
+   "id": "dorm-apply/start",
+   "kind": "answer",
+   "line": "기숙사는 홈페이지(dormitory.hongik.ac.kr)에서 온라인으로 지원해요. 1학기는 매년 1월부터 신입생·재학생·복학생 순으로 모집하… #기숙사 #생활관 #신청 #지원"
+  },
+  {
+   "id": "dorm-rooms/start",
+   "kind": "answer",
+   "line": "제2기숙사(와우산로 94)는 2인 1실, 제3기숙사(성미산로 55)는 1인 1실(남)·2인 1실이에요. 방마다 화장실·샤워실이 있고, 이불·베개… #기숙사 #생활관 #시설 #방"
+  },
+  {
+   "id": "dorm/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 기숙사는 성적을 고려해 선발하고, 기숙사 홈페이지(dormitory.hongik.ac.kr)에서 온라인으로 지원해요. #기숙사 #생활관"
+  },
+  {
+   "id": "pc-room/start",
+   "kind": "answer",
+   "line": "공용 PC실 C414·R915는 학기 중 09:00~20:00(방학 중 09:00~17:00)에 열어요. B105·K611은 학기 중 09:00… #컴퓨터실 #pc실 #프린터 #프린트"
+  },
+  {
+   "id": "psych-test/start",
+   "kind": "answer",
+   "line": "학생상담센터에서 MMPI-2·MBTI·TCI·Holland 같은 심리검사를 받을 수 있어요. 신청서를 내면 검사를 하고, 결과는 전문 상담사와 … #심리검사 #mbti"
+  },
+  {
+   "id": "counseling/start",
+   "kind": "answer",
+   "line": "학생상담센터는 재학생에게 심리상담·심리검사·특강을 제공해요. 개인상담은 신청서를 내면 접수상담과 심리검사 뒤 상담자를 배정해 주 1회(50분) … #상담센터 #학생상담 #유학생 #외국인 #상담"
+  },
+  {
+   "id": "human-rights/start",
+   "kind": "answer",
+   "line": "인권센터는 성희롱·성폭력·괴롭힘 같은 인권침해 피해를 접수하고 상담해요. 피해자에게는 심리상담과 보호·법적·의료적 지원을 연계해요. #인권 #성희롱"
+  },
+  {
+   "id": "disability/start",
+   "kind": "answer",
+   "line": "장애학생지원센터는 우선수강신청, 교육지원인력(도우미·속기사·수어통역), 시험 등 수업 편의, 기숙사 장애인실 우선배정, 복지장학금을 지원해요. #장애학생 #장애인 #장애 #기숙사 #수강신청"
+  },
+  {
+   "id": "field-practice/start",
+   "kind": "answer",
+   "line": "표준현장실습학기제는 3·4·5학년이 기업 등 실습기관에서 1~2개월(단기) 또는 3~6개월(장기) 현장실습을 하는 제도예요. #현장실습 #인턴 #학점 #신청"
+  },
+  {
+   "id": "language-test-fee/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 4학기 이상 이수한 재학생에게 어학인증시험 응시료를 응시장학금으로 지원해요(TOEIC·TOEFL·OPIc·IELTS 등 11종… #응시료 #응시장학 #토익 #토플 #지원 #장학"
+  },
+  {
+   "id": "career-consulting/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 3·4학년에게 취업 컨설턴트와 1:1 대면 컨설팅(취업상담·이력서·자기소개서 첨삭·면접코칭)을 해요. 4학년은 실전모의면접도 … #자소서 #자기소개서"
+  },
+  {
+   "id": "career/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 취업교과목, 1:1 취업 컨설팅, 취업특강·취업스쿨, 현직자 멘토링, 현장실습, 기업 추천채용 같은 취업지원 프로그램을 운영해… #취업 #진로"
+  },
+  {
+   "id": "hive/start",
+   "kind": "answer",
+   "line": "HIVe(하이브)는 창업에 관심 있는 학생들의 벤처창업기관이에요. 3월·9월에 신규 부원을 모집하고 창업 팀을 꾸려요. #하이브 #hive"
+  },
+  {
+   "id": "startup/start",
+   "kind": "answer",
+   "line": "창업교육센터는 창업 교과목, 홍익인 창업페스티벌(창업경진대회), 창업동아리·창업캠프, 창업장학금, 창업특강을 운영해요. #창업 #스타트업"
+  },
+  {
+   "id": "learning/start",
+   "kind": "answer",
+   "line": "교수학습지원센터는 학습법·학습전략 워크숍, 스터디그룹, 글쓰기 워크숍·클리닉 같은 학습·소통 프로그램을 운영해요. 일정과 신청은 학교 학생공지와… #교수학습 #학습지원"
+  },
+  {
+   "id": "overseas-volunteer/start",
+   "kind": "answer",
+   "line": "홍익국제사회봉사단은 학생지원팀이 공지·신청서 접수·면접으로 참가자를 뽑아요. 봉사 후 결과보고서를 내면 사회봉사 1학점을 받아요. 월드프렌즈코리… #해외봉사 #국제봉사"
+  },
+  {
+   "id": "volunteer-cert/start",
+   "kind": "answer",
+   "line": "사회봉사활동 확인서는 클래스넷에서 직접 출력해요. 학교 주관 봉사활동(사회봉사과목·해외봉사·농촌봉사 등) 내역만 발급되니, 외부 봉사 증빙 원본… #봉사 #확인서 #증명서"
+  },
+  {
+   "id": "volunteer/start",
+   "kind": "answer",
+   "line": "사회봉사활동 실적은 봉사활동 증명서·상장 같은 증빙 사본을 학부(과) 사무실에 내면 등록돼요. 실적은 교내장학생(홍익인간·자주·창조·협동) 선발… #사회봉사 #봉사활동"
+  },
+  {
+   "id": "isic/start",
+   "kind": "answer",
+   "line": "ISIC 국제학생증은 학부·대학원 재학생과 휴학생이 ISIC 홈페이지에서 신청해요(졸업생은 신청할 수 없어요). #국제학생증 #isic #발급 #신청"
+  },
+  {
+   "id": "council/start",
+   "kind": "answer",
+   "line": "총학생회는 학생 자치기구예요. 학생복지위원회가 택배 대리 수령·물품 대여 같은 상시 사업을, 총졸업준비위원회가 졸업 앨범 업무를 맡아요. 총학생… #총학생회 #총학"
+  },
+  {
+   "id": "council-architecture/start",
+   "kind": "answer",
+   "line": "건축도시대학 학생회실은 와우관(L동) 5층 503호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #건축도시 #건도대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-art/start",
+   "kind": "answer",
+   "line": "미술대학 학생회실은 학생회관(G동) 3층 315호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #미술대학 #미대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-business/start",
+   "kind": "answer",
+   "line": "경영대학 학생회실은 인문사회관(B동) 1층 103호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #경영대학 #경영대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-autonomous/start",
+   "kind": "answer",
+   "line": "캠퍼스자율전공 학생회실은 학생회관(G동) 3층 316호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #캠퍼스자율전공 #캠자 #학생회 #학생회실"
+  },
+  {
+   "id": "council-design-management/start",
+   "kind": "answer",
+   "line": "디자인경영융합학부 학생회 조직·집행부·월별 행사 안내예요. #디자인경영 #디예경 #학생회 #학생회실"
+  },
+  {
+   "id": "council-economics/start",
+   "kind": "answer",
+   "line": "경제학부 학생회실은 인문사회관(C동) 2층 208호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #경제학부 #경제학과 #학생회 #학생회실"
+  },
+  {
+   "id": "council-education/start",
+   "kind": "answer",
+   "line": "사범대학 학생회실은 인문사회관(C동) 6층 639호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #사범대학 #사범대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-engineering/start",
+   "kind": "answer",
+   "line": "공과대학 학생회실은 제1공학관(K동) 6층 607호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #공과대학 #공대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-law/start",
+   "kind": "answer",
+   "line": "법과대학 학생회실은 홍문관(R동) 4층 412호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #법과대학 #법대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-liberal-arts/start",
+   "kind": "answer",
+   "line": "문과대학 학생회실은 인문사회관(C동) 2층 207호에 있어요. 학생회 조직·집행부·월별 행사 안내예요. #문과대학 #문과대 #학생회 #학생회실"
+  },
+  {
+   "id": "council-performing-arts/start",
+   "kind": "answer",
+   "line": "공연예술학부 학생회실은 대학로캠퍼스 교육동 지하층(220-1호 뮤지컬전공, 220-2호 실용음악)에 있어요. 학생회 조직·집행부·월별 행사 안내… #공연예술 #뮤지컬전공 #학생회 #학생회실"
+  },
+  {
+   "id": "hongaram/start",
+   "kind": "answer",
+   "line": "홍아람은 홍익대학교 공식 홍보대사단이에요. 캠퍼스 투어·의전 활동 등을 하고, 신입기수는 11월에 모집·면접을 거쳐 12월에 선발해요. #홍아람 #홍보대사"
+  },
+  {
+   "id": "vois/start",
+   "kind": "answer",
+   "line": "VOIS(유학생위원회)는 학부 유학생들이 만든 커뮤니티예요. 수강신청·외국인등록증(ARC) 신청을 돕고 건강보험 같은 행정 절차를 지원해요. #vois #유학생위원회"
+  },
+  {
+   "id": "hisc/start",
+   "kind": "answer",
+   "line": "HISC는 홍익대 학부생과 교환학생으로 이뤄진 국제학생회예요. 교환학생의 학교생활 적응을 돕고 문화행사를 열어요. #hisc #국제학생회"
+  },
+  {
+   "id": "club-performance/start",
+   "kind": "answer",
+   "line": "총동아리연합회 공연 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #밴드 #공연 #블랙테트라 #뚜라미"
+  },
+  {
+   "id": "club-sports/start",
+   "kind": "answer",
+   "line": "총동아리연합회 스포츠 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #운동 #스포츠 #일레븐킥스 #위너스"
+  },
+  {
+   "id": "club-leisure/start",
+   "kind": "answer",
+   "line": "총동아리연합회 레저 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #볼링 #등산 #볼케이노 #터사랑"
+  },
+  {
+   "id": "club-academic/start",
+   "kind": "answer",
+   "line": "총동아리연합회 학술 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #학술 #영어회화 #보에라 #hicc"
+  },
+  {
+   "id": "club-religion/start",
+   "kind": "answer",
+   "line": "총동아리연합회 종교 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #종교 #기독교 #가듐 #ccc"
+  },
+  {
+   "id": "club-society/start",
+   "kind": "answer",
+   "line": "총동아리연합회 사회 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #봉사 #봉사활동 #그루터기 #멍냥부리"
+  },
+  {
+   "id": "club-exhibition/start",
+   "kind": "answer",
+   "line": "총동아리연합회 전시 분과 중앙동아리예요. 동아리마다 소개와 동아리방 위치가 있어요. #동아리 #중앙동아리 #전시 #사진 #글샘문학회 #모래알사진반"
+  },
+  {
+   "id": "clubs/p0",
+   "kind": "answer",
+   "line": "총동아리연합회 '공연' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p1",
+   "kind": "answer",
+   "line": "총동아리연합회 '스포츠' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p2",
+   "kind": "answer",
+   "line": "총동아리연합회 '레저' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p3",
+   "kind": "answer",
+   "line": "총동아리연합회 '학술' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p4",
+   "kind": "answer",
+   "line": "총동아리연합회 '종교' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p5",
+   "kind": "answer",
+   "line": "총동아리연합회 '사회' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/p6",
+   "kind": "answer",
+   "line": "총동아리연합회 '전시' 분과 동아리예요."
+  },
+  {
+   "id": "clubs/start",
+   "kind": "question",
+   "line": "어떤 분야 동아리가 궁금하세요? (총동아리연합회 중앙동아리) (되묻기: 공연 / 스포츠 / 레저 / 학술 / 종교 / 사회 / 전시) #동아리 #총동아리",
+   "next": [
+    "clubs/p0",
+    "clubs/p1",
+    "clubs/p2",
+    "clubs/p3",
+    "clubs/p4",
+    "clubs/p5",
+    "clubs/p6"
+   ]
+  },
+  {
+   "id": "office365/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '비밀번호 재설정 안내' 안내예요."
+  },
+  {
+   "id": "office365/start",
+   "kind": "answer",
+   "line": "학생용 Office365는 재학생(학부·대학원)이 가입 신청 링크에서 계정을 만들면 바로 써요. 계정은 아이디@mail.hongik.ac.kr … #오피스 #office #office365 #오피스365 #설치 #다운"
+  },
+  {
+   "id": "office365-password/start",
+   "kind": "answer",
+   "line": "Office365 비밀번호는 portal.office.com 에서 재설정해요. 가입할 때 등록한 이메일과 휴대폰으로 인증코드를 받아 새 비밀번호… #office365 #오피스365 #비밀번호 #비번 #재설정 #까먹"
+  },
+  {
+   "id": "windows/start",
+   "kind": "answer",
+   "line": "Windows는 Microsoft Azure(구 Windows EDU) 학생 페이지에 학교 Office365 계정(아이디@mail.hongik.… #윈도우 #윈도"
+  },
+  {
+   "id": "matlab/start",
+   "kind": "answer",
+   "line": "학생용 MATLAB은 학교 메일(아이디@mail.hongik.ac.kr 또는 아이디@g.hongik.ac.kr)로 MathWorks 계정을 만든… #매트랩 #메트랩"
+  },
+  {
+   "id": "adobe/start",
+   "kind": "answer",
+   "line": "학교 Adobe Creative Cloud는 Adobe 계정을 만든 뒤 안내 페이지의 설치 파일로 깔아요. 교내 인터넷(유선·Hongik_wif… #어도비 #adobe"
+  },
+  {
+   "id": "siemens/start",
+   "kind": "answer",
+   "line": "Siemens 소프트웨어(NX·Simcenter·Tecnomatix 등)는 Siemens-PACE 센터에 필요한 소프트웨어를 문의한 뒤 홍문관 … #지멘스 #siemens"
+  },
+  {
+   "id": "printer-quota/start",
+   "kind": "answer",
+   "line": "정보전산원 실습용 PC실 프린터는 쿼터제라 개인 쿼터가 있어야 출력돼요. 쿼터는 C414호·R동 915호 PC실의 충전기에서 지폐로 천 원 단위… #프린터 #프린트 #쿼터 #충전"
+  },
+  {
+   "id": "pc-software/start",
+   "kind": "answer",
+   "line": "정보전산원 PC실에는 MS-Office 2024·한컴오피스 2024가 공통으로 깔려 있고, AutoCAD·SAS·MATLAB·Adobe CC 같… #오토캐드 #autocad #pc실 #컴퓨터실 #매트랩 #matlab"
+  },
+  {
+   "id": "alkeeper/start",
+   "kind": "answer",
+   "line": "알키퍼는 PC 안의 개인정보가 담긴 문서를 찾아 암호화·완전삭제·예외처리할 수 있게 돕는 프로그램이에요. 정보전산원 안내 페이지에서 내려받아 설… #알키퍼 #alkeeper"
+  },
+  {
+   "id": "parking/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 주차장은 홍문관 지하 2~4층, 아트앤디자인밸리 지하 3~5층이에요. 일반 차량은 10분에 1,000원이고, 주차 정기권은 교직원만 … #주차 #정기권"
+  },
+  {
+   "id": "directions/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 주소는 서울특별시 마포구 와우산로 94(상수동)예요. 2호선 홍대입구역 9번 출구에서 정문까지 걸어서 9분, 6호선 상수역 2번 출구… #오시는길 #가는길 #버스 #홍대 #홍익 #가는"
+  },
+  {
+   "id": "library/start",
+   "kind": "answer",
+   "line": "중앙도서관 자료실(본관 H동·정보통신센터 Q동)은 학기 중 평일 09:00~20:00, 토요일 09:00~15:00에 열어요. 열람실(본관 2·… #도서관 #열람실"
+  },
+  {
+   "id": "law-library/start",
+   "kind": "answer",
+   "line": "법학도서관은 홍문관(R동) 8층에 있어요. 학기 중 09:00~17:00, 방학 중 10:00~16:00에 열고, 노트북열람실은 06:00~23… #법학도서관 #법도서관"
+  },
+  {
+   "id": "phone-search/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '교직원 검색' 안내예요."
+  },
+  {
+   "id": "phone-search/start",
+   "kind": "answer",
+   "line": "학교 홈페이지 '전화번호 검색'에서 소속이나 전화번호로 교내 전화번호를 찾을 수 있어요. 교직원 전화번호는 '교직원 검색'에서 소속·이름·담당업… #교내전화 #전화번호검색"
+  },
+  {
+   "id": "academic-calendar/start",
+   "kind": "answer",
+   "line": "2026학년도 2학기는 9.1(화)에 개강하고 12.14(월)에 종강해요. 2026학년도 1학기는 3.3(화) 개강, 6.14(일) 종강이었어요… #학사일정 #학사력 #올해 #이번학기 #일정 #스케줄"
+  },
+  {
+   "id": "semester-dates/start",
+   "kind": "answer",
+   "line": "2026학년도 2학기 개강은 9.1(화), 종강은 12.14(월)이에요. 공휴일로 빠진 수업 보강기간은 12.15(화) ~ 12.21(월)예요.… #개강 #종강 #방학 #언제 #날짜"
+  },
+  {
+   "id": "exam-period/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '규정집 · 홍익대학교 학칙' 안내예요."
+  },
+  {
+   "id": "exam-period/start",
+   "kind": "answer",
+   "line": "학교 학사일정에는 중간고사·기말고사 날짜가 따로 올라와 있지 않아요. 학칙(제42조)에 따르면 시험은 매 학기 담당교수가 중간과 기말에 실시해요… #중간고사 #기말고사 #중간 #기말 #언제 #날짜"
+  },
+  {
+   "id": "registration-dates/start",
+   "kind": "answer",
+   "line": "2026학년도 2학기 수강신청은 8.24(월) 4·3학년, 8.25(화) 2·1학년, 8.26(수) ~ 8.27(목) 전체학년이었고, 수강신청 … #수강신청 #수강싱청 #언제 #날짜 #1학기 #2학기"
+  },
+  {
+   "id": "school-holiday/start",
+   "kind": "answer",
+   "line": "개교기념일은 6.27(토)이에요(학사일정에 공휴일로 표시돼 있어요). 공휴일로 빠진 2026학년도 2학기 수업은 12.15(화) ~ 12.21(… #개교기념일 #개교기념 #공휴일 #추석 #수업 #휴강"
+  },
+  {
+   "id": "degree-ceremony/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '2026학년도 학사일정' 안내예요."
+  },
+  {
+   "id": "degree-ceremony/start",
+   "kind": "answer",
+   "line": "다음 학위수여식은 학사일정에 2027.2.22(월) '2026학년도 전기 학위수여식(제77회)'로 잡혀 있어요. 아래는 지난 학위수여식(제76회… #졸업식 #학위수여식 #졸업 #언제 #날짜"
+  },
+  {
+   "id": "entrance-ceremony/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '2026학년도 학사일정' 안내예요."
+  },
+  {
+   "id": "entrance-ceremony/start",
+   "kind": "answer",
+   "line": "다음 신입생 입학식(2027학년도)은 학사일정에 2027.2.23(화)로 잡혀 있어요. 지난 2026학년도 입학식은 2026.2.23(월) 오전… #입학식 #입학행사"
+  },
+  {
+   "id": "grad-gown/start",
+   "kind": "answer",
+   "line": "학교 공지(2026년 8월 졸업 기준)에 따르면 졸업가운(학사 학위복)은 2026.8.20~8.22 10:00~16:00(졸업식 당일 8.21은… #학위복 #졸업가운 #가운 #졸업 #대여 #학사모"
+  },
+  {
+   "id": "grad-prep-fee/start",
+   "kind": "answer",
+   "line": "졸업준비금은 두 번(1·2학기) 내야 졸업앨범·기념품을 받아요. 못 냈다면 문헌관 8층 재무팀에서 평일 10:00~16:00에 현금으로 내요. … #졸업준비금 #졸준금"
+  },
+  {
+   "id": "grad-album/start",
+   "kind": "answer",
+   "line": "졸업앨범 사진은 졸업준비위원회가 공지한 학과별 일정에 맞춰 학생회관 1층 학생휴게실에서 찍어요. 2026-2학기 촬영(2027년 2월·8월 졸업… #졸업앨범 #졸업사진 #촬영 #찍 #앨범촬영"
+  },
+  {
+   "id": "login-account/more",
+   "kind": "answer",
+   "line": "홍익대학교 통합로그인 '비밀번호 찾기' 안내예요."
+  },
+  {
+   "id": "login-account/start",
+   "kind": "answer",
+   "line": "학교 통합로그인(마이홍익·클래스넷)은 학번이 아이디, 클래스넷 비밀번호가 비밀번호예요. 처음 로그인할 때 초기 비밀번호는 주민등록번호 앞자리이고… #통합로그인 #클래스넷 #비밀번호 #비번 #초기비밀번호 #초기비번"
+  },
+  {
+   "id": "login-find-id/start",
+   "kind": "answer",
+   "line": "학생은 학번이 통합로그인 아이디예요. 아이디 찾기 화면에서 사용자 구분(학부생)을 고르고 이름·생년월일(8자리)을 넣으면 가려진 아이디를, 이메… #아이디찾 #아이디를찾"
+  },
+  {
+   "id": "security-code/more",
+   "kind": "answer",
+   "line": "홍익대학교 통합로그인 '보안코드 찾기' 안내예요."
+  },
+  {
+   "id": "security-code/start",
+   "kind": "answer",
+   "line": "보안코드는 통합로그인에 더하는 숫자 6자리예요. 기본값은 사용 안 함이고, 마이홍익 › 개인정보변경에서 '보안코드 사용여부'를 체크하고 6자리를… #보안코드 #보안번호"
+  },
+  {
+   "id": "classnet-help/start",
+   "kind": "answer",
+   "line": "클래스넷 같은 학사 프로그램은 정보전산원이 개발하고 유지보수해요. 학교 부서 안내에서 학사·클래스넷 담당 전화는 02-320-1404이고, 정보… #클래스넷 #classnet #오류 #에러"
+  },
+  {
+   "id": "main-phone/start",
+   "kind": "answer",
+   "line": "홍익대학교 서울캠퍼스 대표 전화는 02-320-1114, 팩스는 02-320-1122예요. 주소는 04066 서울특별시 마포구 와우산로 94(상… #대표번호 #대표전화번호 #대표전화 #학교 #홍익"
+  },
+  {
+   "id": "campus-mail/start",
+   "kind": "answer",
+   "line": "학교 부서 안내에 따르면 학교로 오는 우편물 배부와 관리는 총무팀(문헌관 MH동 1층) 업무예요. 우편물 관리 담당 전화는 02-320-3127… #우편물 #등기우편 #학교로 #학교에 #학교우편물 #교내우편물"
+  },
+  {
+   "id": "facility-repair/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '건설관리팀' 안내예요."
+  },
+  {
+   "id": "facility-repair/start",
+   "kind": "answer",
+   "line": "학교 홈페이지에 따로 고장 신고 창구 안내는 없어서 부서 안내 기준으로 알려 드려요. 건물·시설물·비품 관리는 관재팀(문헌관 MH동 1층)이 맡… #고장 #망가 #시설 #강의실 #시설고장 #고장신고"
+  },
+  {
+   "id": "lost-found/start",
+   "kind": "answer",
+   "line": "학교 부서 안내에 따르면 분실물 관리는 학사지원팀 업무예요(학생증 발급과 함께 맡아요). 잃어버린 물건은 학사지원팀에 물어보세요. #분실물 #습득물 #잃어버 #잃어버렸 #지갑 #가방"
+  },
+  {
+   "id": "suggestion/start",
+   "kind": "answer",
+   "line": "학교 부서 안내에 따르면 학생 건의사항 처리는 학생지원팀(학생회관 2층 201호) 업무이고, 학생건의함 관리 담당 전화는 02-320-1052예… #건의 #건의함 #민원 #넣 #제기"
+  },
+  {
+   "id": "rotc/start",
+   "kind": "answer",
+   "line": "학군사관(ROTC)은 대학생 중 우수자를 뽑아 2년간 군사훈련을 거쳐 졸업과 동시에 장교로 임관하는 제도예요. 홍익대 133학생군사교육단(학군단… #학군단 #rotc"
+  },
+  {
+   "id": "civil-defense/start",
+   "kind": "answer",
+   "line": "학교 예비군연대본부 안내에 따르면 대학생(주간 대학원 석사 4차 학기까지 포함)은 민방위 편성이 면제돼요. 사는 곳에서 민방위 훈련통지서가 오면… #민방위 #민방위훈련"
+  },
+  {
+   "id": "campus-broadcast/start",
+   "kind": "answer",
+   "line": "홍익대학교 교육방송국은 제작부·보도부·아나운서부·기술부로 이뤄져 있고, 평일 아침·낮·저녁 세 번 방송해요. 학생회관(G동) 4층 409·410… #교육방송국 #방송국"
+  },
+  {
+   "id": "campus-newspaper/start",
+   "kind": "answer",
+   "line": "홍대신문은 학생기자(편집국장·부편집국장·정기자·준기자·수습기자)가 만들고, 교지 '와우'는 교지편집위원회가 만들어요. 신문사 기자실은 S동 21… #홍대신문 #학보사"
+  },
+  {
+   "id": "campus-english-paper/start",
+   "kind": "answer",
+   "line": "홍익대학교 영자신문사는 취재부·디자인부·사진부로 이뤄져 있고 해마다 3월·5월·9월·11월에 영자신문(저널책자)을 내요. 강당(S동) 2층 21… #영자신문 #영자신문사"
+  },
+  {
+   "id": "homa/start",
+   "kind": "answer",
+   "line": "홍익대학교 현대미술관(HoMA)은 1관(문헌관 4층, 월~금 10:00~18:00)과 2관(홍문관 2층, 수~일 10:00~18:00)이 있어요… #현대미술관 #homa #졸업전 #졸전 #대관 #장소"
+  },
+  {
+   "id": "museum/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '박물관' 안내예요."
+  },
+  {
+   "id": "museum/start",
+   "kind": "answer",
+   "line": "홍익대학교 박물관은 문헌관 3층에 있어요. 운영시간은 10:00~17:00(점심시간 12:00~13:00)이고 주말과 법정공휴일은 쉬어요. 문의… #박물관 #흰소"
+  },
+  {
+   "id": "cert-types/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '인터넷증명발급' 안내예요."
+  },
+  {
+   "id": "cert-types/start",
+   "kind": "answer",
+   "line": "증명서마다 영문 발급과 발급 방법(발급기·인터넷·팩스민원·우편민원)이 달라요. 휴학·제적·수료·졸업·성적증명서는 국문·영문 모두 네 방법으로 되… #증명서 #증명발급 #종류 #휴학생 #교육비납입증명서 #교육비납입증명"
+  },
+  {
+   "id": "mail-backup/start",
+   "kind": "answer",
+   "line": "학교 Gmail은 Google 계정 › 데이터 및 맞춤설정 관리 › 데이터 다운로드에서 메일만 골라 백업해요(MBOX 형식, .zip). 백업이… #백업 #내보내기 #메일 #gmail #메일백업 #지메일백업"
+  },
+  {
+   "id": "google-storage/start",
+   "kind": "answer",
+   "line": "학교 구글 계정(Gmail·드라이브) 저장 공간은 drive.google.com/settings/storage 에서 사용량을 보고, 용량 큰 드… #저장공간 #스토리지 #구글 #드라이브 #구글드라이브 #용량"
+  },
+  {
+   "id": "chrome-login/start",
+   "kind": "answer",
+   "line": "크롬 오른쪽 위 프로필 아이콘을 누르고 [로그인] 또는 [동기화 켜기]를 눌러요. 학교 구글 계정 이메일 주소를 넣고 [다음]을 누르면 학교 이… #크롬 #chrome #로그인 #계정"
+  },
+  {
+   "id": "mail-contacts/start",
+   "kind": "answer",
+   "line": "메일 받는 사람에 이름을 넣었을 때 잘못된 사람이 나오면, 학교 주소록이 아니라 내 주소록에 잘못 저장된 거예요. 구글 앱 › 주소록에서 그 이… #주소록 #연락처 #메일 #gmail #잘못 #삭제"
+  },
+  {
+   "id": "lecture-evaluation/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '2026학년도 2학기 강의중간평가 시행 안내' 안내예요."
+  },
+  {
+   "id": "lecture-evaluation/start",
+   "kind": "answer",
+   "line": "학기말 강의평가는 MY HONGIK → 클래스넷 → 수강 과목명 → 강의평가에서 해요. 참여하지 않으면 그 학기 성적조회 기간에 성적을 볼 수 … #강의평가 #강평 #성적 #안하"
+  },
+  {
+   "id": "credit-withdraw/start",
+   "kind": "answer",
+   "line": "학점포기는 C+ 이하인 최초 수강 과목이 동일·대체과목 없이 폐지돼 재수강할 수 없을 때 성적을 지워 주는 제도예요. 4학기 이상 이수한 재학생… #학점포기 #학점을포기 #포기"
+  },
+  {
+   "id": "major-name-choice/start",
+   "kind": "answer",
+   "line": "학과 명칭변경·전공폐지 같은 개편 전에 그 학과에 있던 학생은 졸업할 때 원하는 전공명을 고를 수 있어요. 졸업예정 학기에 공지된 기간에 학생클… #전공명 #선택 #변경 #학과명 #학과이름 #졸업"
+  },
+  {
+   "id": "grad-check-result/start",
+   "kind": "answer",
+   "line": "졸업사정 결과는 학생클래스넷 → 졸업정보 → 졸업사정결과 조회에서 학교가 공지한 기간에 봐요(2026년 8월 졸업대상자는 2026.8.7~8.1… #졸업사정결과 #졸업사정조회 #졸업사정 #결과 #조회"
+  },
+  {
+   "id": "academic-contacts/start",
+   "kind": "answer",
+   "line": "학교 수강신청 안내에 적힌 학사 문의처예요(평일 10:00~16:00). 수강신청·정정·폐강 일정은 02-320-1038, 휴·복학·재학 학년·… #학사문의 #학사지원팀전화 #수강신청 #수강정정 #문의처 #문의전화"
+  },
+  {
+   "id": "class-periods/start",
+   "kind": "answer",
+   "line": "학교 수강신청 안내에 따르면 1교시는 09:00에 시작하고 수업은 한 교시 50분, 쉬는 시간은 10분이에요. 점심시간은 따로 없어요. 1교시 … #교시 #수업 #강의 #몇분 #50분 #쉬는시간"
+  },
+  {
+   "id": "student-id-lookup/more",
+   "kind": "answer",
+   "line": "홍익대학교 통합로그인 '아이디 찾기' 안내예요."
+  },
+  {
+   "id": "student-id-lookup/start",
+   "kind": "answer",
+   "line": "학번은 통합로그인·클래스넷 아이디예요. 신입생·편입생은 학교 홈페이지 → 방문자 → 재학생 → '신/편입생 학번조회'에서 학번을 확인해요(202… #학번조회 #학번검색"
+  },
+  {
+   "id": "kickboard-ban/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '개인형 이동장치 교내 출입 금지 및 주차구역 변경 안내' 안내예요."
+  },
+  {
+   "id": "kickboard-ban/start",
+   "kind": "answer",
+   "line": "학교 공지에 따르면 전동킥보드 같은 개인형 이동장치와 자전거는 교내 출입이 금지돼 있어요(2025.2.13부터). 개인형 이동장치는 정해진 주차… #킥보드 #전동킥 #자전거 #따릉이 #교내 #학교안"
+  },
+  {
+   "id": "gosi-center/start",
+   "kind": "answer",
+   "line": "미래인재센터는 공직시험(5·7·9급), 공인회계사·세무사·노무사·감정평가사·관세사 같은 전문자격시험, 중등교원임용고사를 준비하는 학생을 돕는 곳… #고시반 #미래인재센터 #공무원 #행정고시 #준비 #지원"
+  },
+  {
+   "id": "abeek/start",
+   "kind": "answer",
+   "line": "공학교육인증(공학인증)은 공학교육혁신센터가 맡아요. 제1공학관(K동) 2층 207호이고, 공학인증 학사·행정업무 담당 전화는 02-320-300… #공학인증 #공학교육인증 #졸업 #요건"
+  },
+  {
+   "id": "liberal-arts-office/start",
+   "kind": "answer",
+   "line": "교양과목은 교양교육원이 맡아요. 인문사회관(C동) 105호와 홍문관(R동) 421호에 있고, 일반교양은 02-320-1185, 영어 교과목은 0… #교양교육원 #교양 #문의 #전화"
+  },
+  {
+   "id": "classroom-booking/start",
+   "kind": "answer",
+   "line": "학교 부서 안내의 교양교육원 담당정보에 건물별 강의실 예약 담당이 적혀 있어요. 인문사회관(C동)은 02-320-1176, A동은 02-320-… #강의실예약 #강의실대여 #강의실"
+  },
+  {
+   "id": "school-rules/start",
+   "kind": "answer",
+   "line": "홍익대학교 학칙은 학교 홈페이지 대학소개 › 규정집에서 '제2편 학칙 › 1) 학칙'을 누르면 전문을 보고 PDF로 내려받을 수 있어요. 197… #학칙 #규정집"
+  },
+  {
+   "id": "term-rules/start",
+   "kind": "answer",
+   "line": "학칙에 따르면 학년은 3월 1일부터 다음 해 2월 말일까지이고, 1학기는 3.1~8.31, 2학기는 9.1~다음 해 2월 말일이에요. 수업일수는… #재학연한 #수업연한 #몇년 #몇학기 #수업일수 #최대몇년"
+  },
+  {
+   "id": "makeup-exam/start",
+   "kind": "answer",
+   "line": "학칙(제43조)에 따르면 병이나 부득이한 사유로 시험을 못 봤으면 증빙서류를 붙여 학장의 승인을 받아 추가시험을 볼 수 있어요. 다만 추가시험 … #추가시험 #재시험 #중간고사 #기말고사 #못봤 #못봐"
+  },
+  {
+   "id": "student-discipline/start",
+   "kind": "answer",
+   "line": "학칙(제66조)에 따르면 학생이 본분에 어긋난 행위를 하거나 학칙을 어기면 상벌위원회의 심의·의결을 거쳐 징계할 수 있어요. 징계는 근신, 유기… #징계 #정학 #포상기준 #학칙 #규정"
+  },
+  {
+   "id": "rally-poster-approval/start",
+   "kind": "answer",
+   "line": "학칙(제64조)에 따르면 학생단체나 학생이 집회나 광고행위를 할 때는 미리 승인을 받아야 해요. 자세한 사항은 따로 정한다고 돼 있어요. 또 학… #포스터 #전단지 #붙이 #붙여 #집회 #시위"
+  },
+  {
+   "id": "autonomous-major-office/start",
+   "kind": "answer",
+   "line": "캠퍼스자율전공 학생의 전공 탐색·주전공 선택·학과 진입 같은 행정은 자율전공지원본부·자율전공지원실이 맡아요. 정보통신센터(Q동) 2층 201호이… #자율전공지원실 #자율전공지원본부 #자율전공 #캠자 #사무실 #행정실"
+  },
+  {
+   "id": "academic-email/start",
+   "kind": "answer",
+   "line": "학사지원팀은 전화로는 다시 걸어 주기(콜백)가 어려워 이메일 문의를 권해요. 서울캠퍼스 학사지원팀 이메일은 support@hongik.ac.kr… #학사지원팀 #학사팀 #이메일 #메일주소 #support@hongik"
+  },
+  {
+   "id": "registration-macro/start",
+   "kind": "answer",
+   "line": "학교 공지(2026학년도 2학기)에 따르면 정규학기 수강신청 때 매크로 프로그램 이용 같은 부정행위를 모니터링해요. 매크로를 쓰면 접속 차단 페… #매크로 #오토클릭 #수강 #신청 #수강신청 #부정행위"
+  },
+  {
+   "id": "student-award/start",
+   "kind": "answer",
+   "line": "학교 공지(2026-1학기, 서울 학부생)에 따르면 교외 공모전·대회에서 국제대회 1~4위 또는 국내대회 1~3위에 입상한 학부생은 학생상벌위원… #학생포상 #포상추천 #공모전 #경진대회 #포상 #표창"
+  },
+  {
+   "id": "official-sns/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '대외홍보실' 안내예요."
+  },
+  {
+   "id": "official-sns/start",
+   "kind": "answer",
+   "line": "홍익대학교 공식 SNS는 페이스북·유튜브·인스타그램(한국어 공식채널과 베트남어 채널), 네이버 블로그, 웨이보(중국어 공식채널)가 있어요. 학교… #인스타 #instagram #학교 #홍익대"
+  },
+  {
+   "id": "school-song/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '응원가' 안내예요."
+  },
+  {
+   "id": "school-song/start",
+   "kind": "answer",
+   "line": "홍익대학교 교가는 이은상 작사, 김동진 작곡이에요. 1절은 '한가람 구비구비 유구하네 와우의 푸른 기슭에'로 시작해요. 학교 홈페이지 대학소개 … #교가 #응원가"
+  },
+  {
+   "id": "school-mascot/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '캐릭터' 안내예요."
+  },
+  {
+   "id": "school-mascot/start",
+   "kind": "answer",
+   "line": "홍익대학교 교수(校獸, 학교를 상징하는 동물)는 황소예요. 학교가 소가 누워 있는 모양의 와우산(臥牛山)에 있고 이중섭의 '흰소'를 박물관에 소… #마스코트 #상징동물 #동물 #캐릭터 #상징 #학교"
+  },
+  {
+   "id": "school-flower-tree/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '교목' 안내예요."
+  },
+  {
+   "id": "school-flower-tree/start",
+   "kind": "answer",
+   "line": "홍익대학교 교화(학교를 상징하는 꽃)는 무궁화, 교목(학교를 상징하는 나무)은 느티나무예요. 학교 홈페이지 대학소개 › 상징 › 교수·교목·교화… #교화 #교목"
+  },
+  {
+   "id": "school-logo/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '심벌마크' 안내예요."
+  },
+  {
+   "id": "school-logo/start",
+   "kind": "answer",
+   "line": "홍익대학교 로고타이프와 심벌마크는 학교 홈페이지 대학소개 › 상징 › UI에서 AI·PNG 파일로 내려받을 수 있어요. 로고타이프는 글자의 꼴·… #로고 #심벌 #학교 #홍익"
+  },
+  {
+   "id": "campus-software/start",
+   "kind": "answer",
+   "line": "정보전산원 'S/W 및 서체안내'에 따르면 학교가 제공하는 소프트웨어(한컴오피스·SPSS·SAS·알툴즈·V-RAY 등)는 교육·업무용으로만 쓰도… #한컴오피스 #한컴 #학교에서 #학교계정"
+  },
+  {
+   "id": "fonts/start",
+   "kind": "answer",
+   "line": "정보전산원 서체 안내에 따르면 바탕·굴림·돋움·궁서·함초롬체·문체부체·나눔글꼴·다음체·바른돋움 등은 무료 서체예요. 바탕체·굴림체·돋움체·궁서체… #폰트 #서체 #무료 #유료"
+  },
+  {
+   "id": "hwp-acrobat-error/start",
+   "kind": "answer",
+   "line": "정보전산원 안내예요. Acrobat이 안 열리면 메뉴 › 기본 설정 › 보안(고급)에서 '시작할 때 보호 모드 활성화'와 '고급 보안 사용' 체… #한글 #한컴 #실행오류 #안열려"
+  },
+  {
+   "id": "dept-office-ce/start",
+   "kind": "answer",
+   "line": "컴퓨터공학과 학과 사무실(기자재실)은 T704(02-320-1104)예요. 학기 중(3월~10월) 월~금 오전 9:00~오후 5:30(11월~2… #컴공 #컴퓨터공학 #과사 #과사무실 #어디 #위치"
+  },
+  {
+   "id": "dept-office-mse/start",
+   "kind": "answer",
+   "line": "신소재공학전공 학과 사무실은 K412예요. 월~금 오전 9:00~오후 5:30(동절기 오전 9:00~오후 5:00)에 열어요. #신소재 #신소재공학 #과사 #과사무실 #어디 #위치"
+  },
+  {
+   "id": "dept-office-chemeng/start",
+   "kind": "answer",
+   "line": "화학공학전공 사무실과 강의실은 주로 과학관(I동)에 있고, 오시는 길 안내의 주소는 과학관(I동) 505호예요. #화공 #화학공학 #과사 #과사무실 #어디 #위치"
+  },
+  {
+   "id": "dept-office-econ/start",
+   "kind": "answer",
+   "line": "경제학부 오시는 길 안내의 주소는 인문사회관 C동 321호(17번 건물)예요. 남문(후문)과 가까워요. #경제학부 #경제학과 #과사 #과사무실 #어디 #위치"
+  },
+  {
+   "id": "dept-office/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 학과(부)·전공 사무실 전화번호는 학교 홈페이지 '대학과정' 안내에 학과별로 나와 있어요. 아래 표에서 학과를 찾아 보세요. 사무실 … #컴공 #컴퓨터공학 #과사 #과사무실 #어디 #위치"
+  },
+  {
+   "id": "dept-grad-perform/start",
+   "kind": "answer",
+   "line": "공연예술학부(뮤지컬·실용음악전공)의 졸업논문은 졸업공연 혹은 졸업공연에 준하는 졸업시험이에요. 전공 50학점 이상(전공기초 제외), 총 132학… #공연예술 #뮤지컬 #졸업요건 #졸업기준 #졸업공연"
+  },
+  {
+   "id": "dept-grad-mse/start",
+   "kind": "answer",
+   "line": "신소재공학전공은 실험과목 2과목과 '창의적종합설계'(졸업논문 교과목)를 반드시 이수해야 졸업할 수 있어요. 공학인증 과정은 입학연도별 요건(영어… #신소재 #신소재공학 #졸업요건 #졸업기준"
+  },
+  {
+   "id": "curriculum/start",
+   "kind": "answer",
+   "line": "교과과정은 클래스넷 → 수업정보 → 교과과정 안내 → 교과과정책자 검색에서 봐요. 학교 안내대로 교과과정을 보고 이번 학기에 들을 과목과 졸업할… #교과과정 #교육과정"
+  },
+  {
+   "id": "grad-architecture/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '건축학전공(5년제)·실내건축학전공(4년제) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-architecture/start",
+   "kind": "answer",
+   "line": "건축학전공(5년제)은 2016학년도 입학생부터 전공과목 133학점(전공필수 모두 포함)을 포함해 총 162학점 이상을 들어야 해요(2011~20… #건축학전공 #건축학과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-interior/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '실내건축학전공 졸업 포트폴리오 심사' 안내예요."
+  },
+  {
+   "id": "grad-interior/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '건축학전공(5년제)·실내건축학전공(4년제) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-interior/start",
+   "kind": "answer",
+   "line": "실내건축학전공(4년제)은 2016학년도 입학생부터 전공 80학점(전공필수 포함)을 포함해 총 132학점 이상을 들어야 해요. 1학년은 건축학부 … #실내건축학전공 #실내건축학과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-urban/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '도시공학과 졸업 학점' 안내예요."
+  },
+  {
+   "id": "grad-urban/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-urban/start",
+   "kind": "answer",
+   "line": "도시공학과는 공과대학 비인증과정과 같은 졸업요건 표를 따라요. 전공필수를 모두 포함한 전공 50학점 이상, 총 132학점 이상이고, MSC는 2… #도시공학과 #도시공학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-bizadmin/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '경영대학 졸업논문 대체서류' 안내예요."
+  },
+  {
+   "id": "grad-bizadmin/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '경영대학 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-bizadmin/start",
+   "kind": "answer",
+   "line": "경영학전공(경영대학)은 전공기초 과목을 모두 듣고, 전공필수를 포함한 전공과목 45학점 이상(전공기초는 45학점에 들어가지 않아요), 총 132… #경영학전공 #경영학부 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-econ/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '경제학부 졸업 요건(졸업논문 대체)' 안내예요."
+  },
+  {
+   "id": "grad-econ/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-econ/start",
+   "kind": "answer",
+   "line": "경제학전공(경제학부)은 전공필수를 모두 포함한 전공 50학점 이상, 총 132학점 이상(2015학년도 입학생까지는 140학점, 일반선택 포함)을… #경제학전공 #경제학부 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-law/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '법과대학 졸업논문 대체서류' 안내예요."
+  },
+  {
+   "id": "grad-law/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-law/start",
+   "kind": "answer",
+   "line": "법학부(법과대학)는 전공필수를 모두 포함한 전공 50학점 이상, 총 132학점 이상(2015학년도 입학생까지는 140학점, 일반선택 포함)을 들… #법과대학 #법학부 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-conv-culture/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '문화예술경영 융합전공 졸업 요건(경영학부 공지)' 안내예요."
+  },
+  {
+   "id": "grad-conv-culture/more1",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-culture/start",
+   "kind": "answer",
+   "line": "문화예술경영 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 과목을 연 학과별로 최소 학점이 있어요. 경영학과 소속 과목 4과목(12학… #문화예술경영 #문화예술경영전공 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-archspace/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-archspace/start",
+   "kind": "answer",
+   "line": "건축공간예술 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 그중 세계건축사(1)·세계건축사(2)·한국건축사·건축공간론·현대건축·건축이… #건축공간예술 #건축공간예술전공 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-perform/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-perform/start",
+   "kind": "answer",
+   "line": "공연예술 융합전공은 공연예술융합전공 교과목을 36학점 이상 들어야 졸업요건을 채워요. 전 과목 수업은 대학로캠퍼스에서 해요. 학년별 개설 과목은… #공연예술융합 #공연예술융합전공 #졸업학점 #졸업요건 #공연예술 #융합전공"
+  },
+  {
+   "id": "grad-conv-landscape/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-landscape/start",
+   "kind": "answer",
+   "line": "환경조경디자인 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 전공필수는 2학년 기초디자인스튜디오·조경계획(1학기), 환경조경디자인스튜… #환경조경디자인 #환경조경 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-iot/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-iot/start",
+   "kind": "answer",
+   "line": "사물인터넷공학 융합전공은 소속학과(주전공) 졸업요건을 채우고 사물인터넷공학 융합전공 전공교과목으로 36학점을 따야 해요. 전자·전기공학부·컴퓨터… #사물인터넷 #사물인터넷공학 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-robot/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-robot/start",
+   "kind": "answer",
+   "line": "지능로봇공학 융합전공은 소속학과(주전공) 졸업요건을 채우고 지능로봇공학 융합전공 전공교과목으로 36학점을 따야 해요. 지능로봇융합설계프로젝트(1… #지능로봇 #지능로봇공학 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-smartcity/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-smartcity/start",
+   "kind": "answer",
+   "line": "스마트도시데이터사이언스 융합전공은 소속학과(주전공) 졸업요건을 채우고 융합전공 전공교과목으로 36학점을 따야 해요. 전공필수 모빌리티와ITS(구… #스마트도시데이터사이언스 #스마트도시·데이터사이언스 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-designeng/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-designeng/start",
+   "kind": "answer",
+   "line": "디자인엔지니어링 융합전공은 소속학과(주전공) 졸업요건을 채우고 디자인엔지니어링 융합전공 교과목으로 36학점을 따야 하고, 그중 24학점 이상은 … #디자인엔지니어링 #디자인엔지 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-bigbiz/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-bigbiz/start",
+   "kind": "answer",
+   "line": "빅데이터비즈니스 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 전공필수는 1학년 컴퓨터SW기초, 2학년 빅데이터의이해예요. 컴퓨터응용… #빅데이터비즈니스 #빅데이터비즈 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-mobility/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-mobility/start",
+   "kind": "answer",
+   "line": "미래모빌리티 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 전공필수는 3학년 미래모빌리티일반(1학기), 4학년 모빌리티캡스톤디자인(1… #미래모빌리티 #졸업학점 #졸업요건 #전공필수 #전필 #융합전공"
+  },
+  {
+   "id": "grad-conv-datasci/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-datasci/start",
+   "kind": "answer",
+   "line": "데이터사이언스 융합전공은 소속학과(주전공) 졸업요건을 채우고 전공필수를 모두 포함해 데이터사이언스 전공교과목으로 36학점을 따야 해요. 1학년 … #데이터사이언스 #데이터사이언스전공 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-medai/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-medai/start",
+   "kind": "answer",
+   "line": "의료헬스케어AI 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 그중 바이오헬스융합학부 소속 과목에서 18학점 이상을 따야 해요. 학년… #의료헬스케어ai #ai의료헬스케어 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-conv-healthsvc/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '융합전공' 안내예요."
+  },
+  {
+   "id": "grad-conv-healthsvc/start",
+   "kind": "answer",
+   "line": "헬스케어서비스 융합전공은 융합전공 교과목 36학점 이상을 들어야 해요. 그중 바이오헬스융합학부 소속 과목에서 18학점 이상을 따야 해요. 학년별… #헬스케어서비스 #졸업학점 #졸업요건 #전공필수 #전필 #융합전공"
+  },
+  {
+   "id": "grad-vd/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-vd/start",
+   "kind": "answer",
+   "line": "시각디자인전공은 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초평면(1… #시각디자인 #시디 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-id/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '산업디자인전공 졸업요건 상세설명' 안내예요."
+  },
+  {
+   "id": "grad-id/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-id/start",
+   "kind": "answer",
+   "line": "산업디자인전공은 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초평면(1… #산업디자인 #산디 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-metal/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '금속조형디자인과 졸업전시·복수/부전공 졸업자격' 안내예요."
+  },
+  {
+   "id": "grad-metal/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-metal/start",
+   "kind": "answer",
+   "line": "금속조형디자인과는 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초평면(… #금속조형 #금속디자인 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-ceramic/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '도예유리과 복수·부전공 졸업요건' 안내예요."
+  },
+  {
+   "id": "grad-ceramic/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-ceramic/start",
+   "kind": "answer",
+   "line": "도예·유리과는 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초평면(1)… #도예유리 #도예·유리 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-wood/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '목조형가구학과 공구기법 과목 이수 순서' 안내예요."
+  },
+  {
+   "id": "grad-wood/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-wood/start",
+   "kind": "answer",
+   "line": "목조형가구학과는 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초평면(1… #목조형 #목조 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-textile/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-textile/start",
+   "kind": "answer",
+   "line": "섬유미술·패션디자인과는 미술대학 졸업요건(총 132학점 이상, 전공기초를 뺀 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 기초… #섬유미술 #패션디자인 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-musical/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '공연예술학부 뮤지컬전공' 안내예요."
+  },
+  {
+   "id": "grad-musical/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공연예술학부 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-musical/start",
+   "kind": "answer",
+   "line": "뮤지컬전공은 공연예술학부 졸업요건(전공기초를 뺀 전공 50학점 이상, 총 132학점 이상, 졸업논문은 졸업공연 혹은 졸업공연에 준하는 졸업시험)… #뮤지컬 #졸업 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-appliedmusic/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '공연예술학부 실용음악전공' 안내예요."
+  },
+  {
+   "id": "grad-appliedmusic/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공연예술학부 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-appliedmusic/start",
+   "kind": "answer",
+   "line": "실용음악전공은 공연예술학부 졸업요건(전공기초를 뺀 전공 50학점 이상, 총 132학점 이상, 졸업논문은 졸업공연 혹은 졸업공연에 준하는 졸업시험… #실용음악 #실음 #졸업 #졸업학점 #졸업요건 #몇학점"
+  },
+  {
+   "id": "grad-mathedu/more",
+   "kind": "answer",
+   "line": "사범대학 학과 홈페이지 '수학교육과 졸업요건 확인·졸업논문 대체 내규' 안내예요."
+  },
+  {
+   "id": "grad-mathedu/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-mathedu/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '교직과정 교원자격증 무시험검정 요건·교직과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-mathedu/start",
+   "kind": "answer",
+   "line": "수학교육과는 사범대학 졸업요건에 더해 학과 요건이 있어요. 사범대학은 전공필수를 모두 포함해 전공 57학점 이상, 총 132학점 이상(2015학… #수학교육 #수교과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-koredu/more",
+   "kind": "answer",
+   "line": "사범대학 학과 홈페이지 '국어교육과 졸업논문·졸업논문 대체 조건' 안내예요."
+  },
+  {
+   "id": "grad-koredu/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-koredu/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '교직과정 교원자격증 무시험검정 요건·교직과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-koredu/start",
+   "kind": "answer",
+   "line": "국어교육과는 사범대학 졸업요건에 더해 학과 요건이 있어요. 사범대학은 전공필수를 모두 포함해 전공 57학점 이상, 총 132학점 이상(2015학… #국어교육 #국교과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-engedu/more",
+   "kind": "answer",
+   "line": "사범대학 학과 홈페이지 '영어교육과 졸업요건 확인' 안내예요."
+  },
+  {
+   "id": "grad-engedu/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-engedu/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '교직과정 교원자격증 무시험검정 요건·교직과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-engedu/start",
+   "kind": "answer",
+   "line": "영어교육과는 사범대학 졸업요건에 더해 학과 요건이 있어요. 사범대학은 전공필수를 모두 포함해 전공 57학점 이상, 총 132학점 이상(2015학… #영어교육 #영교과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-hisedu/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-hisedu/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '교직과정 교원자격증 무시험검정 요건·교직과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-hisedu/start",
+   "kind": "answer",
+   "line": "역사교육과는 사범대학 졸업요건에 더해 학과 요건이 있어요. 사범대학은 전공필수를 모두 포함해 전공 57학점 이상, 총 132학점 이상(2015학… #역사교육 #역교과 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-pedagogy/more",
+   "kind": "answer",
+   "line": "사범대학 학과 홈페이지 '교육학과 졸업논문 대체과목·교직소양' 안내예요."
+  },
+  {
+   "id": "grad-pedagogy/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-pedagogy/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '교직과정 교원자격증 무시험검정 요건·교직과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-pedagogy/start",
+   "kind": "answer",
+   "line": "교육학과는 사범대학 졸업요건에 더해 학과 요건이 있어요. 사범대학은 전공필수를 모두 포함해 전공 57학점 이상, 총 132학점 이상(2015학년… #교육학과 #교육학전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-teaching/more",
+   "kind": "answer",
+   "line": "사범대학 학과 홈페이지 '디지털교육(교직소양) 신설 안내(교육학과 공지)' 안내예요."
+  },
+  {
+   "id": "grad-teaching/more1",
+   "kind": "answer",
+   "line": "학교 홈페이지 '교직과정' 안내예요."
+  },
+  {
+   "id": "grad-teaching/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-teaching/start",
+   "kind": "answer",
+   "line": "교원자격증(중등학교 2급 정교사) 무시험검정 요건은 입학기준년도 2013년 이후 학생 기준으로 전공 50학점 이상(기본이수과목 21학점·교과교육… #교직 #교원자격 #졸업학점 #졸업요건 #무시험검정 #무시험"
+  },
+  {
+   "id": "grad-civil/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '건설환경공학과 심화과정(공학인증) 이수요건' 안내예요."
+  },
+  {
+   "id": "grad-civil/more1",
+   "kind": "answer",
+   "line": "학과 홈페이지 '건설환경공학과 심화과정 졸업요건 변경' 안내예요."
+  },
+  {
+   "id": "grad-civil/more2",
+   "kind": "answer",
+   "line": "학과 홈페이지 '건설환경공학과 졸업포트폴리오(졸업논문 대체)' 안내예요."
+  },
+  {
+   "id": "grad-civil/more3",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-civil/more4",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-civil/start",
+   "kind": "answer",
+   "line": "건설환경공학과는 공과대학 졸업요건(공학교육인증과정은 전공 54학점·MSC 30학점을 포함해 총 132학점 이상, 비인증과정은 전공 50학점을 포… #건설환경 #건환 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-ee/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ee/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ee/start",
+   "kind": "answer",
+   "line": "전자·전기공학부는 공과대학 졸업요건(공학교육인증과정은 전공 54학점·MSC 30학점을 포함해 총 132학점 이상, 비인증과정은 전공 50학점을 … #전자전기 #전자·전기 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-mse/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '신소재공학전공' 안내예요."
+  },
+  {
+   "id": "grad-mse/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-mse/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-mse/start",
+   "kind": "answer",
+   "line": "신소재공학전공은 공과대학 졸업요건(공학교육인증과정은 전공 54학점·MSC 30학점을 포함해 총 132학점 이상, 비인증과정은 전공 50학점을 포… #신소재 #신소재공학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-chem/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '화학공학전공 4학년 필수 수강(졸업논문조)' 안내예요."
+  },
+  {
+   "id": "grad-chem/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-chem/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-chem/start",
+   "kind": "answer",
+   "line": "화학공학전공은 공과대학 졸업요건(공학교육인증과정은 전공 54학점·MSC 30학점을 포함해 총 132학점 이상, 비인증과정은 전공 50학점을 포함… #화공 #화학공학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-ie/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '산업·데이터공학과 심화과정 졸업시험' 안내예요."
+  },
+  {
+   "id": "grad-ie/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ie/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ie/start",
+   "kind": "answer",
+   "line": "산업·데이터공학과는 공과대학 졸업요건(총 132학점 이상, 공학교육인증과정 전공 54학점·비인증과정 전공 50학점)에 더해 학과 요건이 있어요.… #산업데이터 #산업·데이터 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-me/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '기계·시스템디자인공학과 졸업요건 안내' 안내예요."
+  },
+  {
+   "id": "grad-me/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-me/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-me/start",
+   "kind": "answer",
+   "line": "기계·시스템디자인공학과는 공과대학 졸업요건(공학교육인증과정은 전공 54학점·MSC 30학점을 포함해 총 132학점 이상, 비인증과정은 전공 50… #기계 #기시디 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-eng-common/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-eng-common/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-eng-common/start",
+   "kind": "answer",
+   "line": "공과대학 공통 과목 가운데 '창의적공학설계와기업가정신'(2학점, 매학기)은 공학교육인증과정에서 요구하는 기초설계 교과목으로 이수지정 과목이에요.… #창의적공학설계와기업가정신 #창의적공학설계 #공대 #공과대학 #공통 #과목"
+  },
+  {
+   "id": "grad-fineart-common/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-fineart-common/start",
+   "kind": "answer",
+   "line": "미술대학(예술학과 제외)은 2016학년도 입학생부터 공통 전공선택 과목 중 2과목(4학점)을 반드시 들어야 하고, 공통 전공선택 학점은 최대 8… #기초평면 #기초입체 #공통전공선택 #공통전선 #미대 #미술대학"
+  },
+  {
+   "id": "grad-oriental-painting/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학 전공기초 및 공통 전공선택 과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-oriental-painting/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-oriental-painting/start",
+   "kind": "answer",
+   "line": "동양화과는 미술대학 졸업요건(총 132학점 이상, 전공필수를 포함한 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 졸업논문)에 … #동양화과 #동양화전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-painting/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '회화과 학과 내규 — 졸업전시' 안내예요."
+  },
+  {
+   "id": "grad-painting/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학 전공기초 및 공통 전공선택 과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-painting/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-painting/start",
+   "kind": "answer",
+   "line": "회화과는 미술대학 졸업요건(총 132학점 이상, 전공필수를 포함한 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점) 등)에 더해 학과… #회화과 #회화전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-printmaking/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '판화과 졸업요건 안내' 안내예요."
+  },
+  {
+   "id": "grad-printmaking/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학 전공기초 및 공통 전공선택 과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-printmaking/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-printmaking/start",
+   "kind": "answer",
+   "line": "판화과는 미술대학 졸업요건(총 132학점 이상, 전공필수를 포함한 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 졸업논문)에 더… #판화과 #판화전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-sculpture/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학 전공기초 및 공통 전공선택 과목(2026)' 안내예요."
+  },
+  {
+   "id": "grad-sculpture/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '미술대학(예술학과 제외) 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-sculpture/start",
+   "kind": "answer",
+   "line": "조소과는 미술대학 졸업요건(총 132학점 이상, 전공필수를 포함한 전공 48학점 이상, 미술대학 공통 전공선택 2과목(4학점), 졸업논문)에 더… #조소과 #조소전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-art-studies/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '예술학과 졸업논문 안내' 안내예요."
+  },
+  {
+   "id": "grad-art-studies/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-art-studies/start",
+   "kind": "answer",
+   "line": "예술학과는 미술대학(예술학과 제외) 요건이 아니라 문과대학 등과 같은 졸업요건을 따라요. 총 132학점 이상(2010~2015학년도 입학생은 1… #예술학과 #예술학전공 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-english/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '영어영문학과 졸업 요건(졸업레포트)' 안내예요."
+  },
+  {
+   "id": "grad-english/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-english/start",
+   "kind": "answer",
+   "line": "영어영문학과는 문과대학 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 전공 50학점 이상, … #영어영문 #영어영문학과 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-german/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '독어독문학과 논문대체(논문 작성 과목)' 안내예요."
+  },
+  {
+   "id": "grad-german/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-german/start",
+   "kind": "answer",
+   "line": "독어독문학과는 문과대학 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 전공 50학점 이상, … #독어독문 #독어독문학과 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-french/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-french/start",
+   "kind": "answer",
+   "line": "불어불문학과는 문과대학 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 전공 50학점 이상, … #불어불문 #불어불문학과 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-korean/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-korean/start",
+   "kind": "answer",
+   "line": "국어국문학과는 문과대학 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 전공 50학점 이상, … #국어국문 #국어국문학과 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-designmgmt/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '디자인·예술경영학부 졸업논문·논문대체원' 안내예요."
+  },
+  {
+   "id": "grad-designmgmt/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-designmgmt/start",
+   "kind": "answer",
+   "line": "디자인·예술경영학부 디자인경영전공(구.디자인경영융합학부)은 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공… #디자인경영 #디자인경영전공 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-artsmgmt/more",
+   "kind": "answer",
+   "line": "학과 홈페이지 '디자인·예술경영학부 졸업논문·논문대체원' 안내예요."
+  },
+  {
+   "id": "grad-artsmgmt/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-artsmgmt/start",
+   "kind": "answer",
+   "line": "디자인·예술경영학부 예술경영전공은 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 전공 50학… #예술경영 #예술경영전공 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-dam/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '디자인·예술경영학부 디자인경영전공 교과과정(2026)' 안내예요."
+  },
+  {
+   "id": "grad-dam/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '디자인·예술경영학부 예술경영전공 교과과정(2026)' 안내예요."
+  },
+  {
+   "id": "grad-dam/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "grad-dam/start",
+   "kind": "answer",
+   "line": "디자인·예술경영학부(구.디자인경영융합학부)는 공통 졸업요건(총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 포함한 … #디자인예술경영 #디자인·예술경영 #졸업학점 #졸업요건 #전공필수 #전필"
+  },
+  {
+   "id": "grad-req-humanities/start",
+   "kind": "answer",
+   "line": "문과대학·예술학과·디자인·예술경영학부(구.디자인경영융합학부) 등은 총 132학점 이상(2010~2015학년도 입학생은 140학점), 전공필수를 … #문과대 #인문대 #졸업요건 #졸업학점"
+  },
+  {
+   "id": "grad-req-fineart/start",
+   "kind": "answer",
+   "line": "미술대학(예술학과 제외)은 총 132학점 이상, 전공필수를 포함한 전공 48학점 이상(전공기초과목은 포함되지 않음), 미술대학 공통 전공선택 2… #미대 #미술대 #졸업요건 #졸업학점"
+  },
+  {
+   "id": "gen-ed-rules/p0",
+   "kind": "answer",
+   "line": "총동아리연합회 '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/p1",
+   "kind": "answer",
+   "line": "총동아리연합회 '미술대학(예술학과 제외) 졸업학점 현황' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/p2",
+   "kind": "answer",
+   "line": "총동아리연합회 '경영대학 졸업학점 현황' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/p3",
+   "kind": "answer",
+   "line": "총동아리연합회 '공연예술학부 졸업학점 현황' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/p4",
+   "kind": "answer",
+   "line": "총동아리연합회 '공과대학 졸업학점 현황(공학교육인증과정)' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/p5",
+   "kind": "answer",
+   "line": "총동아리연합회 '공과대학·도시공학과 졸업학점 현황(비인증과정)' 분과 동아리예요."
+  },
+  {
+   "id": "gen-ed-rules/start",
+   "kind": "question",
+   "line": "교양 이수 규칙은 단과대학과 입학연도마다 달라요. 어느 쪽이 궁금하세요? (되묻기: 문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황 / 미술대학(예술학과 제외) 졸업학점 현황 / 경영대학 졸업학점 현황 / 공연예술학부 졸업학점 현황 / 공과대학 졸업학점 현황(공학교육인증과정) / 공과대학·도시공학과 졸업학점 현황(비인증과정)) #교양 #몇학점 #몇학점까지 #핵심교양 #공통교양",
+   "next": [
+    "gen-ed-rules/p0",
+    "gen-ed-rules/p1",
+    "gen-ed-rules/p2",
+    "gen-ed-rules/p3",
+    "gen-ed-rules/p4",
+    "gen-ed-rules/p5"
+   ]
+  },
+  {
+   "id": "grad-ce/more",
+   "kind": "answer",
+   "line": "컴퓨터공학과 홈페이지 '졸업프로젝트(졸업논문 대체)' 안내예요."
+  },
+  {
+   "id": "grad-ce/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ce/more2",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-ce/start",
+   "kind": "answer",
+   "line": "컴퓨터공학과는 공과대학 졸업요건(공학교육인증과정 또는 비인증과정, 총 132학점 이상)에 더해 학과 요건이 있어요. 2022학년도 입학생부터 학… #컴공 #컴퓨터공학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-eng-nonabeek/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-eng-nonabeek/start",
+   "kind": "answer",
+   "line": "공과대학·도시공학과 비인증과정은 전공필수를 모두 포함한 전공 50학점을 포함해 총 132학점 이상을 들어야 해요. MSC는 2024학년도 입학생… #비인증 #공학교육비인증 #졸업학점 #졸업요건"
+  },
+  {
+   "id": "grad-eng/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학·도시공학과 졸업학점 현황(비인증과정)' 안내예요."
+  },
+  {
+   "id": "grad-eng/start",
+   "kind": "answer",
+   "line": "공과대학 공학교육인증과정은 전공필수를 모두 포함한 전공 54학점과 MSC 30학점(2026학년도 입학생부터 산업·데이터공학과는 23학점)을 포함… #공대 #공과대학 #졸업학점 #졸업요건 #msc #엠에스씨"
+  },
+  {
+   "id": "grad-biz/start",
+   "kind": "answer",
+   "line": "경영대학은 전공기초 과목을 모두 듣고, 전공필수를 포함한 전공과목 45학점 이상(전공기초과목은 45학점에 들어가지 않아요)을 들어야 해요. 총 … #경영대 #경영학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-arch/start",
+   "kind": "answer",
+   "line": "건축학전공(5년제)은 2016학년도 입학생부터 전공과목 133학점(전공필수 포함) 이상을 포함해 총 162학점 이상을 들어야 해요(2011~20… #건축 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "grad-lawecon/start",
+   "kind": "answer",
+   "line": "법과대학·경제학부·사범대학은 전공필수를 모두 포함해 전공 50학점(사범대학은 57학점) 이상, 총 132학점 이상(2015학년도 입학생까지는 1… #법대 #법과대학 #졸업학점 #졸업요건 #몇학점 #총학점"
+  },
+  {
+   "id": "intl-exchange-apply/start",
+   "kind": "answer",
+   "line": "교환·방문·복수학위 프로그램은 본교에서 2학기 이상(편입생은 1학기 이상) 수료하고 평균평점 3.0 이상, 상대교가 요구하는 어학성적이 있으면 … #교환학생 #교류학생 #자격 #조건"
+  },
+  {
+   "id": "intl-exchange-vs-visit/start",
+   "kind": "answer",
+   "line": "'교환'은 본교에만, '방문'은 본교와 상대교 양쪽에 수업료를 내요. 교환은 한 학기만 가능해 기간을 바꿀 수 없고, 방문은 연장·단축이 돼요.… #교환 #방문 #차이 #다른점 #방문학생 #방문프로그램"
+  },
+  {
+   "id": "intl-exchange-scholarship/start",
+   "kind": "answer",
+   "line": "방문 프로그램 참가자는 그 학기에 '국제교류장학금'을 받아요. 교환학생은 국제교류장학금은 없지만 성적에 따른 교비장학금은 받을 수 있고, 교환은… #교환학생 #교류학생 #장학 #국제교류장학금"
+  },
+  {
+   "id": "intl-exchange-forms/start",
+   "kind": "answer",
+   "line": "정규학기 교류·교환학생 학점인정신청서(학부생·대학원생)와 교류교환 취소 신청서 양식은 국제협력본부 홈페이지 서식자료실에 있어요. #교환학생 #교류학생 #취소 #포기 #양식 #서식"
+  },
+  {
+   "id": "intl-seasonal-abroad/start",
+   "kind": "answer",
+   "line": "해외자매대학 여름·겨울 계절학기를 개별로 듣는 학부생(재학·휴학생)은 본교 2학기 이상(편입생 1학기) 이수·평균평점 3.0 이상이고 다녀온 뒤… #해외 #외국 #계절학기 #썸머스쿨"
+  },
+  {
+   "id": "intl-exchange-credit-rules/start",
+   "kind": "answer",
+   "line": "해외 대학 학점은 홍익대와 학점교류 협약을 맺은 자매대학에서 내부선발을 거쳐 다녀온 경우에만 인정돼요. 자매대학이 아니거나 내부선발 없이 개인적… #비자매 #자매대학아닌 #학점인정 #인정 #교환학생 #교류학생"
+  },
+  {
+   "id": "intl-arch-credit/start",
+   "kind": "answer",
+   "line": "건축학부 학생과 건축학부 진입 예정 자율전공 학생이 교류학생(교환·방문·복수학위) 학점을 대체학점으로 받으려면, 상대교 입학허가가 나온 뒤 출국… #건축학부 #건축학과 #교환학생 #교류학생 #대체학점 #사전승인"
+  },
+  {
+   "id": "intl-mirae/start",
+   "kind": "answer",
+   "line": "미래에셋 박현주재단의 '미래에셋 해외교환 장학생'은 홍익대 교환학생으로 처음 선발된 학부생이 지원하는 생활비성 장학금이에요(대학원생·외국 국적자… #미래에셋 #박현주재단 #교환학생 #교류학생 #미래에셋장학금 #미래에셋해외교환"
+  },
+  {
+   "id": "intl-asemduo/start",
+   "kind": "answer",
+   "line": "아셈듀오(ASEM-DUO) 장학금은 한국 학생 1명과 유럽 ASEM 회원국 학생 1명이 맞교환할 때 두 학생 모두 받는 장학금이에요(1학기 최대… #아셈듀오 #asemduo"
+  },
+  {
+   "id": "intl-west/start",
+   "kind": "answer",
+   "line": "한미 WEST(Work English Study Travel)는 비즈니스 어학연수와 여러 분야 인턴십을 하는 정부 해외인턴 프로그램이에요. 4년… #한미west #west프로그램 #west #웨스트 #인턴 #연수"
+  },
+  {
+   "id": "intl-language-credit/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 '[Outbound] 해외어학연수 학점인정 신청서' 안내예요."
+  },
+  {
+   "id": "intl-language-credit/start",
+   "kind": "answer",
+   "line": "자비로 해외 어학연수를 다녀오면 재학 중 한 번 '해외어학연수' 2학점(P/F)을 인정받을 수 있어요. 학사학위 과정이 있는 대학(부설기관)의 … #어학연수 #랭귀지스쿨 #학점 #인정 #해외어학연수 #어학연수학점"
+  },
+  {
+   "id": "intl-intern-credit/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 '[Outbound] 해외인턴십 학점인정 신청서' 안내예요."
+  },
+  {
+   "id": "intl-intern-credit/start",
+   "kind": "answer",
+   "line": "해외 인턴십(8주 이상, 주당 40시간 근무)을 하면 재학 중 한 번 '해외인턴십' 3학점(P/F)을 인정받을 수 있어요. 프로그램이 끝나기 일… #해외인턴 #해외인턴십 #학점 #인정 #해외인턴십학점 #해외인턴학점"
+  },
+  {
+   "id": "intl-global-program/start",
+   "kind": "answer",
+   "line": "대학교육혁신지원사업의 전공연계 해외파견·해외취업 인턴십 프로그램은 학과·교수가 만들어 하계·동계 방학에 운영하고, 참가 학생에게는 선정위원회가 … #전공연계해외파견 #전공연계해외"
+  },
+  {
+   "id": "intl-exchange-last-semester/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 'Q&A 국제교류실 답변 — 파견 가능 학기(이수 학기 기준)' 안내예요."
+  },
+  {
+   "id": "intl-exchange-last-semester/start",
+   "kind": "answer",
+   "line": "2023학년도 파견부터 마지막 정규학기는 반드시 홍익대에서 들어야 해요. 8학기째(4학년 2학기)나 초과학기 상태로는 파견할 수 없고, 교류학기… #교환학생 #교류학생 #마지막학기 #막학기 #몇학기째 #몇번째학기"
+  },
+  {
+   "id": "intl-visit-credit/start",
+   "kind": "answer",
+   "line": "해외 대학 방문학생으로 들은 학점을 인정받으려면 두 가지가 필요해요. 상대교에 지원·파견하기 전에 홍익대 교류학생 내부선발에 지원해 사전 승인을… #방문학생 #방문프로그램 #학점인정 #인정받"
+  },
+  {
+   "id": "intl-exchange-no-score/start",
+   "kind": "answer",
+   "line": "지원하려는 상대교에 따로 어학 요건이 없어도, 홍익대 내부선발 심사를 위해 낼 수 있는 영어 성적(토익·토플·텝스·아이엘츠)을 내야 해요. 내부… #교환학생 #교류학생 #어학성적 #어학점수 #없어도 #없는데"
+  },
+  {
+   "id": "intl-exchange-passport/start",
+   "kind": "answer",
+   "line": "교류학생 내부선발에 내는 여권 사본은 여권정보증명서로 대신할 수 있어요(영문 이름을 확인하려는 서류예요). 다만 내부선발 합격 뒤 상대교 2차 … #교환학생 #교류학생 #여권사본 #여권정보증명서"
+  },
+  {
+   "id": "intl-exchange-major/start",
+   "kind": "answer",
+   "line": "교환학생은 원칙적으로 홍익대 전공(부전공·복수전공 포함)과 같은 전공으로 상대교에 지원해요. 상대교에 본인 전공과 비슷한 학과나 과목이 있으면 … #교환학생 #교류학생 #다른전공 #타전공 #지원 #신청"
+  },
+  {
+   "id": "intl-exchange-second-round/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 'OUTBOUND 프로그램' 안내예요."
+  },
+  {
+   "id": "intl-exchange-second-round/start",
+   "kind": "answer",
+   "line": "홍익대 내부선발에 붙어도 상대교 2차 지원에서 최종 입학허가를 받아야 파견이 정해져요. 2차 지원 불합격률은 높지 않지만 가끔 떨어지는 경우가 … #교환학생 #교류학생 #2차지원 #2차 #떨어 #탈락"
+  },
+  {
+   "id": "intl-saf/start",
+   "kind": "answer",
+   "line": "OUTBOUND 교류학생(교환·방문·복수학위)은 홍익대와 협약한 자매대학으로만 갈 수 있어요. 다만 본교와 SAF(Study Abroad Fou… #saf #studyabroadfoundation #saf코리아 #교환학생 #교류학생 #비자매"
+  },
+  {
+   "id": "intl-ects/start",
+   "kind": "answer",
+   "line": "홍익대는 순수 강의 15시간을 1학점으로 쳐요. 강의 시간으로 셀 수 없으면 두 학교의 학기당 최대 학점을 비교해, 유럽 대학(학기당 최대 30… #ects #유럽학점 #교환학생 #교류학생 #학점환산 #환산"
+  },
+  {
+   "id": "intl-quarter/start",
+   "kind": "answer",
+   "line": "상대교가 쿼터제여도 그 쿼터가 본교 봄학기 학사일정과 크게 벗어나지 않으면 쿼터 두 개를 본교 한 학기 학점으로 인정받을 수 있어요(최대 18학… #쿼터제 #쿼터학기 #교환학생 #교류학생"
+  },
+  {
+   "id": "intl-exchange-score/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 'Q&A 국제교류실 답변 — 어학성적표 제출' 안내예요."
+  },
+  {
+   "id": "intl-exchange-score/start",
+   "kind": "answer",
+   "line": "교류학생 내부선발에는 유효기간 안에 있는 어학성적만 낼 수 있어요. 성적표는 시험 기관에서 받은 PDF를 인쇄해 내도 되고, 필요하면 나중에 원… #교환학생 #교류학생 #어학성적표 #성적표원본 #유효기간 #만료"
+  },
+  {
+   "id": "intl-inbound-visit/start",
+   "kind": "answer",
+   "line": "해외대학 학사과정 학생은 방문학생(정규학기·계절학기)으로 홍익대에서 공부할 수 있어요. 정규학기는 1학기 전년도 11월 30일, 2학기 5월 3… #방문학생 #visitingstudent #홍익대로 #홍대로 #외국인 #외국학생"
+  },
+  {
+   "id": "intl-buddy/start",
+   "kind": "answer",
+   "line": "국제교류실은 매년 1월·7월경 우리 학교에 온 외국인 교류학생을 돕는 버디(도우미)를 뽑아요. 장학금 결격사유가 없고 외국어에 능통한 재학생이 … #버디프로그램 #버디모집 #교환학생 #교류학생 #도우미 #돕는"
+  },
+  {
+   "id": "intl-office/start",
+   "kind": "answer",
+   "line": "국제협력본부(국제교류실·국제학생지원실)는 정보통신센터 107호(Q107)에 있어요. 평일 09:00~17:30(동절기 11~2월 09:00~17… #국제협력본부 #국제교류실 #어디 #위치 #국제학생지원실"
+  },
+  {
+   "id": "intl-isl/start",
+   "kind": "answer",
+   "line": "외국인유학생라운지(ISL)는 정보통신센터 109호(Q109)에 있는 내외국인 학생 휴식 공간이에요. 학기 중에는 09:30~19:30, 방학 중… #isl #유학생라운지"
+  },
+  {
+   "id": "intl-visa-leave/start",
+   "kind": "answer",
+   "line": "휴학하면 D-2 비자가 취소돼 휴학 신청일로부터 30일 안에 출국해야 해요. 복학할 때는 C-3-1(일부 국가) 또는 D-2 비자로 들어와야 하… #유학생 #외국인학생 #휴학 #복학"
+  },
+  {
+   "id": "intl-departure/start",
+   "kind": "answer",
+   "line": "학기 중에 출국할 때는 출국 전에 국제학생지원실(Q동 107호)에 가서 '출국 신고서'를 써야 해요. 쓰지 않아 행방이 확인되지 않으면 D-2 … #출국신고서 #출국신고 #유학생 #외국인학생 #학기중출국 #학기중에출국"
+  },
+  {
+   "id": "intl-leave-apply/start",
+   "kind": "answer",
+   "line": "외국인 유학생은 클래스넷에서 휴학 신청을 할 수 없어요. 휴학 신청 기간(1학기 대략 2월, 2학기 대략 8월)에 학생증을 들고 학사지원팀에 가… #유학생 #외국인학생 #휴학신청 #휴학원서 #클래스넷 #classnet"
+  },
+  {
+   "id": "intl-return-apply/start",
+   "kind": "answer",
+   "line": "복학하려면 복학 신청서를 출력해 자필 서명한 원본을 국제학생지원실에 내고(해외에 있으면 우편), 복학 신청기간에 클래스넷 → 학사/학적 → 휴/… #유학생 #외국인학생 #복학신청 #복학원서"
+  },
+  {
+   "id": "intl-withdraw/start",
+   "kind": "answer",
+   "line": "유학생이 자퇴하려면 서류를 챙겨 국제학생지원실에서 자퇴원서를 쓰고, 국제학생지원실·학과장·학장·장학팀·도서관 날인을 받아 학사지원팀에 내요. 등… #유학생 #외국인학생 #자퇴 #자퇴원서"
+  },
+  {
+   "id": "intl-advisor-form/start",
+   "kind": "answer",
+   "line": "초과학기자와 대학원 수료생은 비자를 연장할 때 논문지도·졸업시험·학점취득 일정에 대한 지도교수 확인서를 꼭 내야 해요. 일정을 자세히 적고 지도… #초과학기 #학기초과 #비자 #연장 #지도교수확인서 #지도교수님확인서"
+  },
+  {
+   "id": "intl-overterm/start",
+   "kind": "answer",
+   "line": "학사학위취득유예는 정규학기를 모두 등록하고 졸업요건을 다 채운 학생이 클래스넷에서 직접 신청해요(1학기 5월 초~7월 말, 2학기 10월 초~1… #유학생 #외국인학생 #졸업유예 #학위취득유예"
+  },
+  {
+   "id": "intl-parttime-form/start",
+   "kind": "answer",
+   "line": "시간제 취업 허가를 받으려면 여권·외국인등록증·통합신청서, 성적증명서, TOPIK 증서, 시간제취업 확인서(고용주 성명·서명, 학교담당자 서명 … #유학생 #외국인학생 #확인서 #양식 #시간제취업확인서"
+  },
+  {
+   "id": "intl-tb-test/start",
+   "kind": "answer",
+   "line": "비자 연장 때 네팔·러시아·말레이시아·몽골·미얀마·방글라데시·베트남·스리랑카·우즈베키스탄·인도·인도네시아·중국·캄보디아·태국·파키스탄·필리핀 학… #결핵 #결핵검진"
+  },
+  {
+   "id": "intl-visa/start",
+   "kind": "answer",
+   "line": "유학비자(D-2)는 하이코리아(www.hikorea.go.kr)에서 방문 예약을 한 뒤 출입국관리사무소에 가서 신청해요(수수료 130,000원,… #비자 #사증 #연장 #발급 #유학비자 #학생비자"
+  },
+  {
+   "id": "intl-arc-lost/start",
+   "kind": "answer",
+   "line": "외국인 등록증이 손상되거나 없어지면 주소지 관할 출입국관리사무소에서 재발급받아요(여권·사진 1장·통합신청서·수수료 30,000원). 잃어버린 날… #외국인등록증 #외국인등록 #분실 #잃어"
+  },
+  {
+   "id": "intl-arc-change/start",
+   "kind": "answer",
+   "line": "이름·국적·여권번호 같은 외국인 등록사항이나 주소(체류지)가 바뀌면 14일 안에 하이코리아 전자민원이나 출입국관리사무소에 신고해요(늦으면 범칙금… #외국인등록증 #외국인등록 #주소 #이사"
+  },
+  {
+   "id": "intl-arc/start",
+   "kind": "answer",
+   "line": "한국에 90일 이상 머무는 외국인은 입국일로부터 90일 안에 외국인 등록을 해야 해요. 하이코리아에서 방문 예약을 하고 출입국관리사무소에 가서 … #외국인등록증 #외국인등록"
+  },
+  {
+   "id": "intl-parttime/start",
+   "kind": "answer",
+   "line": "유학생이 아르바이트를 하려면 시작 전에 학교와 출입국관리사무소의 허가를 받아야 해요. 직전학기 평균 C(2.0) 이상이어야 하고, 학사 1·2학… #유학생 #외국인학생 #알바 #아르바이트 #시간제취업 #시간제취업허가"
+  },
+  {
+   "id": "intl-tuition-pay/start",
+   "kind": "answer",
+   "line": "외국인 유학생은 등록금을 신한은행 가상계좌로 이체해서 내야 해요(다른 은행 창구 납부는 안 돼요). 클래스넷에서 등록금 고지서를 출력해 고지서에… #유학생 #외국인학생 #등록금 #수업료 #납부 #내요"
+  },
+  {
+   "id": "intl-insurance/start",
+   "kind": "answer",
+   "line": "모든 외국인 유학생은 유학기간 동안 건강보험에 가입해야 해요. 학교 단체 보험(KB손해보험, 34,000원/6개월)은 등록금 낼 때 함께 내요.… #유학생 #외국인학생 #보험 #건강보험 #유학생보험 #외국인보험"
+  },
+  {
+   "id": "intl-scholarship/start",
+   "kind": "answer",
+   "line": "홍익 글로벌 장학금은 외국인 유학생에게 한국어능력과 성적을 기준으로 따로 신청 없이 줘요. 성적우수 장학금은 1학년 2학기부터 직전학기 12학점… #유학생 #외국인학생 #장학 #장학금 #글로벌장학금 #홍익글로벌"
+  },
+  {
+   "id": "intl-academic/start",
+   "kind": "answer",
+   "line": "외국인 유학생은 전과가 안 돼서, 전공을 바꾸려면 자퇴 후 원하는 전공으로 다시 입학 신청해야 해요. 직전학기 평점 1.75 미만이거나 F가 2… #유학생 #외국인학생 #전과 #전공변경"
+  },
+  {
+   "id": "intl-cyber/start",
+   "kind": "answer",
+   "line": "교육부 지침에 따라 2025-2학기부터 외국 국적 유학생(교류·교환학생 포함)은 정규학기마다 사이버강좌를 1강좌만 수강신청할 수 있어요(재수강 … #유학생 #외국인학생 #사이버강좌 #사이버강의"
+  },
+  {
+   "id": "intl-course/start",
+   "kind": "answer",
+   "line": "수강신청은 1학기 2월 초~3월 중순, 2학기 8월 초~9월 중순(사전선택·수강신청·수강철회 포함)이에요. 클래스넷에 로그인해 수강신청 탭 → … #유학생 #외국인학생 #수강신청 #시간표"
+  },
+  {
+   "id": "intl-dorm/start",
+   "kind": "answer",
+   "line": "기숙사 입사는 1학기 2월 말, 2학기 8월 말이고 기숙사 홈페이지에서 지원해요. 제2·제3기숙사는 학부생·대학원생·외국인이 함께 쓰고, 남문관… #유학생 #외국인학생 #기숙사 #긱사 #입사 #신청"
+  },
+  {
+   "id": "intl-dorm-docs/start",
+   "kind": "answer",
+   "line": "외국인 학생은 기숙사 입사 당일 폐결핵 진단서(입사일 기준 3개월 이내 발급 원본)와 홍역예방접종 증명서 원본을 모두 내야 해요. 어릴 때 홍역… #유학생 #외국인학생 #기숙사 #긱사 #입사서류 #입사할때서류"
+  },
+  {
+   "id": "intl-support/start",
+   "kind": "answer",
+   "line": "국제학생지원실은 1:1 유학생 도우미(한 학기 50시간 이상, 매 학기 초 신청)와 국제학생지원실 상담지도교수 배정을 운영해요. 학습 튜터링·글… #유학생 #외국인학생 #도우미 #지도교수 #유학생도우미"
+  },
+  {
+   "id": "intl-foreign-jobs/start",
+   "kind": "answer",
+   "line": "취업진로지원센터(서울)는 외국인 유학생 취업특강(채용 기업 정보·취업전략, 자기소개서·인터뷰 개인컨설팅)과 실제 기업 재직자를 만나는 유학생 취… #유학생 #외국인학생 #취업 #취업특강"
+  },
+  {
+   "id": "intl-chinese-tutoring/start",
+   "kind": "answer",
+   "line": "중국어 튜터링은 중국어를 배우고 싶은 한국인(비중국어권) 학부생과 중국인 유학생을 1:1로 이어 주는 프로그램이에요(서울캠퍼스). 튜터(중국인)… #중국어튜터링 #중국어튜터 #중국어 #튜터 #튜터링"
+  },
+  {
+   "id": "intl-immigration/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 관할 출입국관리사무소는 서울남부출입국관리사무소(서울 강서구 마곡서1로 48, 평일 09:00~18:00)예요. 외국인종합안내센터 13… #출입국 #출입국관리사무소"
+  },
+  {
+   "id": "intl-korean-rules/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어과정은 출석률이 80% 아래면 그 학기를 이수할 수 없고 다음 학기 비자연장도 안 돼요(지각 2번 = 결석 1시간). 성적 … #국제언어교육원 #언어교육원 #출석 #결석"
+  },
+  {
+   "id": "intl-kli-directions/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어교육부는 서울시 마포구 독막로 101 예문관 A동 411호에 있어요. 6호선 상수역 2번 출구로 나와 200m(도보 3분) … #국제언어교육원 #언어교육원 #가는길 #오시는길"
+  },
+  {
+   "id": "intl-kle-buddy-report/start",
+   "kind": "answer",
+   "line": "한국어 도우미 중간보고서에는 1~3차 활동을 쓰고, 최종보고서에는 같은 파일에 4~6차 활동을 이어서 써요(1~6차가 모두 있어야 활동 시간이 … #한국어도우미 #유학생활도우미 #보고서 #활동보고서"
+  },
+  {
+   "id": "intl-korean-schedule/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어 정규과정은 봄·여름·가을·겨울 1년 4학기예요. 예를 들어 2026년 겨울 학기는 2026.12.07 개강·2027.02.… #국제언어교육원 #언어교육원 #개강 #종강"
+  },
+  {
+   "id": "intl-kle-buddy/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어 도우미는 학부 재학생이 어학연수생과 1:1로 5~6주 동안 만나 한국 생활을 돕는 봉사장학 활동이에요. 직전학기 15학점 … #한국어도우미 #유학생활도우미 #국제언어교육원 #언어교육원 #도우미 #봉사"
+  },
+  {
+   "id": "intl-kle-buddy-cert/start",
+   "kind": "answer",
+   "line": "2015년 3월 이후 한국어 도우미 활동 증명서는 학사 클래스넷에서 출력할 수 있어요. 그 전 활동 증명서는 국제언어교육원 한국어교육부 사무실에… #한국어도우미 #언어교육원도우미 #증명서 #확인서"
+  },
+  {
+   "id": "intl-korean-fee/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어 정규과정 수강료는 한 학기 1,750,000원(2024년 봄 학기부터)이고, 전형료 100,000원은 환불되지 않아요. 교… #국제언어교육원 #언어교육원 #학비 #수강료"
+  },
+  {
+   "id": "intl-korean-visa/start",
+   "kind": "answer",
+   "line": "어학연수(D-4-1) 비자는 한국어 강좌를 두 학기 이상 등록하면 한국 대사관·영사관에서 신청할 수 있어요(약 한 달 걸려요). 비자연장 수수료… #국제언어교육원 #언어교육원 #비자 #외국인등록 #d-4 #d4"
+  },
+  {
+   "id": "intl-korean-insurance/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어과정 어학연수생은 첫 학기 개강일부터 6개월(최대 2학기) 동안 '외국인유학생 보험'에 무료로 일괄 가입돼요. 입국일로부터 … #국제언어교육원 #언어교육원 #보험"
+  },
+  {
+   "id": "intl-korean-apply/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어 과정은 고등학교 졸업 이상(또는 동등 학력)인 외국인·재외동포가 지원할 수 있어요. 온라인·이메일·우편·방문 접수 중 하나… #국제언어교육원 #언어교육원 #지원 #입학"
+  },
+  {
+   "id": "intl-korean-course/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어 정규과정은 10주씩 1년 4학기(봄·여름·가을·겨울)이고 초급 1·2, 중급 1·2, 고급 1·2의 여섯 단계예요. 주 5… #한국어과정 #한국어교육과정 #언어교육원 #국제언어교육원 #한국어 #정규과정"
+  },
+  {
+   "id": "intl-kle-forms/start",
+   "kind": "answer",
+   "line": "국제언어교육원 한국어교육부 홈페이지 양식다운로드에 수강취소·환불 신청서, 출입국 통합신청서·거주숙소제공확인서, 일시출국 신고서, 한국어교육과정 … #국제언어교육원 #언어교육원 #양식 #서식 #일시출국신고서 #일시출국신고"
+  },
+  {
+   "id": "intl-foreign-language/start",
+   "kind": "answer",
+   "line": "국제언어교육원 외국어교육부는 학부생을 위해 토익 관련 특별과정(6개월 이상 장기과정)과 일반과정(3개월 미만 단기과정, 연 4학기·학기당 4~1… #외국어교육부 #외국어강좌 #언어교육원 #국제언어교육원 #영어 #중국어"
+  },
+  {
+   "id": "intl-kli-courses/start",
+   "kind": "answer",
+   "line": "국제언어교육원 강좌에는 영어 회화·집중과정, 맞춤형 어학강좌, 속성 한자 특강, 대학원 외국어 시험 대체 강좌, 법률 영어, TOEIC·TOEF… #한자특강 #속성한자"
+  },
+  {
+   "id": "intl-kli-office/start",
+   "kind": "answer",
+   "line": "국제언어교육원은 예문관(YM동) 411호에 있고, 09:00~17:30(동절기 09:00~17:00)에 일해요. #국제언어교육원 #언어교육원 #어디 #위치"
+  },
+  {
+   "id": "lib-reserve/start",
+   "kind": "answer",
+   "line": "학부생은 책을 3권까지 예약할 수 있어요. 예약한 책은 중앙도서관 홈페이지 My Library 메뉴의 '예약 현황'에서 볼 수 있어요. #도서관 #책 #예약 #도서예약 #책예약"
+  },
+  {
+   "id": "lib-loan-limit/start",
+   "kind": "answer",
+   "line": "중앙도서관에서 학부생은 책을 20권까지 3주 동안 빌릴 수 있고, 3권까지 예약할 수 있어요. 대학원생은 50권·4주예요. #도서관 #중도 #몇권 #권수 #빌린책 #대출한책"
+  },
+  {
+   "id": "lib-leave-return/start",
+   "kind": "answer",
+   "line": "도서관 규정상 휴학·정학·자퇴·제적하거나 졸업(수료 포함)하면 빌린 자료를 즉시 반납해야 해요. 이런 학적 업무를 맡은 부서는 도서관에서 반납 … #휴학 #자퇴 #반납 #빌린"
+  },
+  {
+   "id": "lib-my-loans/start",
+   "kind": "answer",
+   "line": "빌린 책의 대출·연장 현황은 중앙도서관 홈페이지 My Library 메뉴의 '대출/연장 현황'에서 볼 수 있어요. 연체된 책은 '연체 현황'에 … #연장 #대출연장 #빌린책 #대출한책 #책연장 #도서연장"
+  },
+  {
+   "id": "lib-loan-hours/start",
+   "kind": "answer",
+   "line": "도서관 규정상 책 대출은 09:00부터 자료열람실이 문 닫기 30분 전까지 할 수 있어요(자료열람실은 09:00~20:00, 토요일은 15:00… #대출 #빌리 #몇시 #시간"
+  },
+  {
+   "id": "lib-not-loanable/start",
+   "kind": "answer",
+   "line": "도서관 규정상 참고자료·정기간행물·학위논문·귀중자료·고서·비도서자료·개인문고는 원칙적으로 대출할 수 없어요. 관장이 업무·연구상 필요하다고 인정… #참고자료 #정기간행물 #대출 #빌릴"
+  },
+  {
+   "id": "lib-sublend/start",
+   "kind": "answer",
+   "line": "도서관 규정상 도서관에서 빌린 자료는 다른 사람에게 다시 빌려줄(전대) 수 없어요. #빌린책 #대출한책 #친구 #다른사람 #전대"
+  },
+  {
+   "id": "lib-fine/start",
+   "kind": "answer",
+   "line": "연체료는 직접 납부와 온라인 납부 중에 골라요. 직접 낼 때는 도서관 2층 대출/반납 데스크에 가서 납부 계좌를 안내받고, 온라인으로 낼 때는 … #연체료 #연체금 #연체 #납부 #내는 #내요"
+  },
+  {
+   "id": "lib-penalty/start",
+   "kind": "answer",
+   "line": "도서관 규정상 빌린 자료를 잃어버리거나 더럽히거나 훼손하면 변상해야 해요. 반납이나 연체료 납부를 하지 않으면 증명서 발급이 중지될 수 있고, … #연체 #미반납 #불이익 #증명서 #도서관 #이용제한"
+  },
+  {
+   "id": "lib-copy-rule/start",
+   "kind": "answer",
+   "line": "도서관 규정상 소장자료는 학술연구 목적으로만, 저작권을 침해하지 않는 범위에서 복제할 수 있고 그 책임은 복제한 사람에게 있어요. 복제할 때는 … #도서관책 #소장자료 #복사 #복제 #책 #도서"
+  },
+  {
+   "id": "lib-closed-days/start",
+   "kind": "answer",
+   "line": "도서관 규정상 정기 휴관일은 국정 공휴일과 개교기념일이에요. 일반열람실은 이날에도 열어요. 관장이 필요하면 따로 개관·휴관을 정할 수 있어요. #도서관 #중도 #휴관 #쉬는날"
+  },
+  {
+   "id": "lib-eligibility/start",
+   "kind": "answer",
+   "line": "도서관 규정상 자료를 열람할 수 있는 사람은 교직원, 학생증을 가진 재학생, 관장이 특별히 허가한 사람이에요. 열람·대출증은 학생증에 포함되고 … #외부인 #일반인 #도서관 #중도 #열람자격 #이용자격"
+  },
+  {
+   "id": "lib-floor/start",
+   "kind": "answer",
+   "line": "중앙도서관(H동)은 4층·3층이 대출자료실, 1층(출입게이트)·2층이 크리에이티브 라운지, 5층이 참고자료실, 6층이 학위논문실/멀티자료실이에요… #도서관 #중도 #몇층 #층별 #1층 #2층"
+  },
+  {
+   "id": "lib-24h/start",
+   "kind": "answer",
+   "line": "24시간 여는 열람실은 제4공학관(T동)에 있어요. 학기 중에는 4층 열람실, 방학 중에는 3층 열람실이 24시간 열려요. 다른 열람실(본관 H… #24시간열람 #24시간 #몇층 #어느층 #밤새 #밤샘"
+  },
+  {
+   "id": "lib-vacation-hours/start",
+   "kind": "answer",
+   "line": "방학 중 중앙도서관 자료실(대출자료실·참고자료실·학위논문실/멀티자료실·정기간행물실)은 평일 10:00~16:00, 토요일 09:00~15:00에… #도서관 #중도 #방학 #방학중"
+  },
+  {
+   "id": "lib-where/start",
+   "kind": "answer",
+   "line": "중앙도서관은 학생회관 뒤편에 있고, 중앙도서관(H동) 1~6층과 정보통신센터(Q동) 4~9층을 써요. 대표번호는 02-320-1305예요. #도서관 #중도 #어디 #위치"
+  },
+  {
+   "id": "lib-daehakro/start",
+   "kind": "answer",
+   "line": "대학로도서관은 대학로캠퍼스 교육동 4층에 있는 공연예술 분야 도서관이에요. 학기 중 09:00~20:00, 방학 중 09:00~17:00에 열어… #대학로도서관 #대학로캠퍼스도서관 #대학로 #대학로캠퍼스 #도서관"
+  },
+  {
+   "id": "lib-qr/start",
+   "kind": "answer",
+   "line": "모바일 학생(신분)증 QR코드는 '홍익대 신분증' 앱의 학생(신분)증 메뉴에서 만들어요. 복사·부정사용을 막으려고 만든 뒤 30초 안에 QR코드… #도서관 #중도 #qr #큐알"
+  },
+  {
+   "id": "lib-offcampus/start",
+   "kind": "answer",
+   "line": "중앙도서관 홈페이지에 로그인하면 교외접속이 자동으로 켜져서, 도서관 홈페이지를 거쳐 학교 밖에서도 전자자원을 쓸 수 있어요. 주소를 직접 열 때… #교외접속 #학외접속 #집 #학교밖 #논문 #dbpia"
+  },
+  {
+   "id": "lib-plagiarism/start",
+   "kind": "answer",
+   "line": "중앙도서관은 표절예방 솔루션으로 국문 표절 검사 서비스 CopyKiller와 영문 표절 검사 서비스 Turnitin·iThenticate를 제공… #표절검사 #표절률 #표절 #검사 #확인"
+  },
+  {
+   "id": "lib-ebook/start",
+   "kind": "answer",
+   "line": "중앙도서관 홈페이지에서 교보문고 전자책, 오디언 오디오북, 해커스 인강·박문각·러닝365 이러닝, 모아진·PressReader 전자잡지, The… #전자책 #오디오북 #해커스 #박문각 #인강 #강의"
+  },
+  {
+   "id": "lib-endnote/start",
+   "kind": "answer",
+   "line": "EndNote Fusion(구 RefWorks)은 참고문헌을 자동으로 만들고 본문 내 인용을 넣어 주는 서지관리도구예요. 중앙도서관 홈페이지 주… #endnote #엔드노트"
+  },
+  {
+   "id": "lib-purchase/start",
+   "kind": "answer",
+   "line": "도서관에 없는 국내·외 단행본과 해외 전자책은 자료구입신청을 할 수 있어요. 학부생은 5권까지 신청할 수 있고(1개월 후 재신청 가능), 신청 … #희망도서 #구입신청 #도서관 #책 #사달라 #사주"
+  },
+  {
+   "id": "lib-ill/start",
+   "kind": "answer",
+   "line": "상호대차(KERIS·신촌 4개대학)와 원문복사서비스(FRIC·KERIS·KISTI 등)는 중앙도서관 열람팀이 맡아요. 담당 전화는 02-320-… #상호대차 #원문복사 #다른학교 #타학교 #책 #도서"
+  },
+  {
+   "id": "lib-reading-card/start",
+   "kind": "answer",
+   "line": "도서관 열람증 발급은 중앙도서관 열람팀의 대출자료실 서비스 담당(02-320-3302)이 맡아요. 열람팀 근무시간은 평일 오전 9:00~오후 5… #열람증"
+  },
+  {
+   "id": "lib-donation/start",
+   "kind": "answer",
+   "line": "도서관 자료 기증은 중앙도서관 수서팀(정보통신센터(Q동) 9층)의 기증·교환 담당(02-320-3307)이 맡아요. #도서기증 #책기증 #기증 #책 #도서"
+  },
+  {
+   "id": "lib-alumni/start",
+   "kind": "answer",
+   "line": "중앙도서관 홈페이지에 '졸업생/수료생 도서관 이용신청' 링크와 '열람증 신청/연장/환불' 메뉴가 있어요. 졸업생은 교외접속(학교 밖 전자자료 이… #졸업생 #졸업한 #도서관 #중도"
+  },
+  {
+   "id": "lib-completion/start",
+   "kind": "answer",
+   "line": "수료생은 그 학기 연구등록금이나 연구생증명비를 낸 경우에만 도서관 자료를 이용할 수 있어요. 급하면 도서관 홈페이지 '수료생 도서관 이용 신청'… #수료생 #수료했 #도서관 #중도"
+  },
+  {
+   "id": "lib-laptop/start",
+   "kind": "answer",
+   "line": "중앙도서관 홈페이지 '시설 · 기기 이용 › 기기 이용 안내'에 '노트북/기기대여' 안내가 있어요. 대여 방법·대상은 그 메뉴에서 확인하고, 궁… #도서관 #중도 #노트북 #태블릿 #대여 #빌리"
+  },
+  {
+   "id": "lib-print/start",
+   "kind": "answer",
+   "line": "중앙도서관 홈페이지 '시설 · 기기 이용 › 기기 이용 안내'에 '인쇄·복사·스캔'과 'PC·Wi-fi·모바일' 안내가 있어요. 이용 방법·요금… #도서관 #중도 #프린트 #프린터"
+  },
+  {
+   "id": "lib-law-weekend/start",
+   "kind": "answer",
+   "line": "법학도서관(홍문관 R동 8층)은 학기 중 09:00~17:00, 방학 중 10:00~16:00에 열고 주말에는 쉬어요. #법학도서관 #법도서관 #주말 #토요일"
+  },
+  {
+   "id": "lib-mac-proxy/start",
+   "kind": "answer",
+   "line": "Mac에서 학교 밖 전자자료를 쓸 때 로그인이 자꾸 풀리면 ① 비공개 릴레이(Private Relay) 끄기 ② VPN·광고 차단·보안 프로그램… #맥북 #맥 #교외접속 #학외접속 #풀려 #풀림"
+  },
+  {
+   "id": "ctl-tutor-rules/start",
+   "kind": "answer",
+   "line": "튜터는 직전학기 성적 3.5 이상인 학부 재학생(1학년 제외)이 할 수 있어요. 학습튜터링 튜티는 직전학기 성적경고 학부생(유학생 제외), 홍익… #튜터 #튜티 #성적 #학점"
+  },
+  {
+   "id": "ctl-tutoring/start",
+   "kind": "answer",
+   "line": "학습튜터링은 같은 학과의 성적 좋은 선배·동료가 튜터가 되어 공부를 도와주는 교수학습지원센터 프로그램이에요. 직전학기 성적경고 학생은 학습튜터링… #홍익투게더 #튜티 #튜터 #튜터링 #신청 #모집"
+  },
+  {
+   "id": "ctl-studygroup/start",
+   "kind": "answer",
+   "line": "스터디 그룹은 같은 전공과목을 듣는 재학생 4~6명이 꾸린 학습모임을 매 학기 10주 동안 장학금·포상금으로 지원하는 프로그램이에요. Hi-UP… #스터디그룹 #스터디모임 #신청 #모집 #스터디 #공부모임"
+  },
+  {
+   "id": "ctl-club/start",
+   "kind": "answer",
+   "line": "자기주도학습동아리는 재학생 4~6명이 전공 관련 자격증·시험 등을 함께 공부하는 학습동아리를 장학금·포상금으로 지원해요(영어·외국어 공인시험은 … #자기주도학습동아리 #자기주도동아리 #학습동아리 #공부동아리 #신청 #모집"
+  },
+  {
+   "id": "ctl-master/start",
+   "kind": "answer",
+   "line": "홍익전공마스터는 성적경고자·편입생을 포함해 꾸린 재학생 팀이 매 학기 10주 동안 전공과목을 함께 공부하도록 장학금·포상금을 지원하는 프로그램이… #홍익전공마스터 #전공마스터 #신청 #모집"
+  },
+  {
+   "id": "ctl-workshop/start",
+   "kind": "answer",
+   "line": "학습법 워크숍은 재학생 수요에 맞춘 학습법·학습전략 프로그램이에요. 공지사항 게시판에서 일정을 확인하고 온라인 신청이나 현장접수로 들어요. 신청… #학습법워크숍 #학습법특강 #학습법 #공부법 #워크숍 #특강"
+  },
+  {
+   "id": "ctl-clinic/start",
+   "kind": "answer",
+   "line": "글쓰기 클리닉은 서울캠퍼스 재학생(외국인 포함)이 직접 쓴 보고서·소논문·에세이 등(A4 10장 이내)을 글쓰기 교수님께 1:1 대면 첨삭받는 … #글쓰기클리닉 #작문클리닉 #신청 #모집 #첨삭 #작문지도"
+  },
+  {
+   "id": "ctl-writing-workshop/start",
+   "kind": "answer",
+   "line": "글쓰기 워크숍(국문/영문)은 강사를 초청해 글쓰기 능력을 키우는 프로그램이에요. 공지사항 게시판에서 일정을 확인하고 온라인 신청이나 현장접수로 … #글쓰기워크숍 #작문워크숍 #글쓰기 #작문 #워크숍 #특강"
+  },
+  {
+   "id": "ctl-contest/start",
+   "kind": "answer",
+   "line": "논리적 글쓰기 대회는 서울캠퍼스 재학생이 참가할 수 있어요. 1학기에는 서평 쓰기 대회(접수 4월 예정), 2학기에는 에세이 쓰기 대회(접수 1… #서평쓰기 #서평대회 #서평 #에세이 #대회 #공모"
+  },
+  {
+   "id": "ctl-english-contest/start",
+   "kind": "answer",
+   "line": "English Contest는 교양 영어 강의를 들은 뒤 공지에 따라 Writing 또는 Speech 대회에 참여하는 프로그램이에요. 학기 중 … #englishcontest #영어말하기대회"
+  },
+  {
+   "id": "ctl-portfolio/start",
+   "kind": "answer",
+   "line": "포트폴리오 워크숍은 포트폴리오 제작 노하우와 자기 PR 방법을 알려 주고, 분야별로 필요한 역량 중심 실습과 Q&A를 하는 특강이에요. 학기 중… #포트폴리오워크숍 #포트폴리오특강 #포트폴리오 #워크숍 #특강"
+  },
+  {
+   "id": "ctl-hitouch/start",
+   "kind": "answer",
+   "line": "유학생 학습멘토링(HI-TOUCH)은 서울캠퍼스에 재학 중인 학생이 멘토가 되어 외국인 유학생의 한국어 실력과 한국 생활 적응을 돕는 프로그램으… #하이터치 #hitouch #유학생 #외국인학생 #멘토 #멘토링"
+  },
+  {
+   "id": "ctl-equipment/start",
+   "kind": "answer",
+   "line": "교수학습지원센터 매체지원부에서 특강·행사 같은 교내 사용에 프로젝터·캠코더·웹캠·앰프·유선마이크·프리젠터 등을 빌려줘요. 먼저 방문이나 전화로 … #프로젝터 #빔프로젝터 #대여 #빌리 #기자재대여 #장비대여"
+  },
+  {
+   "id": "ctl-location/start",
+   "kind": "answer",
+   "line": "교수학습지원센터는 정보통신센터(Q동) 213호에 있어요. 대표전화는 02-320-1365·1366·3492, 메일은 ctl1@hongik.ac.… #교수학습지원센터 #교수학습센터 #어디 #위치"
+  },
+  {
+   "id": "ctl-intl-tutoring/start",
+   "kind": "answer",
+   "line": "유학생 튜터링은 유학생이 어려워하는 전공 교과목과 학교 적응을 돕는 교수학습지원센터의 맞춤형 튜터링이에요. 학기 중에 멘토와 멘티를 1:1이나 … #유학생 #외국인학생 #튜터링 #튜터 #성적경고 #학사경고"
+  },
+  {
+   "id": "ctl-basic-math/start",
+   "kind": "answer",
+   "line": "기초학습역량강화(수리/논리)는 논리·수학처럼 대학 강의를 듣는 데 필요한 보충·선수학습을 돕는 교수학습지원센터 프로그램이에요. 학부 재학생이 학… #기초학습역량 #기초학습역량강화 #수학 #수리 #기초 #보충"
+  },
+  {
+   "id": "ctl-basic-art/start",
+   "kind": "answer",
+   "line": "기초학습 역량강화(미술)는 비실기 전형으로 들어온 미술대학·캠퍼스자율(미술)전공 신입생의 기초 실기능력을 키우는 프로그램이에요. 방학 중에 신청… #비실기 #비실기전형 #미대 #미술대학"
+  },
+  {
+   "id": "ctl-course-workshop/start",
+   "kind": "answer",
+   "line": "교과연계 워크숍은 전공·교양 심화학습, 창의융합학습, 실무적용학습 기회를 주는 프로그램이에요. 학부 재학생이 학기 중에 신청해, 주제별로 지도교… #교과연계워크숍 #교과연계특강"
+  },
+  {
+   "id": "ctl-iot-ai/start",
+   "kind": "answer",
+   "line": "IoT·AI 교육은 4차 산업혁명 핵심 기술인 IoT와 AI의 기초지식과 기술 활용을 배우는 프로그램이에요. 학부 재학생이 방학 중에 신청해 여… #iot #사물인터넷 #ai #인공지능 #ai교육 #인공지능교육"
+  },
+  {
+   "id": "ctl-reading-group/start",
+   "kind": "answer",
+   "line": "교수학습지원센터는 비판적 사고능력과 글쓰기 능력을 키우는 독서 스터디그룹을 운영해요. 프로그램 일정과 신청은 학교 홈페이지 '학생 공지사항'과 … #독서스터디 #독서스터디그룹"
+  },
+  {
+   "id": "ctl-elearning/start",
+   "kind": "answer",
+   "line": "러닝 365학습관은 어학, IT기술, 자격증 취득, 취업·면접 강좌를 들을 수 있는 비교과 e-Learning 시스템이에요. 교수학습지원센터 이… #러닝365 #러닝365학습관"
+  },
+  {
+   "id": "life-dorm-refund/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '생활규정(관리비·환불·퇴사)' 안내예요."
+  },
+  {
+   "id": "life-dorm-refund/start",
+   "kind": "answer",
+   "line": "정규 입사일 하루 전 오후 3시까지 취소하면 기숙사비를 전액 환불받아요. 합격한 기숙사 행정실에 전화로 신청해요. 그 뒤에 취소하면 입사로 보고… #기숙사 #생활관 #환불 #환불규정 #취소 #입사"
+  },
+  {
+   "id": "life-dorm-moveout/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '짐보관실 이용 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-moveout/start",
+   "kind": "answer",
+   "line": "학기 중에 나가려면 퇴사일 3일 전에 층장에게 알리고, 청소 검사를 받은 뒤 퇴사 신청서·비품점검표(퇴사용)·카드키를 행정실에 내요. 하계·동계… #기숙사 #생활관 #퇴사 #퇴관 #신청서 #양식"
+  },
+  {
+   "id": "life-dorm-movein/start",
+   "kind": "answer",
+   "line": "입사 당일 기숙사 행정실에 건강진단서(폐결핵, 입사일 기준 3개월 이내 원본)를 내고 신분 확인 뒤 카드키를 받아요. 서류가 없으면 입사할 수 … #기숙사 #생활관 #입사일 #입사당일 #결핵 #건강진단"
+  },
+  {
+   "id": "life-dorm-items/start",
+   "kind": "answer",
+   "line": "전기장판·전기히터 같은 난방용 전열기기, 커피포트·전기밥솥·전자레인지·에어프라이어 같은 취사용 기기, 다리미·냉장고는 반입할 수 없어요. 선풍기… #기숙사 #생활관 #반입 #반입금지"
+  },
+  {
+   "id": "life-dorm-curfew/start",
+   "kind": "answer",
+   "line": "점호는 새벽 1시(25:00)에 하고, 외출 후 귀사도 새벽 1시까지예요. 폐문 시간은 01:00~05:00이에요. #기숙사 #생활관 #통금 #점호 #새벽 #늦게"
+  },
+  {
+   "id": "life-dorm-overnight/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '장기외박신청서' 안내예요."
+  },
+  {
+   "id": "life-dorm-overnight/start",
+   "kind": "answer",
+   "line": "외박은 미리 온라인으로 본인이 직접 신청하고, 23:30 이후에는 쓸 수 없어요. 온라인 외박 15일을 다 쓰면 장기외박신청서를 행정실에 내요.… #기숙사 #생활관 #외박 #외박신청"
+  },
+  {
+   "id": "life-dorm-penalty/start",
+   "kind": "answer",
+   "line": "벌점이 7점 쌓이면 강제퇴사예요. 사내 음주·흡연, 외부인 출입·숙박, 이성 간 호실 출입, 취사, 출입카드 대여 같은 행위는 바로 강제퇴사예요… #기숙사 #생활관 #벌점 #상점 #술 #음주"
+  },
+  {
+   "id": "life-dorm-visitor/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '상/벌점' 안내예요."
+  },
+  {
+   "id": "life-dorm-visitor/start",
+   "kind": "answer",
+   "line": "기숙사에서 정한 '정규 입사일'에만 부모님이나 보호자 1인이 들어올 수 있고, 그 뒤로는 외부인 출입이 절대 안 돼요. 외부인 출입·숙박이나 이… #기숙사 #생활관 #외부인 #부모님 #남자 #여자"
+  },
+  {
+   "id": "life-dorm-roommate/start",
+   "kind": "answer",
+   "line": "룸메이트는 기숙사 지원 홈페이지(dorm.hongik.ac.kr)에 로그인해 기숙사 지원 › 룸메이트 신청에서, 학기마다 한 번 있는 신청 기간… #룸메 #룸메이트 #기숙사 #생활관"
+  },
+  {
+   "id": "life-dorm-stay/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026학년도 동계방학 잔류자 모집 공고' 안내예요."
+  },
+  {
+   "id": "life-dorm-stay/start",
+   "kind": "answer",
+   "line": "잔류 신청은 1학기는 5월, 2학기는 10월 중에 기숙사 홈페이지 마이페이지 › 기숙사 생활 › 잔류신청에서 해요. 기간 안에 신청하면 지금 사… #잔류신청 #잔류 #기숙사 #생활관 #계속살 #신청"
+  },
+  {
+   "id": "life-dorm-storage/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026-하계방학 짐보관실 운영 안내(유/무료)' 안내예요."
+  },
+  {
+   "id": "life-dorm-storage/start",
+   "kind": "answer",
+   "line": "짐보관실은 퇴사 전 3일 동안 17~20시에 맡겨요. 구글폼을 내고 행정실에서 스티커를 붙인 뒤 층장과 함께 보관해요. 우체국 6호 박스 기준 … #짐보관 #짐보관실 #기숙사 #생활관 #짐 #맡기"
+  },
+  {
+   "id": "life-dorm-mail/start",
+   "kind": "answer",
+   "line": "등기우편물은 제2·3기숙사 모두 1층 행정실에서 받아요. 일반우편물은 호실 우편함으로 와요. 급하면 본교 총무팀에 직접 가서 받아도 돼요. #기숙사 #생활관 #등기 #우편물 #어디 #수령"
+  },
+  {
+   "id": "life-dorm-address/start",
+   "kind": "answer",
+   "line": "제2기숙사는 서울 마포구 와우산로 94(04066), 제3기숙사는 서울 마포구 성미산로 55(03967)예요. 택배는 2·3기숙사 구분과 호실까… #기숙사 #생활관 #택배 #우편 #주소 #보낼"
+  },
+  {
+   "id": "life-dorm-reading/start",
+   "kind": "answer",
+   "line": "기숙사생 전용 열람실은 24시간 운영이 원칙이에요. 이용 시작 때 대장(또는 전산)에 기록하고 4시간씩 써요. 음료 말고 음식은 안 되고, 30… #기숙사 #생활관 #열람실 #독서실 #규정 #시간"
+  },
+  {
+   "id": "life-dorm-office/start",
+   "kind": "answer",
+   "line": "제2기숙사 행정실은 02-320-2403~5, 제3기숙사는 02-338-7440(+1)이에요. 상담 가능시간은 하절기 09:00~17:00, 동… #기숙사 #생활관 #행정실 #전화번호"
+  },
+  {
+   "id": "life-dorm-internet/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '제2,3기숙사 무선인터넷 장애 시 조치방법' 안내예요."
+  },
+  {
+   "id": "life-dorm-internet/start",
+   "kind": "answer",
+   "line": "기숙사 책상 위 네트워크선을 연결해 인터넷을 설정해요. IP 주소는 마지막 끝자리만 책상에 붙은 번호로 바꿔 넣으면 돼요. #기숙사 #생활관 #인터넷 #랜선 #연결 #설정"
+  },
+  {
+   "id": "life-dorm-status/start",
+   "kind": "answer",
+   "line": "제2기숙사는 지상 24층, 2인 1실 551실(1,102명)이에요. 제3기숙사는 1인실(남)과 2인 1실이 있어요. 제1기숙사·남문관·합숙소는 … #기숙사 #생활관 #수용인원 #정원"
+  },
+  {
+   "id": "life-dorm-council/start",
+   "kind": "answer",
+   "line": "사생회는 남·여 사생장과 층장으로 구성돼요. 기숙사생 의견을 학교와 행정실에 전달하고, 기숙사 행사를 주관하며, 매일 점호와 비사생 출입 통제를… #사생회 #사생장"
+  },
+  {
+   "id": "life-dorm-floor-apply/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '층장 지원서(양식)' 안내예요."
+  },
+  {
+   "id": "life-dorm-floor-apply/start",
+   "kind": "answer",
+   "line": "층장은 점호를 하고 기숙사생들을 위해 활동하며, 매달 근로장학금(정액, 6개월 약 240만원)을 받아요(다른 근로장학금과 중복 수혜는 안 돼요)… #층장 #지원 #모집 #월급 #근로장학"
+  },
+  {
+   "id": "life-dorm-council-election/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '사생회 활동' 안내예요."
+  },
+  {
+   "id": "life-dorm-council-election/start",
+   "kind": "answer",
+   "line": "남·여 사생장은 기숙사생 투표로 뽑아요. 2027학년도 사생장 선출 공고 기준으로, 기숙사에서 1년(2학기) 이상 산 현 기숙사생이 남·여 하나… #사생장 #선거 #투표 #사생회선거 #사생장선거"
+  },
+  {
+   "id": "life-dorm-qualify/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 신입생·재학생·복학생이 기숙사 홈페이지(dorm.hongik.ac.kr)에서 신청해요. 신입생은 입학성적, 재학생·복학생은 직전학기 … #기숙사 #생활관 #자격 #선발기준"
+  },
+  {
+   "id": "life-dorm-returning/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '신청 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-returning/start",
+   "kind": "answer",
+   "line": "복학 예정인 휴학생은 학기마다 기숙사 홈페이지 공지사항에 올라오는 '복학생 기숙사 모집'에 지원해요. 2026학년도 2학기 공고 기준으로 학적이… #복학대기 #기숙사 #생활관 #복학 #복학생 #학적"
+  },
+  {
+   "id": "life-dorm-distance/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '신청 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-distance/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 기숙사는 성적으로 뽑아요(신입생은 입학성적, 재학생·복학생은 직전학기 성적). 2026학년도 2학기 복학생 모집 공고에는 자택과의 거… #기숙사 #생활관 #거리 #자택 #반영 #우선"
+  },
+  {
+   "id": "life-dorm-limit/start",
+   "kind": "answer",
+   "line": "생활규정상 기숙사 입사기간은 모두 합쳐 4년(8학기, 계절학기 제외)까지이고, 건축학전공은 5년(10학기)이에요. 학칙으로 징계를 받았거나 1년… #기숙사 #생활관 #8학기 #10학기"
+  },
+  {
+   "id": "life-dorm-room-entry/start",
+   "kind": "answer",
+   "line": "생활규정상 행정실 직원(행정실장, 사생 관리 조교)은 반입금지 품목 적발·사실 보수 같은 질서 유지나 응급환자·사실 내 흡연 같은 안전 관리를 … #기숙사 #생활관 #방에들어 #방에들어와"
+  },
+  {
+   "id": "life-dorm-heating/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '행정업무 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-heating/start",
+   "kind": "answer",
+   "line": "생활규정상 냉·난방은 계절과 기온에 따라 기숙사별로 기계실이나 방재실에서 지정된 시간에 공급해요. 사생들이 합의해 건의하면 지정시간을 바꿀 수 … #기숙사 #생활관 #난방 #냉방 #언제 #몇시"
+  },
+  {
+   "id": "life-dorm-room-change/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '상/벌점' 안내예요."
+  },
+  {
+   "id": "life-dorm-room-change/start",
+   "kind": "answer",
+   "line": "생활규정상 호실은 랜덤으로 배정하고, 신청기간에 1:1 룸메이트 신청을 한 경우에만 같은 호실에 배정될 수 있어요. 상/벌점 기준에서 호실을 무… #기숙사 #생활관 #방바꾸 #방을바꾸"
+  },
+  {
+   "id": "life-dorm-3-where/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026학년도 동계방학 기숙사생 모집' 안내예요."
+  },
+  {
+   "id": "life-dorm-3-where/start",
+   "kind": "answer",
+   "line": "제3기숙사는 마포구 성산동, 홍익대학교 사범대학 부속 여자 중·고등학교와 부속 초등학교가 있는 곳에 있고, 서울캠퍼스에서 직선거리로 1.3km … #3기숙사 #제3기숙사 #위치 #어디"
+  },
+  {
+   "id": "life-dorm-escape/start",
+   "kind": "answer",
+   "line": "완강기가 있는 호실은 제2기숙사 310·323·410·429·510·529·610·629·710·729·810·829·910·924·1010·1… #기숙사 #생활관 #완강기 #비상탈출"
+  },
+  {
+   "id": "life-dorm-fee/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '기숙사비 환불 규정 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-fee/start",
+   "kind": "answer",
+   "line": "2026학년도 2학기 관리비 납부 안내문 기준으로 한 학기 기숙사 관리비는 제2기숙사 2인실 1,647,000원, 제3기숙사 2인실(일반) 1,… #기숙사 #생활관 #얼마 #비용 #기숙사비 #관리비"
+  },
+  {
+   "id": "life-dorm-meal/start",
+   "kind": "answer",
+   "line": "제2기숙사 학생식당 정기식은 1일 3식·2식·1식 중 하나를 골라요. 2026학년도 2학기 기준 총 1,022,400원(3식)·724,200원(… #기숙사 #생활관 #정기식 #식비"
+  },
+  {
+   "id": "life-dorm-food/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026학년도 2학기 제2기숙사 학생식당 정기식 신청 및 납부 안내문' 안내예요."
+  },
+  {
+   "id": "life-dorm-food/start",
+   "kind": "answer",
+   "line": "기숙사비에는 식비가 들어 있지 않아요. 제2기숙사 학생식당(지하 2층) 식비 납부·환불은 기숙사 행정실이 아니라 학생식당이 맡고, 제3기숙사에는… #3기숙사 #제3기숙사 #식당 #밥 #기숙사비 #관리비"
+  },
+  {
+   "id": "life-dorm-vacation/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026학년도 동계방학 잔류자 모집 공고' 안내예요."
+  },
+  {
+   "id": "life-dorm-vacation/start",
+   "kind": "answer",
+   "line": "방학 기숙사는 방학마다 따로 모집해요. 2026학년도 동계방학 모집 공고 기준으로 학부 재학생·대학원생이 지원할 수 있고 서울·경기 거주 학생과… #기숙사 #생활관 #방학 #겨울방학 #신청 #지원"
+  },
+  {
+   "id": "life-dorm-extra/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '기숙사비 환불 규정 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-extra/start",
+   "kind": "answer",
+   "line": "기숙사에 떨어졌거나 신청을 놓쳤다면 기숙사 홈페이지 공지사항에 올라오는 '잔여석 추가모집'과 '상시 추가모집'에 지원할 수 있어요. 2026학년… #기숙사 #생활관 #추가모집 #잔여석 #긱사"
+  },
+  {
+   "id": "life-dorm-happy/start",
+   "kind": "answer",
+   "line": "홍제 행복기숙사는 한국사학진흥재단이 운영하는 학교 밖 기숙사이고, 홍익대도 참여(추천) 대학이에요. 기숙사 홈페이지에 올라온 2026학년도 2학… #행복기숙사 #홍제기숙사 #신청 #지원"
+  },
+  {
+   "id": "life-dorm-bring/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '입사 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-bring/start",
+   "kind": "answer",
+   "line": "입사할 때는 침구류(매트리스 커버 사이즈 200*100 포함), 개인 의류·소지품, 세면도구, 청소용품, 슬리퍼 등을 챙겨요(2026학년도 동계… #기숙사 #생활관 #준비물 #지참물 #입사 #이사"
+  },
+  {
+   "id": "life-dorm-parking/start",
+   "kind": "answer",
+   "line": "기숙사 주차는 정규 입사일 당일에만 최대 2시간까지 무료예요(2026학년도 동계방학 입사 안내). 제2기숙사는 이천득관(Z동) 뒤편 지상 주차 … #기숙사 #생활관 #주차 #주차장 #입사 #이사"
+  },
+  {
+   "id": "life-dorm-parents/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '입사 안내' 안내예요."
+  },
+  {
+   "id": "life-dorm-parents/start",
+   "kind": "answer",
+   "line": "정규 입사일에만 보호자가 호실에 들어올 수 있어요. 2026학년도 동계방학 입사 안내 기준으로 부모님은 성별 상관없이 1명, 부모님이 아닌 가족… #기숙사 #생활관 #부모님 #엄마 #입사날 #입사일"
+  },
+  {
+   "id": "life-dorm-leave/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '2026학년도 동계방학 기숙사생 모집' 안내예요."
+  },
+  {
+   "id": "life-dorm-leave/start",
+   "kind": "answer",
+   "line": "생활규정(제3조)상 휴학생은 기숙사 입사자격이 없어요. 다만 2026학년도 동계방학 기숙사생 모집 공고에는 휴학생도 방학 기숙사에 지원할 수 있… #기숙사 #생활관 #휴학 #휴학생"
+  },
+  {
+   "id": "life-dorm-parcel/more",
+   "kind": "answer",
+   "line": "기숙사(서울) 홈페이지 '홍익대학교 서울캠퍼스 기숙사 주소' 안내예요."
+  },
+  {
+   "id": "life-dorm-parcel/start",
+   "kind": "answer",
+   "line": "제2기숙사 택배는 '서울 마포구 와우산로 94 제2기숙사'에 호실까지 적고, 배송 메모에 '지하 1층 이마트 24 안쪽 0층 택배함'이라고 적으… #기숙사 #생활관 #택배 #택배함 #어디 #찾"
+  },
+  {
+   "id": "life-counsel-apply/more",
+   "kind": "answer",
+   "line": "학생상담센터 홈페이지 '센터 이용' 안내예요."
+  },
+  {
+   "id": "life-counsel-apply/start",
+   "kind": "answer",
+   "line": "학생상담센터 상담·심리검사는 전화(02-320-1356), 방문(정보통신센터 Q301호), 메일(higuidance@hongik.ac.kr)로 … #상담신청 #상담예약 #방법 #어떻게 #상담 #상담센터"
+  },
+  {
+   "id": "life-counsel-secret/start",
+   "kind": "answer",
+   "line": "학생상담센터에서는 인적 사항과 상담 내용의 비밀이 보장돼요. 다만 본인이나 다른 사람의 안전에 위협이 되는 사실을 알게 되면 예외예요. #상담 #심리검사 #비밀 #비밀보장"
+  },
+  {
+   "id": "life-counsel-sessions/start",
+   "kind": "answer",
+   "line": "개인상담은 주 1회 50분씩, 한 사람당 10~15회기 안에서 받아요. 회기 수는 담당 상담 선생님과 상의해 정해요. #상담 #몇회 #몇번"
+  },
+  {
+   "id": "life-counsel-who/start",
+   "kind": "answer",
+   "line": "학생상담센터는 홍익대학교 재학생이 이용할 수 있고, 휴학생과 대학원생도 포함돼요. #상담 #상담센터 #휴학생 #휴학중"
+  },
+  {
+   "id": "life-counsel-group/start",
+   "kind": "answer",
+   "line": "집단상담은 비슷한 관심을 가진 학생 10~15명이 전문상담사와 함께하는 프로그램이에요. 대인관계·자아성장·스트레스 대처·발표 불안 감소 같은 주… #집단상담 #또래상담 #상담 #불안"
+  },
+  {
+   "id": "life-counsel-intl/more",
+   "kind": "answer",
+   "line": "학생상담센터 홈페이지 '상담 및 검사 신청방법' 안내예요."
+  },
+  {
+   "id": "life-counsel-intl/start",
+   "kind": "answer",
+   "line": "학생상담센터는 외국인 유학생에게 개인상담·심리검사(연중), 유학생 특강(연 1회), 집단상담(연 1회, 4주 내외)을 운영해요. #유학생 #외국인 #상담 #심리 #프로그램 #특강"
+  },
+  {
+   "id": "life-counsel-crisis/start",
+   "kind": "answer",
+   "line": "자해·자살 충동 같은 위기 상황이면 신청서 없이 월~금 9~17시에 학생상담센터에 찾아가 당일 위기상담을 받을 수 있어요. 생명이 위급하면 가까… #죽고싶 #자살 #죽고"
+  },
+  {
+   "id": "life-counsel-test-apply/start",
+   "kind": "answer",
+   "line": "심리검사는 학생상담센터(정보통신센터 Q동 301호)에 찾아가거나 전화(02-320-1356), 온라인 신청서로 신청해요. 접수 뒤 필요한 검사를… #심리검사 #mbti #신청방법 #방법"
+  },
+  {
+   "id": "life-counsel-test-kinds/start",
+   "kind": "answer",
+   "line": "학생상담센터 심리검사는 성격검사로 MBTI(20분)·TCI(30분)·MMPI-2(90분), 적성검사로 CTI 진로사고검사(20분)·HOLLAND… #mbti #mmpi #몇분 #얼마나걸"
+  },
+  {
+   "id": "life-counsel-test-result/start",
+   "kind": "answer",
+   "line": "심리검사를 마친 날로부터 1~2주쯤 뒤부터 해석상담 시간을 예약해요. 해석상담은 한 번에 40~50분 걸리고, 필요하면 검사 2~3가지를 함께 … #심리검사 #검사 #결과 #해석"
+  },
+  {
+   "id": "life-counsel-voucher/start",
+   "kind": "answer",
+   "line": "정신건강 심리상담 바우처(옛 전국민 마음투자 지원사업)는 신청서를 학생상담센터 메일(higuidance@hongik.ac.kr)로 내요. 상담자… #마음투자 #심리상담바우처 #바우처 #심리 #상담"
+  },
+  {
+   "id": "life-rights-response/start",
+   "kind": "answer",
+   "line": "인권센터는 성폭력 피해 대응을 ① 상황 인식하기 ② 원하는 해결에 집중하기 ③ 목표와 한계 정하기 ④ 해결방법 검토 ⑤ 주변 지지체계와 강점 찾… #성폭력 #성희롱 #대응 #대처"
+  },
+  {
+   "id": "life-rights-report/start",
+   "kind": "answer",
+   "line": "인권센터는 월~금 09:00~17:00(점심 12:00~13:00)에 정보통신센터 Q동 202호 방문이나 전화(02-320-1378)로 상담을 … #인권 #성희롱 #신고 #접수 #방법 #절차"
+  },
+  {
+   "id": "life-rights-email/start",
+   "kind": "answer",
+   "line": "직접 찾아가기 어렵거나 운영시간이 아니면 인권센터 메일(humanrights1@hongik.ac.kr)로 신고해요. 전문상담원만 확인하고 비밀이… #인권 #성희롱 #이메일 #메일 #사이버신고"
+  },
+  {
+   "id": "life-rights-define/start",
+   "kind": "answer",
+   "line": "성희롱은 지위를 이용하거나 업무 등과 관련해 성적 언동으로 성적 굴욕감·불쾌감을 주는 것이에요. 음란물 보여주기, 성적 농담, 원치 않는 신체 … #성희롱 #성폭력 #뭐예요 #뭔가요"
+  },
+  {
+   "id": "life-rights-workplace/start",
+   "kind": "answer",
+   "line": "직장 내 괴롭힘은 직장에서의 지위·관계 우위를 이용해 업무상 적정범위를 넘어 신체적·정신적 고통을 주거나 근무환경을 악화시키는 행위예요. 폭언·… #직장내괴롭힘 #직장괴롭힘"
+  },
+  {
+   "id": "life-rights-digital/more",
+   "kind": "answer",
+   "line": "인권센터 홈페이지 '신고안내' 안내예요."
+  },
+  {
+   "id": "life-rights-digital/start",
+   "kind": "answer",
+   "line": "불법촬영·비동의유포·유포협박·불법합성 같은 디지털 성범죄 피해는 디지털성범죄피해자지원센터(d4u.stop.or.kr)에서 상담, 삭제 지원, 수… #디지털성범죄 #디지털성폭력 #불법촬영 #몰카 #유포 #퍼뜨"
+  },
+  {
+   "id": "life-rights-prevention/more",
+   "kind": "answer",
+   "line": "인권센터 홈페이지 '신고안내' 안내예요."
+  },
+  {
+   "id": "life-rights-prevention/start",
+   "kind": "answer",
+   "line": "폭력예방교육(성희롱·성폭력·가정폭력·성매매 4대 폭력)은 모든 재학생이 들어야 하는 온라인 필수교육이에요. 인권센터 홈페이지(help.hongi… #폭력예방교육 #폭력예방 #예방교육 #인권 #성희롱"
+  },
+  {
+   "id": "life-rights-myths/start",
+   "kind": "answer",
+   "line": "인권센터는 '성폭력 가해자는 대부분 낯선 사람이다', '남성은 성폭력 피해를 입지 않는다', '옷차림이 성폭력을 유발한다' 같은 생각을 잘못된 … #성폭력 #성범죄 #남자 #남성"
+  },
+  {
+   "id": "life-able-register/start",
+   "kind": "answer",
+   "line": "장애학생 등록은 센터 문의 → 개별 면담 → 장애학생 등록신청 → 등록 완료 순서예요. 장애학생지원센터는 와우관 1층 105호이고, 메일(hi_… #장애학생 #장애인 #등록 #등록방법"
+  },
+  {
+   "id": "life-able-location/start",
+   "kind": "answer",
+   "line": "장애학생지원센터(서울)는 와우관 1층 105호예요. 전화 02-320-1052, 메일 hi_ablecenter@hongik.ac.kr, 카카오톡… #장애학생지원센터 #장애지원센터 #어디 #위치"
+  },
+  {
+   "id": "life-able-helper/start",
+   "kind": "answer",
+   "line": "교육지원인력(도우미)은 중증 장애 재학생에게 교내 이동·수업 대필·튜터링을, 필요하면 속기사·수화통역사를 지원해요. 매 학기 시작 전(2월·8월… #장애학생 #장애인 #도우미 #교육지원인력 #신청 #방법"
+  },
+  {
+   "id": "life-able-study/start",
+   "kind": "answer",
+   "line": "중증 장애 등으로 직접 수강신청이 어려우면 매 학기 개강 전 개별지원요청서(ISP)를 내 우선 수강신청을 지원받을 수 있어요. 강의실·지정좌석 … #장애학생 #장애인 #우선수강 #시험편의"
+  },
+  {
+   "id": "life-able-life/start",
+   "kind": "answer",
+   "line": "중증 지체장애 재학생은 제2기숙사 장애인실(2인 1실 6실)을 우선 배정받을 수 있어요. 기숙사 입사 신청기간에 기숙사 행정실과 장애학생지원센터… #장애학생 #장애인 #장애인실 #기숙사"
+  },
+  {
+   "id": "life-able-devices/start",
+   "kind": "answer",
+   "line": "장애학생지원센터는 장애인용 PC·문자발생기·독서확대기·높이조절 책상·휠체어 같은 보조기기를 빌려줘요. 대여신청서를 메일(hi_ablecenter… #보조기기 #보조공학"
+  },
+  {
+   "id": "life-able-messagestone/more",
+   "kind": "answer",
+   "line": "장애학생지원센터 홈페이지 '보조공학기기' 안내예요."
+  },
+  {
+   "id": "life-able-messagestone/start",
+   "kind": "answer",
+   "line": "장애학생지원센터는 청각장애 보조기기 메시지스톤 에듀AI(방송용 문자발생기)를 1대 갖고 있고, 사용법 안내(태블릿PC용 사용설명서)를 자료실에 … #메시지스톤 #메세지스톤 #청각장애 #청각 #보조기기 #자막"
+  },
+  {
+   "id": "life-able-scholarship/more",
+   "kind": "answer",
+   "line": "장애학생지원센터 홈페이지 '장학/취업 지원' 안내예요."
+  },
+  {
+   "id": "life-able-scholarship/start",
+   "kind": "answer",
+   "line": "복지장학금(학부생)은 중·경증 장애 재학생에게 학기당 150만원(정액)을 줘요. 직전 학기 12학점·성적 2.0 이상이어야 하고(성적 경고는 미… #복지장학금 #복지장학 #장애 #장학 #얼마 #금액"
+  },
+  {
+   "id": "life-able-awareness/start",
+   "kind": "answer",
+   "line": "재학생 장애인식개선교육은 온라인으로 듣고(클래스넷 아이디로 로그인), 교육 기간 안에 시청한 것만 인정돼요. 일정은 장애학생지원센터 공지사항에 … #장애인식개선 #장애인식"
+  },
+  {
+   "id": "life-career-ai/start",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지(inno.hongik.ac.kr/career)에 로그인한 뒤 'AI 합격솔루션' 배너를 누르면 에듀스 AI 자기소개서 … #ai면접 #ai자소서 #ai"
+  },
+  {
+   "id": "life-career-online/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 취업합격자료(에듀스), AI 자기소개서·면접 솔루션, CATCH 기업분석, 잡플래닛 기업정보 같은 온라인 취업 프로그램을 제공… #에듀스 #캐치"
+  },
+  {
+   "id": "life-career-programs/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 취업특강(수시), 방학 중 취업스쿨, 대기업 직무적성검사 대비 특강·모의시험(3·9월), NCS 집중 교육, 자기소개서 경진대… #취업스쿨 #취업캠프"
+  },
+  {
+   "id": "life-career-courses/start",
+   "kind": "answer",
+   "line": "취업 교과목으로 '직업과 취업'과 '직무이해와 취업역량개발'이 있어요. 둘 다 매주 분야별 취업 전문가를 초빙하는 특강형 정규교과목(15주 강의… #직업과취업 #직무이해와취업"
+  },
+  {
+   "id": "life-career-location/start",
+   "kind": "answer",
+   "line": "취업진로지원센터는 정보통신센터(Q동) 302호에 있어요. 대표전화는 02-320-1361~1362, 메일은 careerjob@hongik.ac.… #취업진로 #취업센터 #어디 #위치"
+  },
+  {
+   "id": "life-career-consult/more",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지 '오프라인 프로그램' 안내예요."
+  },
+  {
+   "id": "life-career-consult/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 취업(진로) 1:1 대면 집중컨설팅은 매달 마지막 주에 다음 달 일정이 공지되고, 구글캘린더 링크로 선착순 예약해요. 재학·휴학·졸업… #컨설팅 #취업상담 #예약 #신청방법 #긴급면접 #면접컨설팅"
+  },
+  {
+   "id": "life-career-read/more",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지 '[서울/취업진로지원센터] 2026년 10월 취업(진로) 1:1 대면 집중컨설팅 일정 안내' 안내예요."
+  },
+  {
+   "id": "life-career-read/start",
+   "kind": "answer",
+   "line": "READ 진로상담은 나의 강점과 직무 적합도를 데이터로 분석하고 전문 컨설턴트와 1:1로 진로 방향부터 취업 전략까지 설계하는 상담이에요. 구글… #read #리드 #진로 #상담 #read진로 #리드진로"
+  },
+  {
+   "id": "life-career-langfee/more",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지 '오프라인 프로그램' 안내예요."
+  },
+  {
+   "id": "life-career-langfee/start",
+   "kind": "answer",
+   "line": "어학인증시험 응시장학금은 4학기 이상 이수한 재학생이 지정된 11종 어학시험 응시료를 시험별 1인 2회까지 지원받는 제도예요. HI-UP(통합정… #응시료 #응시장학 #신청방법 #어떻게"
+  },
+  {
+   "id": "life-career-national/more",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지 '오프라인 프로그램' 안내예요."
+  },
+  {
+   "id": "life-career-national/start",
+   "kind": "answer",
+   "line": "국민취업지원제도는 고용노동부가 주관하는 무료 취업지원 프로그램으로, 1:1 전담 취업컨설턴트가 진로상담 → 내일배움카드 지원 → 취업컨설팅·채용… #국민취업지원 #국민취업 #내일배움카드 #학교 #취업진로"
+  },
+  {
+   "id": "life-career-ncs/more",
+   "kind": "answer",
+   "line": "취업진로지원센터 홈페이지 '오프라인 프로그램' 안내예요."
+  },
+  {
+   "id": "life-career-ncs/start",
+   "kind": "answer",
+   "line": "NCS 집중교육(직업기초능력평가)은 공기업·공공기관 취업을 준비하는 3~5학년 학생과 졸업생을 위한 비대면 온라인 교육이에요(서울·세종캠퍼스 함… #ncs #직업기초능력 #신청 #모집"
+  },
+  {
+   "id": "life-cafeteria-menu/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '교직원식당' 안내예요."
+  },
+  {
+   "id": "life-cafeteria-menu/start",
+   "kind": "answer",
+   "line": "학생식당(기숙사식당) 이번 주 식단은 아래 학교 홈페이지 식당 페이지에서 날짜별로 볼 수 있어요. 제2기숙사 지하2층이고 조식 08:00~09:… #식단 #오늘메뉴 #학식 #학생식당 #오늘 #내일"
+  },
+  {
+   "id": "life-cafeteria-faculty/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '문헌관 16층 교직원 식당 위탁운영 계약 만료에 따른 식권 소진 안내' 안내예요."
+  },
+  {
+   "id": "life-cafeteria-faculty/start",
+   "kind": "answer",
+   "line": "교직원식당은 문헌관(MH동) 16층이고, 학교 홈페이지 식당 안내에는 중식 11:30~14:00, 석식 17:00~18:30, 점심·저녁 9,0… #교직원식당 #문헌관식당 #메뉴 #식단"
+  },
+  {
+   "id": "life-clinic-tests/start",
+   "kind": "answer",
+   "line": "학생회관(G동) 1층 건강진료센터에서 CBC 검사(백혈구·적혈구·혈색소·혈소판), 혈당 검사(식전·식후 혈당, 당화혈색소), 혈압·체지방 측정,… #피검사 #혈액검사 #건강진료 #보건실 #검사 #측정"
+  },
+  {
+   "id": "life-clinic-consult/start",
+   "kind": "answer",
+   "line": "학생회관(G동) 1층 건강진료센터는 금연·금주 상담, 대사증후군 상담, 혈압·혈당 같은 건강 상담을 해요. 해외여행 때 필요한 예방접종(A형간염… #금연 #담배끊 #상담 #클리닉 #생리통 #예방접종"
+  },
+  {
+   "id": "life-clinic-staff/start",
+   "kind": "answer",
+   "line": "건강진료센터(학생회관 G동 1층)에는 교의 1명(가정의학전문의), 소장 1명, 정규 간호사 1명이 있어요. 내과 진료·투약, 일반 외상 치료와 … #의사 #교의 #있어 #있나 #보건학 #보건학강좌"
+  },
+  {
+   "id": "life-control-room/start",
+   "kind": "answer",
+   "line": "21시 이후 서울캠퍼스 교내 건물에 드나들어야 하면 종합통제실(와우관 2층)에 가서 학생증 카드 사용등록이나 분실등록을 해요. #종합통제실 #통제실 #21시이후 #21시넘 #건물 #출입"
+  }
+ ]
+}

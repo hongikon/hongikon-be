@@ -1198,3 +1198,95 @@
 - 데이터(`db/sync_partners_2026_10_13.sql`): 에버랜드(이용 방법 + 버튼 문구 "총학생회 인스타그램 게시물 열기", 혜택 문구에서 구매 방법 설명 제거),
   보그헤어 상수역점·베이바이허슬기 2곳(네이버 예약 방식 — 혜택 문구에 섞여 있던 안내를 이용 방법으로 옮김). 인증코드는 저장하지 않는다.
 - 테스트: `MapDataIntegrationTest` 1(있을 때만 내려감, 앞뒤 공백 제거, PUT 으로 지우기). 전체 594개 통과. 절차서 `docs/deploy-runbook-partner-ends-on.md` 갱신.
+
+## 2026-10-14 — 편의시설 종류 추가: 은행·ATM (dev)
+
+- `MapDataRules.FACILITY_KINDS` 에 `은행·ATM` 추가(관리자 화면에서 고를 수 있게). 지도 데이터 읽기는 kind 를 검증하지 않아 이 배포 없이도 내려간다.
+- `db/sync_facilities_2026_10_14_bank.sql`(다시 돌려도 안전): 신한은행 홍익대지점은 이미 학생처(행정·지원) 항목 `hi-r-1f-office-04`(홍문관 R동 1층)로 있어, 새로 넣지 않고 종류를 은행·ATM 으로 바꾸고 ATM 시간(07:00~23:30)을 더한다. 로컬 DB 에서 실행 후 롤백으로 확인.
+- 휴게실: 처음엔 별도 종류로 만들고 남·여학생 휴게실 2곳을 옮기려 했으나, 사용자 요청대로 '수면실' 값을 그대로 두고 앱 화면 이름만 '휴게실'로 바꿨다(데이터 변경 없음).
+- **순서**: 앱 OTA(모르는 종류를 거르는 버전, FE)가 먼저. 옛 앱은 모르는 종류가 검색 결과에 걸리면 오류가 난다. 그다음 이 SQL. 서버 배포는 관리자 편집용이라 SQL 과 순서 무관.
+
+## 2026-10-15 — 챗봇 질문·피드백 로그 POST /ask/feedback (feat/ask-feedback)
+
+- 배경: 앱 챗봇 "물어보기"는 질문 매칭·안내 데이터가 전부 앱 안에서 돌아 서버 호출이 없다. 운영자가 못 찾은 질문과
+  "해결 안 됨" 응답을 볼 수 없어서, 이를 쌓아 안내 흐름 추가와 LLM 도입 여부를 판단하려는 1차 작업. 범위는 로그 API 와 테이블뿐
+  (안내 데이터 이전·부서 검색·LLM·관리자 API 는 하지 않음).
+- `POST /ask/feedback` 본문 `{question, outcome, flowId?, nodeId?, resolved?}` → 204(본문 없음). envelope 없음.
+  - question: 앞뒤 공백을 빼고 1~200자(서비스에서 검사, 400). DTO 는 `@NotBlank` + 1000자 상한(지나치게 긴 본문 차단).
+  - outcome: `FLOW`/`OFFICES`/`NONE`(`AskOutcome`). 없거나 모르는 값이면 400.
+  - flowId·nodeId: 각 100자. outcome 이 FLOW 가 아니면 버리고 저장하지 않는다. 빈 문자열은 null.
+  - resolved: 선택. 앱은 답변 직후(null)와 "해결됐나요?" 응답 때(true/false) 두 번 보낸다 — 두 행은 연결하지 않는다.
+- 인증: `/map/data`·`/feedback` 처럼 비로그인 허용(`SecurityConfig` 에 `POST /ask/feedback` permitAll 추가 — 없으면
+  `anyRequest().authenticated()` 에 걸려 게스트가 401). 토큰이 있으면 빈도 제한 키로만 쓰고 user_id 는 저장하지 않는다.
+- 빈도 제한: `AskFeedbackRateLimiter` — 댓글 신고 제한(`CommentFlagLimiter`)과 같은 `SlidingWindowRateLimiter` 서버 메모리 방식,
+  기본 10분에 60번(질문 하나에 호출 2번 + 공용 IP 공유를 감안, `ask.feedback.rate-limit.max-requests`·`window-minutes`, 기본값이 있어 환경변수 추가 없음). 키는 로그인이면
+  `user:id`, 아니면 `ip:getRemoteAddr()`. 본문 검증(400)을 통과한 요청만 센다.
+- 엔티티 `ask.AskFeedbackLog`(`@Builder` + `@NoArgsConstructor(PROTECTED)` + `@AllArgsConstructor(PRIVATE)`, `@CreationTimestamp`).
+- **DB 변경**: 배포 전 `db/create_ask_feedback_logs_table.sql` 실행(빠뜨리면 validate 로 서버가 뜨지 않는다). 재실행 안전(IF NOT EXISTS).
+  인덱스 created_at·outcome. 로컬 MySQL 에서 만들고 SHOW CREATE TABLE 확인 후 지웠다.
+- 조회 예시: `docs/ask-feedback-queries.sql`(못 찾은 질문 상위 20, flowId/nodeId 별 해결 안 됨 비율, outcome 별 요약).
+  created_at 은 UTC 로 저장되므로 `UTC_TIMESTAMP()` 와 비교한다.
+- 테스트: `AskFeedbackServiceTest` 7(Mockito 단위), `AskFeedbackRateLimiterTest` 2, `AskFeedbackControllerTest` 7
+  (비로그인 204·저장, 400 각종, 60번 뒤 429).
+- 개인정보: 질문 원문에 개인정보가 섞일 수 있다. 사용자·IP 는 저장하지 않지만 원문 보관기간은 정하지 않았다 —
+  90일 지난 행을 지우는 정리 배치와 개인정보 처리방침 반영을 제안(이번 범위 밖).
+## 2026-10-15 — 물어보기 LLM 분류 `POST /ask/route` (dev, 로컬 검증만 · 서버 배포 전)
+
+- 배경: 물어보기는 앱이 낱말로만 흐름을 찾아('matchAskFlow') 다른 표현("한 학기 쉬고 싶어")·이어 묻기("그럼 복학은?")를 못 잡는다.
+  답을 LLM 이 쓰게 하면 데이터 밖 내용이 나올 수 있어, **LLM 은 안내 노드 id 하나만 고르고 답 본문은 앱의 검증된 원문 그대로** 쓰는 방식으로 정했다.
+- `ask` 패키지: `AskCatalog`(resources/ask/catalog.json — 프론트 `scripts/ask/export-catalog.mjs` 가 만든 546개 노드, 시스템 프롬프트를 기동 때 한 번 만든다),
+  `AskLlmClient`(Anthropic Java SDK 2.34.0, `claude-haiku-5-5`, effort low, 출력 스키마 = id enum + none, 타임아웃 10초·재시도 1회),
+  `AskRouteService`(직전 대화 최대 3턴을 붙이고, 카탈로그 밖 id 는 none 으로), `AskRouteController`, `AskRateLimiter`(IP 당 60분 30건).
+- 프롬프트 캐시: 시스템 프롬프트(카탈로그, 스키마 포함 약 6만 토큰)에 캐시 지점, 질문·대화는 그 뒤 user 메시지. 로컬 실측 첫 호출 cacheWrite=60267, 이후 cacheRead=60267.
+  질문 1건 약 $0.0006(캐시 적중 시). 요청이 10만 토큰을 넘으면 단가 5배라 카탈로그 요약을 80자·낱말 6개로 줄였다(섹션 제목은 뺌).
+- 보안: 로그인 대신 `X-Ask-Dev-Key`(서버 `ask.dev-key`, 상수시간 비교). 키 미설정이면 404(운영 기본값), 틀리면 403(401 은 앱이 로그인 만료로 오인).
+  `ANTHROPIC_API_KEY` 가 비면 분류가 꺼져 503. 로그에는 질문 원문을 남기지 않고 토큰·캐시·지연만. `SecurityConfig` 에 `POST /ask/route` permitAll.
+- 설정(application.properties): `anthropic.api-key`, `ask.dev-key`, `ask.llm.model`, `ask.llm.timeout-seconds`, `ask.rate-limit.*` — 모두 환경변수, 운영 `.env` 는 아직 안 넣음.
+- 테스트: `AskRouteIntegrationTest` 7(키 403·정상·카탈로그 밖 id→none·직전 대화 id 거르기·400·503·429), `AskCatalogTest` 3. 전체 604개 통과.
+  로컬 실제 호출 확인: "한 학기만 쉬고 싶은데"→leave-of-absence/start, "그럼 복학은?"(+휴학 맥락)→return/start, "파이썬 짜줘"→none, "와파 안터져요"→wifi/trouble.
+- 의존성 충돌 수정: SDK 가 옛 `swagger-annotations:2.2.31`(비 jakarta)을 끌고 와 springdoc 의 `swagger-annotations-jakarta` 클래스를 가려
+  `/v3/api-docs` 가 500(NoSuchMethodError `Schema.$dynamicRef`)이 났다 — `build.gradle` 에서 exclude. 회귀 테스트 `API_문서가_열리고_ask_route가_있다` 추가(ask 테스트 8개).
+- (같은 날) 개발용 키를 `/dev` 페이지 암호키로 통일: 설정을 `ask.dev-key-sha256`(`ASK_DEV_KEY_SHA256`, 앱 DevPathGate 의 KEY_SHA256 과 같은 hex)으로 바꾸고,
+  서버는 받은 X-Ask-Dev-Key 의 SHA-256 을 상수시간 비교한다 — 평문 키를 서버 설정·앱 번들 어디에도 두지 않는다. 잘못된 hex 면 기동 실패.
+- 남은 일: 앱 `/dev/ask` 연결(낱말 먼저, 못 찾거나 이어 묻기면 서버), 정답표로 정확도 측정. 운영 배포 전 개인정보처리방침(국외이전·처리위탁) 반영 필요.
+
+## 2026-10-15 — 물어보기: 안내 원문 안에서만 답 쓰기 (dev, 로컬 검증만)
+
+- 배경: 노드 id 하나만 고르면 '그래서 어떻게 해?', '아이디는 뭘로?' 같은 이어 묻기에 같은 안내 전체만 되풀이했다. 사용자 요청: 비용은 괜찮으니 원하는 답을, 모르면 모른다고, 규칙도 찾아보고.
+- `POST /ask/route` 를 두 단계로: ① 분류(캐시된 카탈로그, 안내 최대 3개, 앱 낱말 찾기 후보 `hint` 참고) ② 답 쓰기 — 고른 안내 원문(`resources/ask/sources.json`, 프론트 export-catalog.mjs 가 함께 만든다)만 주고
+  그 안에서만 2~6문장으로 답한다. 모자라면 LLM 이 `search_guides`(낱말 검색)·`read_guides`(원문 읽기)로 우리 안내 데이터 안에서 더 찾아본다(최대 4번, 원문 8개, 원문당 8000자).
+  확인되지 않으면 `found=false` 로 "안내에서 확인되지 않아요" + 원문에 있는 담당 부서. 근거 id 는 실제로 원문을 넘긴 것만 돌려준다.
+- 응답: `nodeId`(대표) · `nodeIds`(근거) · `answer` · `found` · `catalogVersion`. 되묻기 단계면 답 없이 id(앱이 버튼으로 되묻기), 답 쓰기만 실패하면 고른 안내를 원문 그대로(경고 로그에 사유).
+  요청: `hint`, 직전 대화 턴에 `answer`(1000자) 추가. 호출 제한 시간 기본 20초.
+- 로컬 실측(Haiku 5.5): 분류 cacheRead=63209(약 1~2초), 답 쓰기 입력 2~5천 토큰(2~7초). "휴학 어디서 언제까지 등록금 반환은" → 일반휴학+등록금 두 안내로 한 번에 답,
+  질병휴학 환급(개강 전 전액·신입생 예외 포함), "아이디는 뭘로?"(지메일 맥락) → 통합로그인 아이디 + "아이디를 정하는 법은 안내에 없어요", 맛집·인젝션 → none.
+- 테스트: `AskRouteIntegrationTest` 10(답·근거, 되묻기, none, 답 실패, 직전 대화·후보 거르기, 400, 503, 429, API 문서), `AskCatalogTest` 5, `AskTranscriptTest` 2.
+- 로컬 기록: `ask.transcript-file`(로컬만 `logs/ask-transcript.txt`, `/logs/` gitignore)에 질문 → 근거 + 답 한 줄. 운영 기본값은 꺼짐.
+- (10-16) 품질 점검(실제 Claude, 질문 50 + 이어 묻기 대화 5, scratchpad eval 스크립트):
+  - **버그**: 답 쓰기 루프가 `stopReason != StopReason.TOOL_USE`(참조 비교)라 스트리밍 응답의 새 값 객체와 늘 달라, 더 찾아보기(도구 호출)를 답으로 읽고 실패했다 → `equals`. 답 실패 14/64 → 0/67.
+  - 되묻기 단계를 고르면 버튼으로 되묻지 않고 버튼이 가리키는 안내(최대 4개) 원문으로 답한다('학생증 재발급'에 "어떤 점이 궁금하세요?"를 되묻던 문제). 정말 모호하면 답이 글로 되묻는다.
+  - 답 쓰기 출력 한도 1,500 → 6,000(내부 추론이 한도를 먹어 JSON 이 잘렸다), 답 맥락에 `[오늘] 날짜(KST)`(분류 프롬프트에는 넣지 않음 — 캐시), 한국어로만·분명한 상황은 되묻지 않기 규칙.
+  - 스트리밍 준비: `AskProgress`(진행 알림), `AnswerTextExtractor`(JSON 조각에서 answer 글자만), 답 쓰기를 흘려받기로. SSE 엔드포인트·앱 화면은 다음 단계.
+  - 남은 약점: '언제까지' 류는 원문에 날짜가 없어 "확인되지 않아요"가 많다(공지·학사일정 연결 필요), 학식 메뉴는 서버의 학식 데이터를 아직 안 씀, none 은 앱이 부서 낱말 찾기로 넘긴다. 중앙 응답 8초.
+- (10-16) 답 쓰기 도구에 '지금 데이터' 연결(`AskLiveData`): `search_notices`(news 제목 낱말 AND→OR, 최신순 6) · `read_notice`(본문 6,000자 — 가장 긴 공지 약 5,800자) · `cafeteria_menu`(CafeteriaMenuService.day).
+  날짜·마감 질문은 "확인되지 않아요" 전에 반드시 공지를 찾게 했다. 근거로 쓴 공지·학식은 응답 `references`(제목·원문 링크·날짜)로.
+  도구 차례 4 → 6, 다 쓰면 마지막 차례는 tool_choice none 으로 지금까지 읽은 것으로 답한다(한도에 걸려 답 없이 끝나던 문제).
+  회귀 67문항: 답 실패 0, 확인 안 됨 11 → 8, 공지·학식 근거 답 8(복학·휴학 신청 기간, 국가장학금 2차, 오늘 학식 등). 테스트 `AskLiveDataTest` 2(ask 테스트 19).
+- (10-16) 흘려받기 `POST /ask/route/stream`(SSE, 같은 인증·검증·한도): picked · search · read · noticeSearch · noticeRead · cafeteria · writing · delta(답 글자) · reset · done(=/ask/route 응답) · error.
+  답 쓰기를 흘려받으며 `AnswerTextExtractor` 로 JSON 의 answer 글자만 내보낸다(answer 를 스키마 첫 칸으로). 스레드 4개 풀, 120초, `X-Accel-Buffering: no`(운영 nginx 배포 시 확인 필요).
+  로컬 실측: 관련 안내 1.5초 → 첫 글자 5.8초 → 완료 6.9초. 테스트 2(진행·done 순서, 403·error 이벤트). SecurityConfig permitAll 에 /ask/route/stream.
+- (10-16) 답 길이: 첫 문장에 바로 답, 2~5문장, 세부 목록은 옮기지 않기(근거 안내로), 전화는 남은 확인이 있을 때만, 학기 중 여부는 학사일정으로 판단.
+  회귀 67: 답 글자 중앙 274 → 226자(최대 644 → 400), 6문장 넘는 답 8 → 4, 답 실패 0, 확인 안 됨 7. BE 전체 테스트 615 통과.
+- (10-16) 근거·주제 다듬기(사용자 지적: 근거가 많고 와닿지 않음, 교환학생은 OUTBOUND 와 함께 안내해야 함):
+  - 근거는 '답에 실제로 쓴 것만'(공지에서 날짜·절차를 가져왔으면 그 공지 필수). 모델이 안 짚으면 대표 안내 하나. 개수 상한은 안전용 5.
+  - 질문 종류별 답 모양: 구체 질문은 2~5문장, 주제 전체 질문('교환학생 정보 알려줘')은 관련 안내·최근 공지를 더 찾아 무엇인지/자격/일정/신청 방법/지금 할 일로 정리.
+  - `AskGlossary`(학교 용어, 분류·답 쓰기 프롬프트 공통): 교환학생 → 국제협력본부 OUTBOUND 프로그램(교환·방문·복수학위 등). 주제 고정 근거 `ANCHORS`:
+    exchange·intl-exchange 안내가 골리면 OUTBOUND 프로그램 안내(intl-exchange-apply/start, oia/content/6)를 꼭 읽히고 출처 맨 위에.
+  - 공지 검색: 낱말이 많이 맞은 순 → 최신순(후보 300), 같은 뜻 낱말(교환↔교류·Outbound·파견 등) — '교환학생 모집'으로 'Outbound 교류학생 모집' 공지를 못 찾던 문제.
+  - 테스트: 동의어 검색, OUTBOUND 고정 근거(ask 테스트 23).
+- (10-16) 답 모양을 안내 카드용으로: 첫 단락 요약 → '[소제목]' → '- 라벨: 내용' 항목(소제목 1~4, 항목 1~5), 주제 전체 질문은 [무엇인지][자격·조건][일정][신청 방법][지금 할 일].
+  전화번호·링크는 본문에 쓰지 않는다(앱이 근거 안내의 전화·페이지 버튼을 붙임). 앱이 이 형식을 예전 안내 카드 스타일로 그린다(사용자: 글 덩어리보다 매크로 카드가 보기 좋았다).
+- (10-16) 카탈로그 731노드(다른 세션 askPages 추가분) — 분류 프롬프트 약 7.8만 토큰. 10만 토큰 단가 구간 가드 테스트 추가(프롬프트+enum 11만 자 미만). ask 테스트 24.
+- (10-16) 답 카드 버튼을 서버가 정해 보낸다: `sources.json` 에 노드별 `meta`(링크·전화·위치) — 응답 `pages`(근거 안내마다 첫 학교 페이지, 같은 주소 한 번)·`phones`(같은 번호 한 번, 최대 3)·`facilityId`.
+  링크 순서·전화를 바꿀 때 앱 배포 없이 데이터 내보내기 + 서버 배포만으로 반영된다. 테스트 1(와이파이 → 기기별 설정 설명서·무선랜 전화·Q동 위치).
+- (10-16) 되묻는 말('어디를 다쳤는지 알려 주시면 …')은 소제목 항목에 넣지 않고 맨 끝 한 줄로(사용자 지적: '나중에 할 일' 항목으로 들어감).
