@@ -76,6 +76,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/feedback").permitAll();
                     // 챗봇 질문·피드백 로그는 게스트도 남긴다. 토큰이 있어도 사용자는 저장하지 않고 빈도 제한 키로만 쓴다.
                     auth.requestMatchers(HttpMethod.POST, "/ask/feedback").permitAll();
+                    // 물어보기 LLM 분류(개발 중, 웹 /dev/ask). 로그인 대신 컨트롤러가 X-Ask-Dev-Key 로 막는다(키 미설정이면 404).
+                    auth.requestMatchers(HttpMethod.POST, "/ask/route", "/ask/route/stream").permitAll();
                     // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
                     auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
                             new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));

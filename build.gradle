@@ -31,6 +31,12 @@ dependencies {
 	implementation('software.amazon.awssdk:s3') {
 		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
 	}
+	// 물어보기 LLM 분류(POST /ask/route): 질문을 앱의 안내 노드 id 하나로 고른다(Claude Haiku).
+	// SDK 가 끌고 오는 옛 swagger-annotations(2.2.31, 비 jakarta)가 springdoc 의 swagger-annotations-jakarta 와 같은 패키지라
+	// 클래스를 가려 /v3/api-docs 가 500(NoSuchMethodError Schema.$dynamicRef)이 난다. SDK 는 주석으로만 써서 빼도 동작한다.
+	implementation('com.anthropic:anthropic-java:2.34.0') {
+		exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
+	}
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	compileOnly 'org.projectlombok:lombok'

@@ -37,6 +37,8 @@ out/
 .vscode/
 
 ### Local secrets ###
+# 로컬 개발 기록(물어보기 질문 기록 ask-transcript.txt 등)
+/logs/
 application-local.properties
 .env
 .env.*
