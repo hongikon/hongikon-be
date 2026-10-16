@@ -32,8 +32,16 @@ public interface AskProgress {
     default void readingNotice(String title) {
     }
 
+    /** LLM 이 학교 지도 시설 정보를 찾는다(search_facilities). */
+    default void searchingFacilities(String query) {
+    }
+
     /** LLM 이 그날 학식을 본다(cafeteria_menu). */
     default void checkingCafeteria(String date) {
+    }
+
+    /** LLM 호출 한 번의 토큰(기록·비용 확인용). */
+    default void usage(long input, long output, long cacheRead) {
     }
 
     /** 답 글자가 나오기 시작했다. */
