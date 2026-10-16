@@ -116,6 +116,18 @@ class AskRouteIntegrationTest {
     }
 
     @Test
+    void 답과_함께_근거_안내의_학교_페이지_전화_위치_버튼을_보낸다() throws Exception {
+        when(llmClient.classify(anyString())).thenReturn(List.of("wifi/trouble"));
+        when(llmClient.answer(anyList(), anyString(), any()))
+                .thenReturn(new AskLlmClient.Answer("기기별 설명서를 보세요.", true, List.of("wifi/trouble")));
+        mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"와이파이 안돼\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pages[0].url").value("https://wifi.hongik.ac.kr/hongik_wifi/"))
+                .andExpect(jsonPath("$.phones[0].phone").value("02-320-1405"))
+                .andExpect(jsonPath("$.facilityId").value("hi-q-10f-office-01"));
+    }
+
+    @Test
     void 카탈로그에_없는_id만_고르면_none이고_답을_쓰지_않는다() throws Exception {
         when(llmClient.classify(anyString())).thenReturn(List.of("made-up/node", AskCatalog.NONE));
         mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"아무거나\"}"))

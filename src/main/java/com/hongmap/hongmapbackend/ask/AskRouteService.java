@@ -91,7 +91,7 @@ public class AskRouteService {
             List<AskRouteResponse.Link> links = answer.references().stream()
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
-            return new AskRouteResponse(sources.get(0), sources, answer.text(), answer.found(), catalog.version(), links);
+            return withButtons(new AskRouteResponse(sources.get(0), sources, answer.text(), answer.found(), catalog.version(), links));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             return new AskRouteResponse(primary, answerIds, null, null, catalog.version());
@@ -137,6 +137,37 @@ public class AskRouteService {
             message.append('\n');
         }
         return message.append("[이번 질문]\n").append(oneLine(request.question())).toString();
+    }
+
+    /** 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3), 처음 나온 위치. */
+    private AskRouteResponse withButtons(AskRouteResponse response) {
+        List<AskRouteResponse.Link> pages = new ArrayList<>();
+        List<AskRouteResponse.Phone> phones = new ArrayList<>();
+        String facilityId = null;
+        for (String id : response.nodeIds()) {
+            AskCatalog.Meta meta = catalog.meta(id);
+            if (meta == null) {
+                continue;
+            }
+            if (meta.links() != null && !meta.links().isEmpty()) {
+                AskCatalog.Link link = meta.links().get(0);
+                if (pages.stream().noneMatch(page -> page.url().equals(link.url()))) {
+                    pages.add(new AskRouteResponse.Link(link.label(), link.url(), null));
+                }
+            }
+            if (meta.phones() != null) {
+                for (AskCatalog.Phone phone : meta.phones()) {
+                    if (phones.size() < 3 && phones.stream().noneMatch(p -> p.phone().equals(phone.phone()))) {
+                        phones.add(new AskRouteResponse.Phone(phone.label(), phone.phone()));
+                    }
+                }
+            }
+            if (facilityId == null) {
+                facilityId = meta.facilityId();
+            }
+        }
+        return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
+                response.catalogVersion(), response.references(), pages, phones, facilityId);
     }
 
     /** 고른 안내가 걸리는 주제의 고정 근거(카탈로그에 있는 것만). */
