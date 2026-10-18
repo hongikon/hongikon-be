@@ -66,4 +66,11 @@ class AskLiveDataTest {
         assertThat(body.reference().date()).isEqualTo("2026-07-01");
         assertThat(liveData.readNotice(-1)).isEmpty();
     }
+
+    @Test
+    void 시설_층은_지하_로비층_지상으로_쓴다() {
+        assertThat(AskLiveData.floorLabel(-2)).isEqualTo("지하 2층");
+        assertThat(AskLiveData.floorLabel(0)).isEqualTo("로비층(L층)");
+        assertThat(AskLiveData.floorLabel(3)).isEqualTo("3층");
+    }
 }

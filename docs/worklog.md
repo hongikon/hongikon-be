@@ -1307,4 +1307,11 @@
   응답에 `logId` → `POST /ask/route/feedback`(키 + 같은 대화 id 일 때만)로 '해결됐나요' 응답을 그 행에. 365일 지나면 매일 03:50 삭제.
   운영 반영 전: `db/create_ask_conversation_logs_table.sql` 실행, 개인정보처리방침 반영(`docs/privacy-ask-conversation-draft.md`). 조회: `docs/ask-conversation-queries.sql`.
   테스트: 가림 2, 기록·피드백 연결(다른 대화 404·키 없음 403), 실패 기록, 만료 삭제.
->>>>>>
+
+## 2026-10-18 — 홍문관 R동 로비층(L) 층 바로잡기 (dev)
+
+- 사용자 지적: R동 증명서 발급기가 L층인데 앱에 1층(1F)으로 나옴. R동은 B1 과 1층 사이에 L층이 따로 있다(운영자 확인).
+- 층 값 0 = 로비층 L 로 쓴다(원래 0층은 쓰지 않는 값이라 컬럼·API 변경 없음). `AskLiveData.floorLabel` — 물어보기 시설 답에서 0 을 '로비층(L층)'으로(전에는 '0층'). 테스트 1.
+- `db/sync_facilities_2026_10_18_r_lobby.sql`(다시 돌려도 안전): 증명서 출력기·카페나무·카페나무 세미나실·신한은행 홍익대지점 floor 1 → 0. code(`hi-r-1f-…`)는 식별자라 그대로. 로컬 DB 에서 실행 후 롤백으로 4줄 확인.
+- 순서: 앱 OTA(FE `formatFloor` 0 → 'L') 먼저 → 운영 DB 에 SQL. 옛 번들은 0 을 'B0' 으로 그린다.
+- 끝에 남아 있던 `>>>>>>` 한 줄 지움.

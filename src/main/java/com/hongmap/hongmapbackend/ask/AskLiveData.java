@@ -65,9 +65,7 @@ public class AskLiveData {
         }
         List<Hit> hits = new ArrayList<>();
         for (JsonNode facility : facilities) {
-            String floor = facility.path("floor").isNumber()
-                    ? (facility.path("floor").asInt() < 0 ? "지하 " + (-facility.path("floor").asInt()) + "층" : facility.path("floor").asInt() + "층")
-                    : "";
+            String floor = facility.path("floor").isNumber() ? floorLabel(facility.path("floor").asInt()) : "";
             String line = facility.path("buildingName").asString("") + " " + floor + " · [" + facility.path("kind").asString("") + "] "
                     + facility.path("note").asString("");
             String lower = line.toLowerCase();
@@ -160,6 +158,14 @@ public class AskLiveData {
 
     private static String escape(String word) {
         return word.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
+
+    /** 지도 데이터 층 값 → 답에 쓰는 말. 0 은 B1 과 1층 사이의 로비층(홍문관 R동 L층). */
+    static String floorLabel(int floor) {
+        if (floor == 0) {
+            return "로비층(L층)";
+        }
+        return floor < 0 ? "지하 " + (-floor) + "층" : floor + "층";
     }
 
     /** 공지 본문(앞 {@link #NOTICE_BODY_MAX}자)과 참조. */
