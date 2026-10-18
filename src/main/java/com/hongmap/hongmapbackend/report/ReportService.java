@@ -5,6 +5,7 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.common.ratelimit.SlidingWindowRateLimiter;
 import com.hongmap.hongmapbackend.report.dto.ReportCreateRequest;
+import com.hongmap.hongmapbackend.report.dto.ReportScheduleRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
@@ -86,6 +87,12 @@ public class ReportService {
     private final double buildingMaxDistanceMeters;
     /** 사용자별 등록 횟수 제한(1시간). 서버 1대 메모리 기준. */
     private final SlidingWindowRateLimiter createLimiter;
+    /**
+     * 공식 계정(학생회 등, User.officialName)은 행사 때 여러 건을 몰아 올리므로 따로 넉넉히 둔다(10-19 요청).
+     * 운영진이 인증한 계정이라 도배 걱정이 적다 — 그래도 계정 탈취 대비로 한도 자체는 남긴다.
+     */
+    private final SlidingWindowRateLimiter officialCreateLimiter;
+    private final long maxPendingPerOfficial;
 
     public ReportService(ReportRepository reportRepository, ReportFlagRepository reportFlagRepository,
                          com.hongmap.hongmapbackend.comment.ReportCommentCounts reportCommentCounts,
@@ -94,6 +101,8 @@ public class ReportService {
                          ReportImageService reportImageService, ApplicationEventPublisher eventPublisher,
                          @Value("${report.create.limit-per-hour:5}") int createLimitPerHour,
                          @Value("${report.create.max-pending:3}") long maxPendingPerUser,
+                         @Value("${report.create.official-limit-per-hour:30}") int officialCreateLimitPerHour,
+                         @Value("${report.create.official-max-pending:20}") long maxPendingPerOfficial,
                          @Value("${report.building-max-distance-meters:300}") double buildingMaxDistanceMeters) {
         this.reportRepository = reportRepository;
         this.reportFlagRepository = reportFlagRepository;
@@ -106,6 +115,8 @@ public class ReportService {
         this.maxPendingPerUser = maxPendingPerUser;
         this.buildingMaxDistanceMeters = buildingMaxDistanceMeters;
         this.createLimiter = new SlidingWindowRateLimiter(createLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
+        this.officialCreateLimiter = new SlidingWindowRateLimiter(officialCreateLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
+        this.maxPendingPerOfficial = maxPendingPerOfficial;
     }
 
     @Transactional
@@ -143,9 +154,10 @@ public class ReportService {
 
         // 도배 방지 ① 승인 대기 수 — DB 로 센다(재시작·서버 여러 대에도 정확). 동시에 두 건이 오면 한 건 넘칠 수 있지만
         // 도배 방지엔 충분하다. 아무것도 기록하지 않으니 사진 정리(S3 사본) 전에 먼저 본다.
-        if (reportRepository.countByUser_IdAndStatus(userId, ReportStatus.PENDING) >= maxPendingPerUser) {
+        long maxPending = user.isOfficial() ? maxPendingPerOfficial : maxPendingPerUser;
+        if (reportRepository.countByUser_IdAndStatus(userId, ReportStatus.PENDING) >= maxPending) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "승인을 기다리는 제보가 " + maxPendingPerUser + "건 있어요. 검토가 끝난 뒤 다시 올려 주세요.");
+                    "승인을 기다리는 제보가 " + maxPending + "건 있어요. 검토가 끝난 뒤 다시 올려 주세요.");
         }
 
         // 사진(최대 3장)은 앱이 presigned URL 로 S3 에 먼저 올렸다. 키 형식·업로드 여부·크기를 확인하고
@@ -154,7 +166,7 @@ public class ReportService {
 
         // 도배 방지 ② 1시간 등록 횟수 — 검증(사진 포함)을 다 통과한 요청만 센다. 사진이 잘못돼 400 받고 다시 고르는 사용자가
         // 한도를 깎이지 않게. 여기서 429 로 롤백되면 위에서 만든 사진 사본은 ReportImageService 가 롤백 시 지운다.
-        if (!createLimiter.tryAcquire("user:" + userId)) {
+        if (!(user.isOfficial() ? officialCreateLimiter : createLimiter).tryAcquire("user:" + userId)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "제보를 너무 자주 올리고 있어요. 잠시 후 다시 시도해 주세요.");
         }
@@ -199,6 +211,11 @@ public class ReportService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "시작 시각은 오늘부터 " + startsAtMaxDays + "일 안으로 골라 주세요.");
         }
+        validateEnd(startsAt, endsAt);
+    }
+
+    /** 종료 시각 규칙: 시작보다 뒤, 시작 + maxDurationDays일 이내. (지났는지는 요청 DTO 의 @Future 가 본다) */
+    private void validateEnd(LocalDateTime startsAt, LocalDateTime endsAt) {
         if (!endsAt.isAfter(startsAt)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "종료 시각은 시작 시각보다 뒤여야 해요.");
         }
@@ -226,6 +243,37 @@ public class ReportService {
                 .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
                 .toList();
         return new ReportListResponse(reportCommunityStats.attach(reportCommentCounts.attach(body), requesterId, null));
+    }
+
+    /**
+     * 공식 계정이 자기 제보의 시작·종료 시각을 고친다(10-19 요청 — 행사가 늦게 시작하거나 길어질 때).
+     * 일반 회원은 403(시각을 바꿔 오래 걸어 두는 남용 방지 — 운영진이 인증한 공식 계정만). 승인 대기·공개 제보만.
+     * 시작 시각을 그대로 두면(이미 시작한 제보의 종료만 늦추기 등) 시작 시각이 지났어도 받는다. 바꾸면 등록과 같은 규칙.
+     */
+    @Transactional
+    public ReportResponse updateSchedule(Long userId, Long reportId, ReportScheduleRequest request) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 제보입니다."));
+        if (!report.getUser().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 작성한 제보만 고칠 수 있어요.");
+        }
+        if (!report.getUser().isOfficial()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시간 수정은 공식 계정만 할 수 있어요.");
+        }
+        if (report.getStatus() != ReportStatus.PENDING && report.getStatus() != ReportStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "지금은 이 제보의 시간을 고칠 수 없어요.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startsAt = request.startsAt();
+        LocalDateTime endsAt = request.endsAt();
+        if (startsAt.equals(report.getStartsAt())) {
+            validateEnd(startsAt, endsAt);
+        } else {
+            validateSchedule(startsAt, endsAt, now);
+        }
+        report.changeSchedule(startsAt, endsAt);
+        return ReportResponse.of(report, userId, reportImageService.viewUrls(report.getImageKeys()));
     }
 
     @Transactional
