@@ -51,12 +51,7 @@ public class AskLiveData {
      * 맞은 낱말이 많은 순. 참조는 `facility:{id}`(앱이 위치 버튼으로 그린다).
      */
     public List<Reference> searchFacilities(String query, StringBuilder text) {
-        List<String> words = new ArrayList<>();
-        for (String word : query.split("[\\s,·/()?!.]+")) {
-            if (word.length() >= 2 && words.size() < 6) {
-                words.add(word.toLowerCase());
-            }
-        }
+        List<String> words = queryWords(query);
         if (words.isEmpty()) {
             return List.of();
         }
@@ -65,16 +60,8 @@ public class AskLiveData {
         }
         List<Hit> hits = new ArrayList<>();
         for (JsonNode facility : facilities) {
-            String floor = facility.path("floor").isNumber() ? floorLabel(facility.path("floor").asInt()) : "";
-            String line = facility.path("buildingName").asString("") + " " + floor + " · [" + facility.path("kind").asString("") + "] "
-                    + facility.path("note").asString("");
-            String lower = line.toLowerCase();
-            int score = 0;
-            for (String word : words) {
-                if (lower.contains(word)) {
-                    score++;
-                }
-            }
+            String line = facilityLine(facility);
+            int score = score(line, words);
             if (score > 0) {
                 hits.add(new Hit(facility, line, score));
             }
@@ -87,6 +74,185 @@ public class AskLiveData {
             references.add(new Reference(ref, hit.line(), null, null));
         }
         return references;
+    }
+
+    static final int BUILDING_SEARCH_LIMIT = 3;
+    /** 건물 하나에 붙일 시설 줄 수 상한(홍문관처럼 연구소·사무실이 40곳 넘는 건물도 있다). */
+    static final int BUILDING_FACILITY_LINES = 60;
+    static final int PARTNER_SEARCH_LIMIT = 8;
+
+    /**
+     * 지도 건물(GET /map/data 의 buildings) 낱말 검색 — 건물 이름·별칭(R동 …)·종류·소개·운영시간·층수에, 그 건물의 층별 시설과 지금 하는 전시까지
+     * 한 번에 준다('홍문관에 뭐 있어', 'Q동 몇 층까지', '조형관 운영시간'). 이름이 맞은 건물이 먼저. 참조는 `building:{code}`.
+     */
+    public List<Reference> searchBuildings(String query, StringBuilder text) {
+        List<String> words = queryWords(query);
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        JsonNode data = jsonMapper.readTree(mapDataService.current().body());
+        record Hit(JsonNode node, int score) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode building : data.path("buildings")) {
+            String name = building.path("name").asString("");
+            String about = String.join(" ", name, building.path("code").asString(""), building.path("type").asString(""),
+                    building.path("category").asString(""), building.path("description").asString(""));
+            // 이름에 맞은 낱말은 두 배 — '홍문관 카페'에서 소개에 '카페'가 적힌 다른 건물보다 홍문관이 먼저.
+            int score = score(name, words) * 2 + score(about, words);
+            if (score > 0) {
+                hits.add(new Hit(building, score));
+            }
+        }
+        hits.sort((a, b) -> b.score() - a.score());
+        LocalDate today = cafeteriaMenuService.today();
+        List<Reference> references = new ArrayList<>();
+        for (Hit hit : hits.subList(0, Math.min(BUILDING_SEARCH_LIMIT, hits.size()))) {
+            JsonNode building = hit.node();
+            String name = building.path("name").asString("");
+            String ref = "building:" + building.path("code").asString("");
+            text.append(ref).append(" · ").append(name).append('\n');
+            appendField(text, "종류", building.path("type").asString(null));
+            if (building.path("floors").isNumber() || building.path("basementFloors").isNumber()) {
+                appendField(text, "층수", (building.path("basementFloors").isNumber() ? "지하 " + building.path("basementFloors").asInt() + "층 ~ " : "")
+                        + (building.path("floors").isNumber() ? "지상 " + building.path("floors").asInt() + "층" : ""));
+            }
+            appendField(text, "운영시간", building.path("hours").asString(null));
+            appendField(text, "소개", building.path("description").asString(null));
+            if (!building.path("facilities").isMissingNode() && !building.path("facilities").isNull()) {
+                appendField(text, "건물 시설", building.path("facilities").toString());
+            }
+            appendField(text, "안내 링크", building.path("link").path("label").asString(null));
+            List<String> facilityIds = new ArrayList<>();
+            int lines = 0;
+            for (JsonNode facility : sortedByFloor(data.path("facilities"), name)) {
+                if (lines++ == 0) {
+                    text.append("- 층별 시설:\n");
+                }
+                if (lines > BUILDING_FACILITY_LINES) {
+                    text.append("  (시설이 더 있어요 — search_facilities 로 찾는다)\n");
+                    break;
+                }
+                facilityIds.add(facility.path("id").asString(""));
+                text.append("  facility:").append(facility.path("id").asString("")).append(" · ").append(facilityLine(facility)).append('\n');
+            }
+            for (JsonNode exhibition : data.path("exhibitions")) {
+                if (facilityIds.contains(exhibition.path("facilityId").asString("")) && runsOn(exhibition, today)) {
+                    text.append("- 지금 전시: ").append(exhibition.path("title").asString("")).append(" (")
+                            .append(exhibition.path("startsOn").asString("")).append(" ~ ").append(exhibition.path("endsOn").asString(""))
+                            .append(exhibition.path("hours").isString() ? ", " + exhibition.path("hours").asString() : "").append(")\n");
+                }
+            }
+            references.add(new Reference(ref, name, null, null));
+        }
+        return references;
+    }
+
+    /**
+     * 학교 제휴업체(GET /map/data 의 partners) 낱말 검색 — 이름·종류·소속·혜택·주소. 제휴가 끝난 업체는 뺀다.
+     * 전화번호는 싣지 않는다(답 본문에 쓰지 않는 규칙이고, 앱 지도에서 업체를 열면 보인다). 참조는 `partner:{id}`.
+     */
+    public List<Reference> searchPartners(String query, StringBuilder text) {
+        List<String> words = queryWords(query);
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        JsonNode partners = jsonMapper.readTree(mapDataService.current().body()).path("partners");
+        LocalDate today = cafeteriaMenuService.today();
+        record Hit(JsonNode node, String line, int score) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode partner : partners) {
+            String endsOn = partner.path("endsOn").asString("");
+            if (!endsOn.isEmpty() && endsOn.compareTo(today.toString()) < 0) {
+                continue;
+            }
+            StringBuilder line = new StringBuilder(partner.path("name").asString(""))
+                    .append(" [").append(partner.path("category").asString("")).append("]");
+            List<String> affiliations = new ArrayList<>();
+            partner.path("affiliations").forEach(affiliation -> affiliations.add(affiliation.asString("")));
+            if (!affiliations.isEmpty()) {
+                line.append(" · 대상: ").append(String.join(", ", affiliations));
+            }
+            appendPart(line, "혜택", partner.path("benefit").asString(null));
+            for (JsonNode special : partner.path("affiliationBenefits")) {
+                appendPart(line, special.path("affiliation").asString("") + " 혜택", special.path("benefit").asString(null));
+            }
+            appendPart(line, "주소", partner.path("address").asString(null));
+            appendPart(line, "시간", partner.path("hours").asString(null));
+            appendPart(line, "이용 방법", partner.path("usageNote").asString(null));
+            appendPart(line, "제휴 종료", endsOn.isEmpty() ? null : endsOn + "까지");
+            int score = score(line.toString(), words);
+            if (score > 0) {
+                hits.add(new Hit(partner, line.toString(), score));
+            }
+        }
+        hits.sort((a, b) -> b.score() - a.score());
+        List<Reference> references = new ArrayList<>();
+        for (Hit hit : hits.subList(0, Math.min(PARTNER_SEARCH_LIMIT, hits.size()))) {
+            String ref = "partner:" + hit.node().path("id").asString("");
+            text.append(ref).append(" · ").append(hit.line()).append('\n');
+            references.add(new Reference(ref, hit.node().path("name").asString(""), null, null));
+        }
+        return references;
+    }
+
+    /** 질문에서 2글자 이상 낱말 최대 6개(소문자). */
+    private static List<String> queryWords(String query) {
+        List<String> words = new ArrayList<>();
+        for (String word : query.split("[\\s,·/()?!.]+")) {
+            if (word.length() >= 2 && words.size() < 6) {
+                words.add(word.toLowerCase());
+            }
+        }
+        return words;
+    }
+
+    private static int score(String text, List<String> words) {
+        String lower = text.toLowerCase();
+        int score = 0;
+        for (String word : words) {
+            if (lower.contains(word)) {
+                score++;
+            }
+        }
+        return score;
+    }
+
+    private static String facilityLine(JsonNode facility) {
+        String floor = facility.path("floor").isNumber() ? floorLabel(facility.path("floor").asInt()) : "";
+        return facility.path("buildingName").asString("") + " " + floor + " · [" + facility.path("kind").asString("") + "] "
+                + facility.path("note").asString("");
+    }
+
+    /** 그 건물 시설을 위층부터(층 모르는 것은 맨 뒤). */
+    private static List<JsonNode> sortedByFloor(JsonNode facilities, String buildingName) {
+        List<JsonNode> inBuilding = new ArrayList<>();
+        for (JsonNode facility : facilities) {
+            if (buildingName.equals(facility.path("buildingName").asString(""))) {
+                inBuilding.add(facility);
+            }
+        }
+        inBuilding.sort(Comparator.comparingInt((JsonNode facility) -> facility.path("floor").isNumber() ? -facility.path("floor").asInt() : Integer.MAX_VALUE));
+        return inBuilding;
+    }
+
+    private static boolean runsOn(JsonNode exhibition, LocalDate day) {
+        String startsOn = exhibition.path("startsOn").asString("");
+        String endsOn = exhibition.path("endsOn").asString("");
+        return (startsOn.isEmpty() || startsOn.compareTo(day.toString()) <= 0) && (endsOn.isEmpty() || endsOn.compareTo(day.toString()) >= 0);
+    }
+
+    private static void appendField(StringBuilder text, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            text.append("- ").append(label).append(": ").append(value).append('\n');
+        }
+    }
+
+    private static void appendPart(StringBuilder line, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            line.append(" · ").append(label).append(": ").append(value);
+        }
     }
 
     /** 근거로 붙일 바깥 자료(공지·학식). */

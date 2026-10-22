@@ -88,7 +88,8 @@ public class AskRouteService {
                 }
             }
             List<AskRouteResponse.Link> links = answer.references().stream()
-                    .filter(reference -> !reference.ref().startsWith("facility:"))
+                    .filter(reference -> !reference.ref().startsWith("facility:") && !reference.ref().startsWith("building:")
+                            && !reference.ref().startsWith("partner:"))
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),

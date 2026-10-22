@@ -1,19 +1,29 @@
 package com.hongmap.hongmapbackend.ask;
 
+import com.hongmap.hongmapbackend.building.Building;
+import com.hongmap.hongmapbackend.building.BuildingRepository;
+import com.hongmap.hongmapbackend.mapdata.CampusFacility;
+import com.hongmap.hongmapbackend.mapdata.CampusFacilityRepository;
+import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
+import com.hongmap.hongmapbackend.partner.entity.Partner;
+import com.hongmap.hongmapbackend.partner.repository.PartnerRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 물어보기 답 쓰기 도구 — 학교 공지 찾기·읽기(실제 DB, H2). */
+/** 물어보기 답 쓰기 도구 — 학교 공지 찾기·읽기, 지도 건물·제휴업체 찾기(실제 DB, H2). */
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
@@ -21,6 +31,16 @@ class AskLiveDataTest {
 
     @Autowired AskLiveData liveData;
     @Autowired NewsRepository newsRepository;
+    @Autowired BuildingRepository buildingRepository;
+    @Autowired CampusFacilityRepository facilityRepository;
+    @Autowired PartnerRepository partnerRepository;
+    @Autowired MapDataService mapDataService;
+
+    @AfterEach
+    void clearMapCache() {
+        // 아래 지도 테스트가 넣은 행은 롤백되지만 캐시에는 남는다.
+        mapDataService.invalidate();
+    }
 
     private News save(String title, String content, LocalDateTime publishedAt) {
         return newsRepository.save(News.builder()
@@ -72,5 +92,54 @@ class AskLiveDataTest {
         assertThat(AskLiveData.floorLabel(-2)).isEqualTo("지하 2층");
         assertThat(AskLiveData.floorLabel(0)).isEqualTo("로비층(L층)");
         assertThat(AskLiveData.floorLabel(3)).isEqualTo("3층");
+    }
+
+    @Test
+    void 건물을_찾으면_건물_정보와_층별_시설을_함께_준다() {
+        String suffix = UUID.randomUUID().toString().substring(0, 6);
+        Building building = buildingRepository.save(Building.builder()
+                .name("물어보기관-" + suffix).displayName("물어보기관 Y동-" + suffix).code("ask_b_" + suffix)
+                .latitude(new BigDecimal("37.5500000")).longitude(new BigDecimal("126.9250000"))
+                .type("강의동").floors(5).basementFloors(2).hours("07:00~23:00").description("시험용 건물")
+                .build());
+        facilityRepository.save(CampusFacility.builder()
+                .code("ask-f-low-" + suffix).kind("프린터").building(building).floor(-1).note("출력실").sortOrder(1).build());
+        facilityRepository.save(CampusFacility.builder()
+                .code("ask-f-high-" + suffix).kind("카페").building(building).floor(3).note("시험카페").sortOrder(2).build());
+        mapDataService.invalidate();
+
+        StringBuilder text = new StringBuilder();
+        assertThat(liveData.searchBuildings("Y동-" + suffix + " 몇 층", text))
+                .extracting(AskLiveData.Reference::ref)
+                .containsExactly("building:ask_b_" + suffix);
+        String out = text.toString();
+        assertThat(out).contains("층수: 지하 2층 ~ 지상 5층", "운영시간: 07:00~23:00", "소개: 시험용 건물");
+        // 위층부터
+        assertThat(out.indexOf("facility:ask-f-high-" + suffix)).isLessThan(out.indexOf("facility:ask-f-low-" + suffix));
+        assertThat(out).contains("지하 1층 · [프린터] 출력실");
+    }
+
+    @Test
+    void 제휴업체는_혜택으로_찾고_끝난_제휴와_전화는_뺀다() {
+        String suffix = UUID.randomUUID().toString().substring(0, 6);
+        Partner open = Partner.builder()
+                .code("ask-p-open-" + suffix).sortOrder(-1000).name("물어보기카페" + suffix).category("카페")
+                .latitude(new BigDecimal("37.5458493")).longitude(new BigDecimal("126.9224087"))
+                .benefit("아메리카노 할인" + suffix).contact("02-000-0000").build();
+        open.addAffiliation("총학생회", null);
+        partnerRepository.save(open);
+        Partner ended = Partner.builder()
+                .code("ask-p-ended-" + suffix).sortOrder(-1000).name("끝난카페" + suffix).category("카페")
+                .latitude(new BigDecimal("37.5458493")).longitude(new BigDecimal("126.9224087"))
+                .benefit("아메리카노 할인" + suffix).endsOn(LocalDate.of(2020, 1, 1)).build();
+        ended.addAffiliation("총학생회", null);
+        partnerRepository.save(ended);
+        mapDataService.invalidate();
+
+        StringBuilder text = new StringBuilder();
+        assertThat(liveData.searchPartners("할인" + suffix, text))
+                .extracting(AskLiveData.Reference::ref)
+                .containsExactly("partner:ask-p-open-" + suffix);
+        assertThat(text.toString()).contains("대상: 총학생회", "혜택: 아메리카노 할인" + suffix).doesNotContain("02-000-0000");
     }
 }
