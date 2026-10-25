@@ -276,11 +276,12 @@ public class AskLiveData {
     static final int NOTICE_CANDIDATES = 300;
 
     /**
-     * 제목에 맞는 낱말이 많은 공지부터, 같으면 최신순으로. 낱말(2글자 이상, 최대 5개)마다 같은 뜻 낱말({@link #SYNONYMS})도 본다.
+     * 맞는 낱말이 많은 공지부터, 같으면 최신순으로. 낱말(2글자 이상, 최대 5개)마다 같은 뜻 낱말({@link #SYNONYMS})도 본다.
+     * 제목에 맞으면 3점, 본문에만 맞으면 1점 — 본문에만 있는 사실(Q&A 공지의 '학점 이월 최대 2학점' 같은 것)도 찾는다(10-25 운영진 요청).
      * 하나도 안 맞으면 빈 목록.
      */
     @Transactional(readOnly = true)
-    public List<Reference> searchNotices(String query) {
+    public List<NoticeHit> searchNotices(String query) {
         List<List<String>> groups = new ArrayList<>();
         for (String word : query.split("[\\s,·/()?!.]+")) {
             if (word.length() >= 2 && groups.size() < 5) {
@@ -296,7 +297,9 @@ public class AskLiveData {
             List<Predicate> likes = new ArrayList<>();
             for (List<String> group : groups) {
                 for (String word : group) {
-                    likes.add(cb.like(cb.lower(root.get("title")), "%" + escape(word.toLowerCase()) + "%", '!'));
+                    String pattern = "%" + escape(word.toLowerCase()) + "%";
+                    likes.add(cb.like(cb.lower(root.get("title")), pattern, '!'));
+                    likes.add(cb.like(cb.lower(root.get("content")), pattern, '!'));
                 }
             }
             return cb.or(likes.toArray(Predicate[]::new));
@@ -304,15 +307,22 @@ public class AskLiveData {
         List<News> candidates = newsRepository.findAll(anyWord,
                 PageRequest.of(0, NOTICE_CANDIDATES, Sort.by(Sort.Direction.DESC, "publishedAt"))).getContent();
         return candidates.stream()
-                .sorted(Comparator.comparingInt((News news) -> -matched(news.getTitle(), groups)))
+                .sorted(Comparator.comparingInt((News news) -> -(3 * matched(news.getTitle(), groups) + matched(news.getContent(), groups))))
                 .limit(NOTICE_SEARCH_LIMIT)
-                .map(AskLiveData::reference)
+                .map(news -> new NoticeHit(reference(news), news.getSourceId()))
                 .toList();
     }
 
-    /** 제목에 맞은 낱말 묶음 수. */
-    private static int matched(String title, List<List<String>> groups) {
-        String lower = title.toLowerCase();
+    /** 공지 찾기 결과 하나. board 는 수집한 게시판(학사·장학 같은 대학공지 분류, 또는 학과 이름) — 학과 공지를 학교 전체 기준처럼 쓰지 않게 함께 넘긴다. */
+    public record NoticeHit(Reference reference, String board) {
+    }
+
+    /** 글(제목·본문)에 맞은 낱말 묶음 수. */
+    private static int matched(String text, List<List<String>> groups) {
+        if (text == null) {
+            return 0;
+        }
+        String lower = text.toLowerCase();
         int count = 0;
         for (List<String> group : groups) {
             if (group.stream().anyMatch(word -> lower.contains(word.toLowerCase()))) {
@@ -342,11 +352,11 @@ public class AskLiveData {
             if (content.length() > NOTICE_BODY_MAX) {
                 content = content.substring(0, NOTICE_BODY_MAX) + "\n(이하 생략)";
             }
-            return new NoticeBody(reference(news), content);
+            return new NoticeBody(reference(news), news.getSourceId(), content);
         });
     }
 
-    public record NoticeBody(Reference reference, String content) {
+    public record NoticeBody(Reference reference, String board, String content) {
     }
 
     /** 그날 학식(날짜를 못 읽으면 오늘). 메뉴가 없으면 식당만 나온다. */

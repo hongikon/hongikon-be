@@ -12,6 +12,8 @@ final class AskTrace implements AskProgress {
     private final AskProgress next;
     private final List<String> steps = new ArrayList<>();
     private AskUsage usage = AskUsage.ZERO;
+    private AskScope refusedScope;
+    private String blockedSchool;
 
     AskTrace(AskProgress next) {
         this.next = next;
@@ -25,10 +27,33 @@ final class AskTrace implements AskProgress {
         return usage;
     }
 
+    /** 범위 밖으로 거절했으면 그 범위, 아니면 null. */
+    AskScope refusedScope() {
+        return refusedScope;
+    }
+
+    /** 출구 검사가 막은 다른 대학 이름(입구 거절이면 null). */
+    String blockedSchool() {
+        return blockedSchool;
+    }
+
+    @Override
+    public void refused(AskScope scope, String blockedSchool) {
+        this.refusedScope = scope;
+        this.blockedSchool = blockedSchool;
+        steps.add(blockedSchool == null ? "거절: " + scope.wire() : "섞임 차단: " + blockedSchool);
+        next.refused(scope, blockedSchool);
+    }
+
     @Override
     public void picked(List<String> ids) {
         steps.add("고름: " + String.join(", ", ids));
         next.picked(ids);
+    }
+
+    @Override
+    public void missingTerms(List<String> terms, int hits) {
+        steps.add("놓친 낱말: " + String.join(", ", terms) + " (후보 " + hits + ")");
     }
 
     @Override

@@ -16,6 +16,10 @@ public interface AskProgress {
     default void picked(List<String> ids) {
     }
 
+    /** 질문 낱말 중 고른 안내 원문에 없는 것으로 공지·안내를 미리 찾았다(hits 는 찾은 후보 수). */
+    default void missingTerms(List<String> terms, int hits) {
+    }
+
     /** LLM 이 다른 안내를 낱말로 찾는다(search_guides). */
     default void searching(String query) {
     }
@@ -54,5 +58,11 @@ public interface AskProgress {
 
     /** 지금까지 보낸 답 글자를 지운다(그 차례가 답이 아니라 더 찾아보기로 끝났을 때). */
     default void resetText() {
+    }
+
+    /**
+     * 범위 밖이라 고정 문구로 답했다(docs/ask-scope-policy.md). blockedSchool 은 출구 검사가 막은 다른 대학 이름 — 입구에서 거절했으면 null.
+     */
+    default void refused(AskScope scope, String blockedSchool) {
     }
 }

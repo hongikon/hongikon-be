@@ -95,7 +95,7 @@ public class AskRouteController {
         try {
             AskRouteResponse response = askRouteService.route(request, trace);
             record(request, response);
-            return response.withLogId(recorder.record(request, response, outcome(response), trace.steps(), trace.usage(), elapsed(startedAt)));
+            return response.withLogId(recorder.record(request, response, outcome(response, trace), trace.steps(), trace.usage(), elapsed(startedAt)));
         } catch (AskUnavailableException e) {
             askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
             recorder.record(request, null, AskConversationLog.Outcome.FAILED, trace.steps(), trace.usage(), elapsed(startedAt));
@@ -114,7 +114,10 @@ public class AskRouteController {
         }
     }
 
-    private AskConversationLog.Outcome outcome(AskRouteResponse response) {
+    private AskConversationLog.Outcome outcome(AskRouteResponse response, AskTrace trace) {
+        if (trace.refusedScope() != null) {
+            return trace.blockedSchool() != null ? AskConversationLog.Outcome.MIX_BLOCKED : AskConversationLog.Outcome.REFUSED;
+        }
         if (response.answer() != null) {
             return Boolean.FALSE.equals(response.found()) ? AskConversationLog.Outcome.NOT_FOUND : AskConversationLog.Outcome.ANSWERED;
         }
@@ -147,7 +150,7 @@ public class AskRouteController {
                 AskRouteResponse response = askRouteService.route(request, trace);
                 record(request, response);
                 // 학생이 멈춤을 눌러 연결이 끊겼으면 '멈춤'으로 남긴다(끊긴 뒤에도 답은 끝까지 만들어져 있다).
-                AskConversationLog.Outcome outcome = closed.get() ? AskConversationLog.Outcome.STOPPED : outcome(response);
+                AskConversationLog.Outcome outcome = closed.get() ? AskConversationLog.Outcome.STOPPED : outcome(response, trace);
                 Long logId = recorder.record(request, response, outcome, trace.steps(), trace.usage(), elapsed(startedAt));
                 send(emitter, closed, "done", response.withLogId(logId));
             } catch (AskUnavailableException e) {

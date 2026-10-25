@@ -116,6 +116,10 @@ public class AskConversationLog {
         /** 서버가 분류하지 못함(503) */
         FAILED,
         /** 학생이 멈춤을 눌러 끊김 */
-        STOPPED
+        STOPPED,
+        /** 범위 밖(학교 무관·다른 대학·악용)이라 고정 문구로 거절(docs/ask-scope-policy.md) */
+        REFUSED,
+        /** 답에 근거 없는 다른 대학 이름이 있어 출구 검사가 답을 버림 */
+        MIX_BLOCKED
     }
 }

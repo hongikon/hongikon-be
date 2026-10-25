@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 물어보기 서버 답. ① 질문(+직전 대화)에 필요한 안내를 고르고(최대 3개) ② 그 안내 원문 안에서만 답을 쓴다.
@@ -28,18 +29,23 @@ public class AskRouteService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
+    /** 놓친 낱말로 미리 찾아 답 쓰기에 넘기는 공지·안내 수. */
+    static final int MISSING_HITS_MAX = 4;
+
     private final AskCatalog catalog;
     private final AskLlmClient llmClient;
+    private final AskLiveData liveData;
     private final Clock clock;
 
     @Autowired
-    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient) {
-        this(catalog, llmClient, Clock.systemUTC());
+    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData) {
+        this(catalog, llmClient, liveData, Clock.systemUTC());
     }
 
-    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, Clock clock) {
+    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, Clock clock) {
         this.catalog = catalog;
         this.llmClient = llmClient;
+        this.liveData = liveData;
         this.clock = clock;
     }
 
@@ -48,8 +54,18 @@ public class AskRouteService {
     }
 
     public AskRouteResponse route(AskRouteRequest request, AskProgress progress) {
+        // ① 입구: 명백한 악용은 API 를 부르기 전에 막는다(docs/ask-scope-policy.md).
+        Optional<AskScope> blocked = AskScope.preCheck(request.question());
+        if (blocked.isPresent()) {
+            return refuse(blocked.get(), null, progress);
+        }
+        // ② 고르기: 범위를 함께 판정한다. 학교 질문이 아니면 답 쓰기를 부르지 않고 고정 문구로.
+        AskLlmClient.Classification classification = llmClient.classify(classifyMessage(request), progress);
+        if (classification.scope() != AskScope.SCHOOL) {
+            return refuse(classification.scope(), null, progress);
+        }
         List<String> picked = new ArrayList<>();
-        for (String id : llmClient.classify(classifyMessage(request), progress)) {
+        for (String id : classification.ids()) {
             if (catalog.contains(id) && !AskCatalog.NONE.equals(id) && !picked.contains(id)) {
                 picked.add(id);
             }
@@ -79,7 +95,11 @@ public class AskRouteService {
         }
         progress.picked(answerIds);
         try {
-            AskLlmClient.Answer answer = llmClient.answer(answerIds, answerContext(request), progress);
+            AskLlmClient.Answer answer = llmClient.answer(answerIds, answerContext(request) + missingContext(request, answerIds, progress), progress);
+            // ③ 출구: 근거 없는 다른 대학 이름이 있어 답을 버렸으면 고정 문구로(AskLlmClient 가 화면으로 나가기 전에 막았다).
+            if (answer.blockedSchool() != null) {
+                return refuse(AskScope.OTHER_SCHOOL, answer.blockedSchool(), progress);
+            }
             // 모델이 근거를 짚지 않았으면 처음 고른 안내 하나만 — 고른 것 전부(되묻기 버튼 안내 포함)를 근거로 붙이면 쓰지도 않은 안내가 줄줄이 나온다.
             List<String> sources = new ArrayList<>(anchors);
             for (String id : answer.sourceIds().isEmpty() ? answerIds.subList(0, Math.min(1, answerIds.size())) : answer.sourceIds()) {
@@ -93,7 +113,7 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.references());
+                    answer.found(), catalog.version(), links), answer.references()).withSections(answer.sections());
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             if (answerIds.isEmpty()) {
@@ -101,6 +121,12 @@ public class AskRouteService {
             }
             return new AskRouteResponse(primary, answerIds, null, null, catalog.version());
         }
+    }
+
+    /** 범위 밖 고정 답 — 근거·버튼 없이 문구만. blockedSchool 은 출구 검사가 막은 대학 이름(기록용). */
+    private AskRouteResponse refuse(AskScope scope, String blockedSchool, AskProgress progress) {
+        progress.refused(scope, blockedSchool);
+        return new AskRouteResponse(AskCatalog.NONE, List.of(), scope.refusal(), false, catalog.version());
     }
 
     /** 분류용(캐시 지점 뒤에 붙는 부분). 안내 id 는 카탈로그에 있는 것만 적는다(앱이 보낸 아무 글자나 프롬프트에 섞지 않게). */
@@ -142,6 +168,42 @@ public class AskRouteService {
             message.append('\n');
         }
         return message.append("[이번 질문]\n").append(oneLine(request.question())).toString();
+    }
+
+    /**
+     * 질문 낱말 중 고른 안내 원문에 없는 것으로 공지·안내를 미리 찾아 후보로 넘긴다({@link AskMissingTerms}).
+     * 고른 안내가 비슷한 학교 전체 안내일 때 학과 공지·다른 안내에만 있는 답을 놓치지 않게 한다. 놓친 낱말은 기록에도 남는다.
+     */
+    String missingContext(AskRouteRequest request, List<String> answerIds, AskProgress progress) {
+        StringBuilder sources = new StringBuilder();
+        for (String id : answerIds) {
+            String source = catalog.source(id);
+            if (source != null) {
+                sources.append(source).append('\n');
+            }
+        }
+        List<String> terms = AskMissingTerms.find(request.question(), sources.toString());
+        if (terms.isEmpty()) {
+            return "";
+        }
+        String query = String.join(" ", terms);
+        List<AskLiveData.NoticeHit> notices = liveData.searchNotices(query).stream().limit(MISSING_HITS_MAX).toList();
+        List<String> guides = catalog.search(query, MISSING_HITS_MAX).stream().filter(id -> !answerIds.contains(id)).toList();
+        progress.missingTerms(terms, notices.size() + guides.size());
+        if (notices.isEmpty() && guides.isEmpty()) {
+            return "";
+        }
+        StringBuilder message = new StringBuilder("\n\n[고른 안내 원문에 없는 질문 낱말] ").append(String.join(", ", terms)).append('\n');
+        message.append("이 낱말로 미리 찾은 후보다. 질문에 맞으면 read_notice·read_guides 로 읽고 답하고, 맞지 않으면 무시한다.\n");
+        for (AskLiveData.NoticeHit hit : notices) {
+            AskLiveData.Reference ref = hit.reference();
+            message.append(ref.ref()).append(" · ").append(ref.date()).append(" · ").append(AskLlmClient.boardLabel(hit.board()))
+                    .append(" · ").append(ref.title()).append('\n');
+        }
+        for (String id : guides) {
+            message.append(id).append(" — ").append(catalog.line(id)).append('\n');
+        }
+        return message.toString().stripTrailing();
     }
 
     /** 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3), 처음 나온 위치. */

@@ -59,11 +59,11 @@ class AskLiveDataTest {
 
         // 휴학 공지 둘은 세 낱말이 다 맞고(최신순), 수강신청 공지는 두 낱말만 맞아 가장 새것이어도 뒤에
         assertThat(liveData.searchNotices(tag + " 휴학 신청"))
-                .extracting(AskLiveData.Reference::ref)
+                .extracting(hit -> hit.reference().ref())
                 .containsExactly("notice:" + newer.getId(), "notice:" + older.getId(), "notice:" + course.getId());
         // 맞는 낱말이 적어도(태그만) 나오되, 많이 맞은 글이 먼저
         assertThat(liveData.searchNotices(tag + " 휴학 존재하지않는낱말"))
-                .extracting(AskLiveData.Reference::ref)
+                .extracting(hit -> hit.reference().ref())
                 .startsWith("notice:" + newer.getId(), "notice:" + older.getId())
                 .hasSize(3);
         assertThat(liveData.searchNotices("가")).isEmpty();
@@ -74,7 +74,7 @@ class AskLiveDataTest {
         String tag = "물어보기동의어" + UUID.randomUUID().toString().substring(0, 6);
         News outbound = save(tag + " 2027학년도 1학기 해외대학 파견 Outbound 교류학생 지원자 모집", "본문", LocalDateTime.of(2026, 7, 6, 0, 0));
         assertThat(liveData.searchNotices(tag + " 교환학생 모집"))
-                .extracting(AskLiveData.Reference::ref)
+                .extracting(hit -> hit.reference().ref())
                 .first().isEqualTo("notice:" + outbound.getId());
     }
 
