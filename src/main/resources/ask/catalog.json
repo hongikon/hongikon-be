@@ -1,5 +1,5 @@
 {
- "version": "70046bbd10ab",
+ "version": "f6ba827dd5b3",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -287,7 +287,7 @@
   {
    "id": "student-fee-pay/start",
    "kind": "answer",
-   "line": "학생회비는 등록금 고지서에 선택납부금으로 함께 나와요. 내려면 수업료와 학생회비를 더한 금액을 등록금 가상계좌로 한 번에 이체하면 돼요. #학생회비 #선택납부금"
+   "line": "학생회비는 등록금 고지서에 선택납부금으로 함께 나와요. 내려면 수업료와 학생회비를 더한 금액을 등록금 가상계좌로 한 번에 이체하면 돼요. #학생회비 #학생회회비"
   },
   {
    "id": "transfer-out/start",
