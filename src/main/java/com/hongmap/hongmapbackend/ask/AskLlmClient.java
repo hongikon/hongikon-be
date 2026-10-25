@@ -225,7 +225,10 @@ public class AskLlmClient {
                                 + "맞는 낱말이 많은 순, 같으면 최신순 최대 6개(참조 notice:id · 게시일 · 게시판 · 제목). "
                                 + "검색어는 공지에 나올 낱말 몇 개(예: '휴학 신청', '수강신청 일정', '국가장학금', 'Outbound 교류학생 모집'). "
                                 + "학교 공지는 학생 말과 다르게 쓰기도 하니 원하는 공지가 없으면 다른 표현으로 한 번 더 찾는다.",
-                        Map.of("query", Map.of("type", "string")), List.of("query")),
+                        Map.of("query", Map.of("type", "string"),
+                                "board", Map.of("type", "string", "description",
+                                        "학과·기관 게시판 이름(예: 컴퓨터공학과, 화학공학전공, 국제교류실, 취업진로공지). 주면 그 게시판 공지만 찾는다.")),
+                        List.of("query")),
                 tool("read_notice", "공지 하나의 본문을 읽는다. id 는 search_notices 결과의 notice:뒤 숫자.",
                         Map.of("id", Map.of("type", "integer")), List.of("id")),
                 tool("search_facilities", "학교 지도의 시설 정보(건물·층·종류·운영시간·예약 방법 메모)를 낱말로 찾는다. 맞는 낱말이 많은 순 최대 8개(참조 facility:id). "
@@ -378,7 +381,7 @@ public class AskLlmClient {
         Map<?, ?> input = use._input().convert(Map.class);
         if ("search_notices".equals(use.name()) && input != null && input.get("query") instanceof String query) {
             progress.searchingNotices(query);
-            List<AskLiveData.NoticeHit> hits = liveData.searchNotices(query);
+            List<AskLiveData.NoticeHit> hits = liveData.searchNotices(query, input.get("board") instanceof String board ? board : null);
             if (hits.isEmpty()) {
                 return "찾은 공지가 없어요.";
             }

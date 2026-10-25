@@ -7,6 +7,8 @@ import com.hongmap.hongmapbackend.cafeteria.dto.CafeteriaRestaurantResponse;
 import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -282,6 +284,12 @@ public class AskLiveData {
      */
     @Transactional(readOnly = true)
     public List<NoticeHit> searchNotices(String query) {
+        return searchNotices(query, null);
+    }
+
+    /** {@link #searchNotices(String)} 를 한 게시판(news.source_id — 학과·기관 이름)으로 좁힌다. board 가 비면 전체. */
+    @Transactional(readOnly = true)
+    public List<NoticeHit> searchNotices(String query, String board) {
         List<List<String>> groups = new ArrayList<>();
         for (String word : query.split("[\\s,·/()?!.]+")) {
             if (word.length() >= 2 && groups.size() < 5) {
@@ -298,11 +306,12 @@ public class AskLiveData {
             for (List<String> group : groups) {
                 for (String word : group) {
                     String pattern = "%" + escape(word.toLowerCase()) + "%";
-                    likes.add(cb.like(cb.lower(root.get("title")), pattern, '!'));
-                    likes.add(cb.like(cb.lower(root.get("content")), pattern, '!'));
+                    likes.add(cb.like(withoutDots(cb, root.get("title")), pattern, '!'));
+                    likes.add(cb.like(withoutDots(cb, root.get("content")), pattern, '!'));
                 }
             }
-            return cb.or(likes.toArray(Predicate[]::new));
+            Predicate any = cb.or(likes.toArray(Predicate[]::new));
+            return board == null || board.isBlank() ? any : cb.and(any, cb.equal(root.get("sourceId"), board));
         };
         List<News> candidates = newsRepository.findAll(anyWord,
                 PageRequest.of(0, NOTICE_CANDIDATES, Sort.by(Sort.Direction.DESC, "publishedAt"))).getContent();
@@ -317,12 +326,27 @@ public class AskLiveData {
     public record NoticeHit(Reference reference, String board) {
     }
 
+    /** 가운뎃점(‧ · ・)을 지우고 소문자로 — '학‧예술상' 공지가 '학예술상'으로 찾히게. */
+    private static Expression<String> withoutDots(CriteriaBuilder cb, Expression<String> text) {
+        Expression<String> out = cb.lower(text);
+        for (String dot : DOTS) {
+            out = cb.function("replace", String.class, out, cb.literal(dot), cb.literal(""));
+        }
+        return out;
+    }
+
+    private static final List<String> DOTS = List.of("‧", "·", "・");
+
     /** 글(제목·본문)에 맞은 낱말 묶음 수. */
     private static int matched(String text, List<List<String>> groups) {
         if (text == null) {
             return 0;
         }
-        String lower = text.toLowerCase();
+        String plain = text.toLowerCase();
+        for (String dot : DOTS) {
+            plain = plain.replace(dot, "");
+        }
+        String lower = plain;
         int count = 0;
         for (List<String> group : groups) {
             if (group.stream().anyMatch(word -> lower.contains(word.toLowerCase()))) {

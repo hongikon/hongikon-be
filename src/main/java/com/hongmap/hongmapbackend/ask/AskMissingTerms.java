@@ -57,6 +57,24 @@ final class AskMissingTerms {
         return terms;
     }
 
+    /** 질문의 내용 낱말(조사·물음 말투를 뺀 것), 앞에서부터 최대 limit 개. 학과 게시판 공지를 찾을 때 쓴다. */
+    static List<String> words(String question, int limit) {
+        List<String> words = new ArrayList<>();
+        if (question == null) {
+            return words;
+        }
+        for (String raw : question.split("[^\\p{L}\\p{N}]+")) {
+            String word = stem(raw.toLowerCase(Locale.ROOT));
+            if (word.length() >= 2 && !STOPWORDS.contains(word) && !STOPWORDS.contains(raw) && !words.contains(word)) {
+                words.add(word);
+                if (words.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return words;
+    }
+
     /** 끝 조사·어미를 한 번 지운다(지우고 두 글자 이상 남을 때만). */
     static String stem(String word) {
         for (String ending : ENDINGS) {

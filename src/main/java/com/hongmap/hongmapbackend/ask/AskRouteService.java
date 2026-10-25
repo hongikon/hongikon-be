@@ -183,17 +183,41 @@ public class AskRouteService {
             }
         }
         List<String> terms = AskMissingTerms.find(request.question(), sources.toString());
-        if (terms.isEmpty()) {
+        // 학과·기관 이름이 있으면 그 게시판 공지를 먼저 — 학교 전체 안내를 골랐어도 학과 장학금·행사는 학과 공지에 있다.
+        Optional<AskBoards.Match> board = AskBoards.find(request.question());
+        List<AskLiveData.NoticeHit> notices = new ArrayList<>();
+        if (board.isPresent()) {
+            List<String> words = AskMissingTerms.words(request.question().replace(board.get().alias(), " "), AskMissingTerms.MAX_TERMS);
+            List<AskLiveData.NoticeHit> boardHits = words.isEmpty() ? List.of() : liveData.searchNotices(String.join(" ", words), board.get().board());
+            boardHits.stream().limit(MISSING_HITS_MAX).forEach(notices::add);
+            progress.boardSearch(board.get().board(), words, boardHits.size());
+        }
+        if (terms.isEmpty() && notices.isEmpty()) {
             return "";
         }
         String query = String.join(" ", terms);
-        List<AskLiveData.NoticeHit> notices = liveData.searchNotices(query).stream().limit(MISSING_HITS_MAX).toList();
-        List<String> guides = catalog.search(query, MISSING_HITS_MAX).stream().filter(id -> !answerIds.contains(id)).toList();
-        progress.missingTerms(terms, notices.size() + guides.size());
+        if (!terms.isEmpty()) {
+            // 학과 게시판 후보(최대 4) 뒤에 전체 공지 후보(최대 4)를 겹치지 않게 붙인다.
+            liveData.searchNotices(query).stream()
+                    .filter(hit -> notices.stream().noneMatch(n -> n.reference().ref().equals(hit.reference().ref())))
+                    .limit(MISSING_HITS_MAX)
+                    .toList()
+                    .forEach(notices::add);
+        }
+        List<String> guides = terms.isEmpty() ? List.of()
+                : catalog.search(query, MISSING_HITS_MAX).stream().filter(id -> !answerIds.contains(id)).toList();
+        if (!terms.isEmpty()) {
+            progress.missingTerms(terms, notices.size() + guides.size());
+        }
         if (notices.isEmpty() && guides.isEmpty()) {
             return "";
         }
-        StringBuilder message = new StringBuilder("\n\n[고른 안내 원문에 없는 질문 낱말] ").append(String.join(", ", terms)).append('\n');
+        StringBuilder message = new StringBuilder("\n\n");
+        board.ifPresent(match -> message.append("[질문 속 학과·기관] ").append(match.board())
+                .append(" — 그 게시판 공지를 먼저 보고, 학교 전체 안내와 다르면 학과 공지 내용을 그 학과 것으로 밝혀 답한다.\n"));
+        if (!terms.isEmpty()) {
+            message.append("[고른 안내 원문에 없는 질문 낱말] ").append(String.join(", ", terms)).append('\n');
+        }
         message.append("이 낱말로 미리 찾은 후보다. 질문에 맞으면 read_notice·read_guides 로 읽고 답하고, 맞지 않으면 무시한다.\n");
         for (AskLiveData.NoticeHit hit : notices) {
             AskLiveData.Reference ref = hit.reference();

@@ -52,6 +52,11 @@ final class AskTrace implements AskProgress {
     }
 
     @Override
+    public void boardSearch(String board, List<String> words, int hits) {
+        steps.add("학과 공지 찾기: " + board + " · " + String.join(", ", words) + " (" + hits + ")");
+    }
+
+    @Override
     public void missingTerms(List<String> terms, int hits) {
         steps.add("놓친 낱말: " + String.join(", ", terms) + " (후보 " + hits + ")");
     }

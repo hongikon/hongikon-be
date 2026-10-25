@@ -20,6 +20,10 @@ public interface AskProgress {
     default void missingTerms(List<String> terms, int hits) {
     }
 
+    /** 질문 속 학과·기관 게시판에서 공지를 미리 찾았다(hits 는 찾은 공지 수). */
+    default void boardSearch(String board, List<String> words, int hits) {
+    }
+
     /** LLM 이 다른 안내를 낱말로 찾는다(search_guides). */
     default void searching(String query) {
     }
