@@ -56,13 +56,15 @@ public class Report {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** 이벤트 정보가 위치한 건물. 층 단위 정보이므로 필수 */
+    /**
+     * 이벤트 정보가 위치한 건물. 캠퍼스 밖(홍대 생활권) 제보는 건물이 없어 null 이다(10-27) — 그때는 장소 설명(placeLabel)이 필수다.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "building_id", nullable = false)
+    @JoinColumn(name = "building_id")
     private Building building;
 
-    /** 건물 내 층. 층 단위가 이 기능의 핵심 정보라 필수 */
-    @Column(name = "floor", nullable = false)
+    /** 건물 내 층. 건물이 있으면 필수, 캠퍼스 밖 제보는 null. */
+    @Column(name = "floor")
     private Integer floor;
 
     @Column(name = "lat", nullable = false, precision = 10, scale = 7)
@@ -186,5 +188,10 @@ public class Report {
         this.status = status;
         this.moderationNote = note;
         this.reviewedAt = reviewedAt;
+    }
+
+    /** 알림·관리자 화면에 쓰는 장소 이름. 건물이 있으면 건물 이름, 캠퍼스 밖 제보면 장소 설명. */
+    public String placeName() {
+        return building != null ? building.getName() : placeLabel;
     }
 }

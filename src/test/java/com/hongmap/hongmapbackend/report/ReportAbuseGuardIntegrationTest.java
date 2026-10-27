@@ -86,6 +86,7 @@ class ReportAbuseGuardIntegrationTest {
         jdbcTemplate.update("DELETE FROM report_flags WHERE report_id IN (SELECT id FROM reports WHERE building_id = ?)",
                 building.getId());
         jdbcTemplate.update("DELETE FROM reports WHERE building_id = ?", building.getId());
+        jdbcTemplate.update("DELETE FROM reports WHERE building_id IS NULL AND user_id = ?", author.getId());
     }
 
     // ---------- 신고 ----------
@@ -236,6 +237,45 @@ class ReportAbuseGuardIntegrationTest {
                 .startsAt(now.minusHours(1)).endsAt(now.plusHours(3))
                 .status(status)
                 .build());
+    }
+
+    @Test
+    void 건물_없는_캠퍼스_밖_제보는_장소_설명이_필수이고_2점5km_안에서만_받는다() throws Exception {
+        // 장소 설명이 없으면 400
+        createOffCampus(author, "37.5568", "126.9236", null).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("캠퍼스 밖 제보는 장소 설명을 적어 주세요. 예: 홍대입구역 9번 출구 앞"));
+        // 캠퍼스 중심에서 약 3.3km 북쪽은 400
+        createOffCampus(author, "37.5800", "126.9248", "먼 곳").andExpect(status().isBadRequest());
+        // 홍대입구역 근처(약 750m)는 받는다. 건물·층은 비어 있다.
+        createOffCampus(author, "37.5568", "126.9236", "홍대입구역 9번 출구 앞")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.buildingId").isEmpty())
+                .andExpect(jsonPath("$.floor").isEmpty())
+                .andExpect(jsonPath("$.placeLabel").value("홍대입구역 9번 출구 앞"));
+        Report saved = reportRepository.findAll().stream()
+                .filter(r -> r.getBuilding() == null && r.getUser().getId().equals(author.getId()))
+                .findFirst().orElseThrow();
+        assertThat(saved.placeName()).isEqualTo("홍대입구역 9번 출구 앞");
+        long id = saved.getId();
+
+        // 관리자 목록·승인, 지도 목록, 내 제보 내역이 건물 없는 제보를 빠뜨리거나 500 이 나지 않는다.
+        mockMvc.perform(get("/admin/reports").header("Authorization", bearer(admin))).andExpect(status().isOk())
+                .andExpect(jsonPath("$..[?(@.id == " + id + ")]").isNotEmpty());
+        moderate(saved, "ACTIVE").andExpect(status().isOk());
+        mockMvc.perform(get("/reports").param("live", "true")).andExpect(status().isOk())
+                .andExpect(jsonPath("$..[?(@.id == " + id + ")]").isNotEmpty());
+        mockMvc.perform(get("/users/me/reports").header("Authorization", bearer(author))).andExpect(status().isOk())
+                .andExpect(jsonPath("$..[?(@.id == " + id + ")]").isNotEmpty());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createOffCampus(User user, String lat, String lng,
+                                                                               String placeLabel) throws Exception {
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        String place = placeLabel == null ? "" : "\"placeLabel\":\"" + placeLabel + "\",";
+        String body = "{\"lat\":" + lat + ",\"lng\":" + lng + ",\"category\":\"EVENT\",\"title\":\"캠퍼스 밖 테스트\","
+                + place + "\"startsAt\":\"" + now.minusMinutes(1) + "\",\"endsAt\":\"" + now.plusHours(2) + "\"}";
+        return mockMvc.perform(post("/reports").header("Authorization", bearer(user))
+                .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private org.springframework.test.web.servlet.ResultActions flag(Report report, User user) throws Exception {

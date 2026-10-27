@@ -14,3 +14,13 @@
   - 학과 공지 정답표 40문항(FE scripts/ask/cases-dept): 23 → 36. 남은 4건은 질문 밖 사실 누락·지난 공지 선택.
   - 테스트 AskBoardsTest 3. 백엔드 전체 665 통과.
   - ask/catalog.json·sources.json 다시 생성(FE 정합성 점검 2차 반영: 안내 문구 49건 수정, 낱말 41건). 기준 정답표 31/32, 학과 공지 정답표 35/40, 범위 21/21·잘못 거절 0.
+
+## 2026-10-27 — 캠퍼스 밖(홍대 생활권) 제보 (dev)
+
+- 운영진 요청: 제보를 학교 건물 근처(200m)뿐 아니라 캠퍼스 밖까지. 결정: 범위는 홍대 생활권(캠퍼스 중심 2.5km — 앱 지도를 옮길 수 있는 범위와 같다), 학교 건물이 없는 곳은 건물·층 없이 장소 설명 필수.
+- `Report.building`·`floor` NULL 허용(캠퍼스 밖 제보만 null). `Report.placeName()` = 건물 이름, 없으면 장소 설명 — 관리자 알림·승인/반려 푸시·예정 제보 시작 알림·신고 자동 숨김 알림이 이 값을 쓴다.
+- `ReportCreateRequest.buildingId`·`floor` 선택. `ReportService.create`: buildingId 가 있으면 지금처럼(층 필수·0층 금지·건물 300m), 없으면 `checkOffCampus` — 캠퍼스 중심에서 `report.off-campus-max-distance-meters`(기본 2500) 안, `placeLabel` 필수(없으면 400 "캠퍼스 밖 제보는 장소 설명을 적어 주세요."). 캠퍼스 밖 제보에 floor 가 와도 버린다.
+- 쿼리: 건물을 inner join 하던 곳을 LEFT JOIN 으로(예정 제보 시작 알림 후보, 관리자 목록, 내 제보 내역). 새 제보 다이제스트 후보는 `COALESCE(건물 이름, 장소 설명)` — inner join 이면 캠퍼스 밖 제보가 다이제스트·관리자 목록에서 빠졌다.
+- DTO: `MyReportResponse`·`AdminReportResponse` 건물 null 처리(나머지는 이미 null 안전).
+- **DB 변경 — 운영 배포 전에 실행**: `db/alter_report_building_nullable.sql`(NOT NULL 해제만, 기존 행 영향 없음). 로컬 MySQL 에 적용·확인. validate 는 NULL 여부를 보지 않아 빠뜨려도 기동은 되지만 캠퍼스 밖 제보 등록이 500.
+- 테스트: `ReportAbuseGuardIntegrationTest` 캠퍼스 밖 1건(장소 없으면 400, 3.3km 400, 750m 201·건물/층 null, 관리자 목록·승인·지도 목록·내 제보 내역에 나옴). 백엔드 전체 669 통과(작업 트리의 다른 미커밋 작업 포함 상태).

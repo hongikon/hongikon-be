@@ -15,7 +15,7 @@ public interface MyReportRepository extends Repository<Report, Long> {
     /** 작성자 본인의 제보 전부(관리자가 지운 DELETED 포함), 최신 등록순. 건물 이름을 같이 읽어 N+1 을 막는다. */
     @Query(value = """
             SELECT r FROM Report r
-            JOIN FETCH r.building
+            LEFT JOIN FETCH r.building
             WHERE r.user.id = :userId
             ORDER BY r.createdAt DESC, r.id DESC
             """,
