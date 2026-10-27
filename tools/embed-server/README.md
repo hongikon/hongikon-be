@@ -13,18 +13,24 @@ python3 -m venv venv && ./venv/bin/pip install -r requirements.txt   # 모델(�
 ## 실행
 
 - 손으로: `./run.sh` (127.0.0.1:8090)
-- 맥미니가 켜질 때 자동으로(launchd). 이 등록은 운영자가 직접 한다:
+- 맥미니가 켜질 때 자동으로(launchd). macOS 는 자동 실행 프로그램이 ~/Documents 를 못 읽게 막는다(10-28 확인: 'can't open input file').
+  그래서 서버 파일·키를 `~/Library/Application Support/hongikon-embed/` 에 따로 두고 거기서 띄운다. 등록은 운영자가 직접 한다:
 
 ```sh
-cd hongikon-be/tools/embed-server
-sed "s#__DIR__#$(pwd)#g; s#__HOME__#$HOME#g" launchd.plist.template > ~/Library/LaunchAgents/com.hongikon.embed-server.plist
+D="$HOME/Library/Application Support/hongikon-embed"; mkdir -p "$D"
+cp server.py requirements.txt "$D/"
+(umask 077; sed -n 's/^ASK_EMBED_KEY=//p' ../../.env > "$D/key")
+printf '#!/bin/zsh\ncd "$(dirname "$0")"\nexport EMBED_SERVER_KEY="$(cat key)"\nexec ./venv/bin/python -I server.py\n' > "$D/run.sh"; chmod 700 "$D/run.sh"
+(cd "$D" && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt)
+sed "s#__DIR__#$D#g; s#__HOME__#$HOME#g" launchd.plist.template > ~/Library/LaunchAgents/com.hongikon.embed-server.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hongikon.embed-server.plist
 # 확인
-curl -s -H "X-Embed-Key: $(sed -n 's/^ASK_EMBED_KEY=//p' ../../.env)" localhost:8090/health
+curl -s -H "X-Embed-Key: $(cat "$D/key")" localhost:8090/health
 # 끄기
 launchctl bootout gui/$(id -u)/com.hongikon.embed-server
 ```
 
+- server.py 를 고치면 `$D` 로 다시 복사하고 `launchctl kickstart -k gui/$(id -u)/com.hongikon.embed-server`.
 - 잠자기를 끄지 않으면 맥미니가 잠들 때 물어보기가 503 이 된다: 시스템 설정 → 에너지 → '디스플레이가 꺼져 있을 때 자동으로 잠자기 방지' 켜기.
 
 ## 원문 색인 다시 만들기
