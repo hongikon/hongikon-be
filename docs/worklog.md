@@ -1344,3 +1344,4 @@
 - DTO: `MyReportResponse`·`AdminReportResponse` 건물 null 처리(나머지는 이미 null 안전).
 - **DB 변경 — 운영 배포 전에 실행**: `db/alter_report_building_nullable.sql`(NOT NULL 해제만, 기존 행 영향 없음). 로컬 MySQL 에 적용·확인. validate 는 NULL 여부를 보지 않아 빠뜨려도 기동은 되지만 캠퍼스 밖 제보 등록이 500.
 - 테스트: `ReportAbuseGuardIntegrationTest` 캠퍼스 밖 1건(장소 없으면 400, 3.3km 400, 750m 201·건물/층 null, 관리자 목록·승인·지도 목록·내 제보 내역에 나옴). 백엔드 전체 669 통과(작업 트리의 다른 미커밋 작업 포함 상태).
+- 흡연구역 11곳(운영진이 직접 찍은 좌표): `db/sync_facilities_2026_10_27_smoking.sql` — 새 9곳(K동 옥상·앞, L동 4층, U동 적색 계단, G동 여자휴게실 앞, MH동 앞, C동 8층 테라스·후문 계단, T동 주차장), 기존 B동은 같은 자리라 좌표를 새로 찍은 1층 테라스로(기존이 49m 어긋남), 제2기숙사는 메모만. 건물 윤곽·중심과 대조(15~62m), MH동 앞(Z1 윤곽 안)·T동 주차장(Z4 쪽)은 운영진 확인. K동 옥상·G동 앞은 층 미상이라 NULL. 다시 돌려도 안전(code 기준 덮어쓰기). 로컬 적용·`GET /map/data` 11곳 확인. 서버 배포 불필요 — 운영 RDS 에 실행하면 지도 데이터 캐시(5분) 뒤 앱에 보인다.
