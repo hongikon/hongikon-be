@@ -160,6 +160,7 @@ public class AskLlmClient {
     private final AnthropicClient client;
     private final AskCatalog catalog;
     private final AskLiveData liveData;
+    private final AskRetriever retriever;
     private final JsonMapper jsonMapper;
     private final String model;
     private final List<TextBlockParam> classifySystem;
@@ -167,12 +168,13 @@ public class AskLlmClient {
     private final OutputConfig answerConfig;
     private final List<Tool> answerTools;
 
-    public AskLlmClient(AskCatalog catalog, AskLiveData liveData, JsonMapper jsonMapper,
+    public AskLlmClient(AskCatalog catalog, AskLiveData liveData, AskRetriever retriever, JsonMapper jsonMapper,
                         @Value("${anthropic.api-key:}") String apiKey,
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds) {
         this.catalog = catalog;
         this.liveData = liveData;
+        this.retriever = retriever;
         this.jsonMapper = jsonMapper;
         this.model = model;
         this.client = apiKey == null || apiKey.isBlank() ? null : AnthropicOkHttpClient.builder()
@@ -222,7 +224,7 @@ public class AskLlmClient {
                 .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds")))
                 .build();
         this.answerTools = List.of(
-                tool("search_guides", "학생 안내 목록에서 낱말로 다른 안내를 찾는다. 결과는 id 와 한 줄 요약(최대 6개). "
+                tool("search_guides", "학생 안내 목록에서 뜻과 낱말로 다른 안내를 찾는다. 결과는 id 와 한 줄 요약(최대 6개). "
                                 + "검색어는 원문에 나올 법한 2글자 이상 낱말 몇 개(예: '질병휴학 환급').",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
                 tool("read_guides", "안내 id 로 원문 전체를 읽는다(한 번에 최대 3개).",
@@ -433,7 +435,8 @@ public class AskLlmClient {
         }
         if ("search_guides".equals(use.name()) && input != null && input.get("query") instanceof String query) {
             progress.searching(query);
-            List<String> hits = catalog.search(query, 6);
+            // RAG 가 켜져 있으면 안내 원문 색인(뜻 + 낱말)으로, 아니면 카탈로그 낱말 점수로.
+            List<String> hits = retriever.enabled() ? retriever.nodes(query, 6) : catalog.search(query, 6);
             if (hits.isEmpty()) {
                 return "찾은 안내가 없어요.";
             }

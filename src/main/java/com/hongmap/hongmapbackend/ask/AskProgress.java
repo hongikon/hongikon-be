@@ -16,6 +16,10 @@ public interface AskProgress {
     default void picked(List<String> ids) {
     }
 
+    /** RAG 검색(임베딩 + BM25)으로 안내 후보를 찾았다(뜻이 가까운 순). */
+    default void retrieved(List<String> ids) {
+    }
+
     /** 질문 낱말 중 고른 안내 원문에 없는 것으로 공지·안내를 미리 찾았다(hits 는 찾은 후보 수). */
     default void missingTerms(List<String> terms, int hits) {
     }

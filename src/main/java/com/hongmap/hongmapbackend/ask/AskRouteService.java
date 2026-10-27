@@ -29,23 +29,32 @@ public class AskRouteService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
+    /** RAG 검색 후보로 분류에 넘기는 안내 수. */
+    static final int RETRIEVED_MAX = 6;
+    /** 분류가 아무 안내도 못 골랐을 때 검색 후보에서 답 쓰기로 넘기는 수. */
+    static final int RETRIEVED_FALLBACK = 2;
+    /** 이 글자 수 이하의 이어 묻는 질문은 직전 질문을 붙여 검색한다('신청은?' 같은 말만으로는 찾을 게 없다). */
+    static final int FOLLOW_UP_CHARS = 15;
+
     /** 놓친 낱말로 미리 찾아 답 쓰기에 넘기는 공지·안내 수. */
     static final int MISSING_HITS_MAX = 4;
 
     private final AskCatalog catalog;
     private final AskLlmClient llmClient;
     private final AskLiveData liveData;
+    private final AskRetriever retriever;
     private final Clock clock;
 
     @Autowired
-    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData) {
-        this(catalog, llmClient, liveData, Clock.systemUTC());
+    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever) {
+        this(catalog, llmClient, liveData, retriever, Clock.systemUTC());
     }
 
-    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, Clock clock) {
+    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever, Clock clock) {
         this.catalog = catalog;
         this.llmClient = llmClient;
         this.liveData = liveData;
+        this.retriever = retriever;
         this.clock = clock;
     }
 
@@ -59,8 +68,13 @@ public class AskRouteService {
         if (blocked.isPresent()) {
             return refuse(blocked.get(), null, progress);
         }
-        // ② 고르기: 범위를 함께 판정한다. 학교 질문이 아니면 답 쓰기를 부르지 않고 고정 문구로.
-        AskLlmClient.Classification classification = llmClient.classify(classifyMessage(request), progress);
+        // ② 찾기(RAG 가 켜져 있으면): 안내 원문 색인에서 뜻·낱말이 가까운 안내 후보. 손으로 적은 낱말(앱 hint) 대신 쓴다(10-28).
+        List<String> retrieved = retriever.enabled() ? retriever.nodes(retrievalQuery(request), RETRIEVED_MAX) : List.of();
+        if (!retrieved.isEmpty()) {
+            progress.retrieved(retrieved);
+        }
+        // ③ 고르기: 범위를 함께 판정한다. 학교 질문이 아니면 답 쓰기를 부르지 않고 고정 문구로.
+        AskLlmClient.Classification classification = llmClient.classify(classifyMessage(request, retrieved), progress);
         if (classification.scope() != AskScope.SCHOOL) {
             return refuse(classification.scope(), null, progress);
         }
@@ -68,6 +82,14 @@ public class AskRouteService {
         for (String id : classification.ids()) {
             if (catalog.contains(id) && !AskCatalog.NONE.equals(id) && !picked.contains(id)) {
                 picked.add(id);
+            }
+        }
+        // 분류가 하나도 못 골랐으면 검색 후보 앞쪽을 근거로 넘긴다 — 답 쓰기가 원문을 보고 맞지 않으면 모른다고 한다.
+        if (picked.isEmpty()) {
+            for (String id : retrieved.subList(0, Math.min(RETRIEVED_FALLBACK, retrieved.size()))) {
+                if (catalog.contains(id)) {
+                    picked.add(id);
+                }
             }
         }
         // 맞는 안내를 못 골라도(none) 바로 끝내지 않는다 — 지도 시설·공지에 답이 있을 수 있다('K동 공동학습실', '프레젠테이션룸 예약').
@@ -131,6 +153,11 @@ public class AskRouteService {
 
     /** 분류용(캐시 지점 뒤에 붙는 부분). 안내 id 는 카탈로그에 있는 것만 적는다(앱이 보낸 아무 글자나 프롬프트에 섞지 않게). */
     String classifyMessage(AskRouteRequest request) {
+        return classifyMessage(request, List.of());
+    }
+
+    /** retrieved 가 있으면(RAG) 앱 낱말 찾기 hint 대신 검색 후보를 적는다. */
+    String classifyMessage(AskRouteRequest request, List<String> retrieved) {
         StringBuilder message = new StringBuilder();
         if (request.history() != null && !request.history().isEmpty()) {
             message.append("직전 대화:\n");
@@ -142,10 +169,25 @@ public class AskRouteService {
                 message.append('\n');
             }
         }
-        if (known(request.hint())) {
+        if (!retrieved.isEmpty()) {
+            message.append("안내 원문 검색 후보(뜻이 가까운 순, 참고용 — 맞지 않으면 고르지 않는다): ")
+                    .append(String.join(", ", retrieved.stream().filter(catalog::contains).toList())).append('\n');
+        } else if (known(request.hint())) {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
         return message.append("이번 질문: ").append(oneLine(request.question())).toString();
+    }
+
+    /** RAG 검색어 — 이번 질문, 짧은 이어 묻기면 직전 질문을 앞에 붙인다. */
+    String retrievalQuery(AskRouteRequest request) {
+        String question = oneLine(request.question());
+        if (question.replaceAll("\\s+", "").length() <= FOLLOW_UP_CHARS && request.history() != null && !request.history().isEmpty()) {
+            AskRouteRequest.Turn last = request.history().get(request.history().size() - 1);
+            if (last.question() != null && !last.question().isBlank()) {
+                return oneLine(last.question()) + " " + question;
+            }
+        }
+        return question;
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
