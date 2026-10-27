@@ -51,7 +51,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("""
             SELECT r FROM Report r
             JOIN FETCH r.user
-            JOIN FETCH r.building
+            LEFT JOIN FETCH r.building
             WHERE r.status = :status
               AND r.startsAt > :from AND r.startsAt <= :to
               AND r.endsAt > :to
@@ -93,8 +93,9 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
      */
     @Query("""
             SELECT new com.hongmap.hongmapbackend.report.ReportDigestCandidate(
-                r.id, r.user.id, r.title, r.building.name, r.floor, r.publishedAt)
+                r.id, r.user.id, r.title, COALESCE(b.name, r.placeLabel), r.floor, r.publishedAt)
             FROM Report r
+            LEFT JOIN r.building b
             WHERE r.status = com.hongmap.hongmapbackend.report.ReportStatus.ACTIVE
               AND r.publishedAt > :from AND r.publishedAt <= :to
               AND r.endsAt > :now
@@ -128,7 +129,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query("""
             SELECT r FROM Report r
             JOIN FETCH r.user
-            JOIN FETCH r.building
+            LEFT JOIN FETCH r.building
             WHERE ((:status IS NULL AND r.status <> com.hongmap.hongmapbackend.report.ReportStatus.DELETED)
                    OR r.status = :status)
               AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)

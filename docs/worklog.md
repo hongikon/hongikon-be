@@ -1319,3 +1319,28 @@
 - 테스트 `ReportOfficialIntegrationTest` 6(한도 2·시간 수정 4). 기존 `ReportAbuseGuard` 7·`ReportSchedule` 8 통과.
 - 운영 반영: DB 변경 없음, 서버 배포만. 앱 화면(공식 계정 메뉴의 '시간 수정')은 hongikon-fe.
 
+  - (저녁) 최신 공지 기준으로 기존 안내 바로잡기 + 공지 본문 찾기:
+    - 공지 찾기(`AskLiveData.searchNotices`, 도구 search_notices)가 제목뿐 아니라 본문도 본다(제목 3점·본문 1점). Q&A 공지 본문에만 있는 사실을 찾게.
+    - 놓친 낱말 어미 정리(`AskMissingTerms`: '결석하면'→'결석', '공결돼'→'공결').
+    - ask/catalog.json·sources.json 다시 생성(FE fixes.py 반영, 765노드).
+    - 백엔드 테스트 662 통과.
+    > **미결**: '정정기간에 결석하면 공결돼?'는 후보에 새 안내(faq-registration)가 있어도 모델이 출석인정 안내로만 답한다(공지 2076은 정정기간 새 신청 결석은 일괄 공결).
+- (밤) 학과 공지 반영 + 범위 판정 보정(운영진 요청: 학과 크롤링 공지의 장학금·행사도 답에):
+  - 새 `AskBoards`: 질문 속 학과·기관 이름(정식 이름·'○○과'·줄임말 '컴공','화공','산공','전전','디예경','캠자' …)을 공지 게시판(news.source_id)으로. '교육과정'·'과목'처럼 '○○과' 뒤에 낱말이 이어지면 학과로 보지 않는다. '영문'·'회화'처럼 일반 낱말과 겹치는 줄임말은 뺐다.
+  - `AskRouteService.missingContext`: 학과가 나오면 그 게시판 공지를 먼저 찾아(최대 4) 후보로 넘기고 '학과 공지 내용은 그 학과 것으로 밝혀 답'하게 한다. 기록 steps '학과 공지 찾기: 게시판 · 낱말 (n)'.
+  - search_notices 도구에 board(게시판) 인자. `AskLiveData.searchNotices(query, board)`.
+  - 공지 찾기에서 가운뎃점(‧·・)을 무시('학‧예술상' 공지가 '학예술상'으로 찾힘).
+  - 범위 판정: 학교·학과·기관 게시판에 올라오는 외부 장학금·인턴·채용·공모전·서포터즈·설명회는 school(회사·재단·외국 정부 이름이 있어도). 6건이 '다른 대학'·'학교 무관'으로 거절되던 것.
+  - 학과 공지 정답표 40문항(FE scripts/ask/cases-dept): 23 → 36. 남은 4건은 질문 밖 사실 누락·지난 공지 선택.
+  - 테스트 AskBoardsTest 3. 백엔드 전체 665 통과.
+  - ask/catalog.json·sources.json 다시 생성(FE 정합성 점검 2차 반영: 안내 문구 49건 수정, 낱말 41건). 기준 정답표 31/32, 학과 공지 정답표 35/40, 범위 21/21·잘못 거절 0.
+
+## 2026-10-27 — 캠퍼스 밖(홍대 생활권) 제보 (dev)
+
+- 운영진 요청: 제보를 학교 건물 근처(200m)뿐 아니라 캠퍼스 밖까지. 결정: 범위는 홍대 생활권(캠퍼스 중심 2.5km — 앱 지도를 옮길 수 있는 범위와 같다), 학교 건물이 없는 곳은 건물·층 없이 장소 설명 필수.
+- `Report.building`·`floor` NULL 허용(캠퍼스 밖 제보만 null). `Report.placeName()` = 건물 이름, 없으면 장소 설명 — 관리자 알림·승인/반려 푸시·예정 제보 시작 알림·신고 자동 숨김 알림이 이 값을 쓴다.
+- `ReportCreateRequest.buildingId`·`floor` 선택. `ReportService.create`: buildingId 가 있으면 지금처럼(층 필수·0층 금지·건물 300m), 없으면 `checkOffCampus` — 캠퍼스 중심에서 `report.off-campus-max-distance-meters`(기본 2500) 안, `placeLabel` 필수(없으면 400 "캠퍼스 밖 제보는 장소 설명을 적어 주세요."). 캠퍼스 밖 제보에 floor 가 와도 버린다.
+- 쿼리: 건물을 inner join 하던 곳을 LEFT JOIN 으로(예정 제보 시작 알림 후보, 관리자 목록, 내 제보 내역). 새 제보 다이제스트 후보는 `COALESCE(건물 이름, 장소 설명)` — inner join 이면 캠퍼스 밖 제보가 다이제스트·관리자 목록에서 빠졌다.
+- DTO: `MyReportResponse`·`AdminReportResponse` 건물 null 처리(나머지는 이미 null 안전).
+- **DB 변경 — 운영 배포 전에 실행**: `db/alter_report_building_nullable.sql`(NOT NULL 해제만, 기존 행 영향 없음). 로컬 MySQL 에 적용·확인. validate 는 NULL 여부를 보지 않아 빠뜨려도 기동은 되지만 캠퍼스 밖 제보 등록이 500.
+- 테스트: `ReportAbuseGuardIntegrationTest` 캠퍼스 밖 1건(장소 없으면 400, 3.3km 400, 750m 201·건물/층 null, 관리자 목록·승인·지도 목록·내 제보 내역에 나옴). 백엔드 전체 669 통과(작업 트리의 다른 미커밋 작업 포함 상태).

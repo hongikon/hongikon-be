@@ -51,6 +51,9 @@ public class ReportService {
     /** reports.lat/lng 는 DECIMAL(10,7) — 소수 7자리 넘게 오면 여기서 맞춰 저장한다(DB 마다 반올림·오류가 달라서). */
     private static final int COORDINATE_SCALE = 7;
     private static final double EARTH_RADIUS_METERS = 6_371_000d;
+    /** 캠퍼스 중심(앱 CAMPUS_CENTER 와 같다). 캠퍼스 밖 제보 거리의 기준. */
+    static final BigDecimal CAMPUS_CENTER_LAT = new BigDecimal("37.5501450");
+    static final BigDecimal CAMPUS_CENTER_LNG = new BigDecimal("126.9247762");
 
     /** 신고 사유: 허위 정보 / 스팸·광고 / 욕설·혐오 등 부적절 / 개인정보 노출 / 기타. */
     private static final List<String> FLAG_REASONS =
@@ -85,6 +88,8 @@ public class ReportService {
     private final long maxPendingPerUser;
     /** 제보 좌표와 고른 건물 중심 사이 거리 상한(m). 앱은 200m 안의 가장 가까운 건물을 고르므로 좌표 차이를 감안해 여유를 둔다. */
     private final double buildingMaxDistanceMeters;
+    /** 건물 없는(캠퍼스 밖) 제보가 캠퍼스 중심에서 떨어질 수 있는 거리 상한(m). */
+    private final double offCampusMaxDistanceMeters;
     /** 사용자별 등록 횟수 제한(1시간). 서버 1대 메모리 기준. */
     private final SlidingWindowRateLimiter createLimiter;
     /**
@@ -103,7 +108,8 @@ public class ReportService {
                          @Value("${report.create.max-pending:3}") long maxPendingPerUser,
                          @Value("${report.create.official-limit-per-hour:30}") int officialCreateLimitPerHour,
                          @Value("${report.create.official-max-pending:20}") long maxPendingPerOfficial,
-                         @Value("${report.building-max-distance-meters:300}") double buildingMaxDistanceMeters) {
+                         @Value("${report.building-max-distance-meters:300}") double buildingMaxDistanceMeters,
+                         @Value("${report.off-campus-max-distance-meters:2500}") double offCampusMaxDistanceMeters) {
         this.reportRepository = reportRepository;
         this.reportFlagRepository = reportFlagRepository;
         this.reportCommentCounts = reportCommentCounts;
@@ -114,6 +120,7 @@ public class ReportService {
         this.eventPublisher = eventPublisher;
         this.maxPendingPerUser = maxPendingPerUser;
         this.buildingMaxDistanceMeters = buildingMaxDistanceMeters;
+        this.offCampusMaxDistanceMeters = offCampusMaxDistanceMeters;
         this.createLimiter = new SlidingWindowRateLimiter(createLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
         this.officialCreateLimiter = new SlidingWindowRateLimiter(officialCreateLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
         this.maxPendingPerOfficial = maxPendingPerOfficial;
@@ -133,23 +140,14 @@ public class ReportService {
         }
         validateSchedule(request.startsAt(), request.endsAt(), LocalDateTime.now());
 
-        if (request.floor() == 0) {
-            // 범위(-10~30)는 DTO 가 본다. 0층은 없는 층이라(B1=-1, 1F=1) 여기서 거른다.
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "층을 다시 골라 주세요.");
-        }
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다."));
 
-        Building building = buildingRepository.findById(request.buildingId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 건물입니다."));
         BigDecimal lat = request.lat().setScale(COORDINATE_SCALE, RoundingMode.HALF_UP);
         BigDecimal lng = request.lng().setScale(COORDINATE_SCALE, RoundingMode.HALF_UP);
-        // 앱을 거치지 않은 요청이 엉뚱한 곳(캠퍼스 밖·다른 건물)의 좌표에 건물만 붙여 올리는 걸 막는다.
-        // 건물 좌표는 DB(buildings) 값이고 앱은 자체 건물 좌표로 200m 안을 고르므로, 둘이 어긋나도 걸리지 않게 300m 로 둔다.
-        if (distanceMeters(lat, lng, building.getLatitude(), building.getLongitude()) > buildingMaxDistanceMeters) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "제보 위치가 고른 건물에서 너무 멀어요. 건물 가까이로 옮겨 주세요.");
+        Building building = request.buildingId() == null ? null : resolveBuilding(request, lat, lng);
+        if (building == null) {
+            checkOffCampus(request, lat, lng);
         }
 
         // 도배 방지 ① 승인 대기 수 — DB 로 센다(재시작·서버 여러 대에도 정확). 동시에 두 건이 오면 한 건 넘칠 수 있지만
@@ -174,7 +172,7 @@ public class ReportService {
         Report report = Report.builder()
                 .user(user)
                 .building(building)
-                .floor(request.floor())
+                .floor(building == null ? null : request.floor())
                 .lat(lat)
                 .lng(lng)
                 .category(category)
@@ -191,7 +189,7 @@ public class ReportService {
         Report saved = reportRepository.save(report);
         // 관리자 "승인 대기" 알림(AdminAlertDispatcher)은 커밋 뒤 비동기로 나간다.
         eventPublisher.publishEvent(AdminAlertEvent.reportPending(
-                saved.getId(), userId, saved.getTitle(), building.getName(), saved.getFloor()));
+                saved.getId(), userId, saved.getTitle(), saved.placeName(), saved.getFloor()));
         return ReportResponse.of(saved, userId, reportImageService.viewUrls(saved.getImageKeys()));
     }
 
@@ -340,11 +338,45 @@ public class ReportService {
                 && reportRepository.updateStatusIf(reportId, ReportStatus.ACTIVE, ReportStatus.HIDDEN) == 1) {
             // 자동 숨김을 관리자에게 알린다(커밋 뒤 비동기). 조건부 UPDATE라 동시 신고에도 한 번만.
             eventPublisher.publishEvent(AdminAlertEvent.reportFlagged(
-                    reportId, userId, report.getTitle(), report.getBuilding().getName(), report.getFloor()));
+                    reportId, userId, report.getTitle(), report.placeName(), report.getFloor()));
         }
 
         // 전체 신고 수는 돌려주지 않는다 — 앱은 쓰지 않고, 다른 사람이 몇 명 신고했는지는 신고자에게 알릴 정보가 아니다.
         return new ReportFlagResponse(true);
+    }
+
+    /**
+     * 캠퍼스 안 제보: 층 필수·0층 금지, 좌표가 고른 건물에서 buildingMaxDistanceMeters 안.
+     * 앱을 거치지 않은 요청이 엉뚱한 곳의 좌표에 건물만 붙여 올리는 걸 막는다. 건물 좌표는 DB(buildings) 값이고
+     * 앱은 자체 건물 좌표로 200m 안을 고르므로, 둘이 어긋나도 걸리지 않게 300m 로 둔다.
+     */
+    private Building resolveBuilding(ReportCreateRequest request, BigDecimal lat, BigDecimal lng) {
+        if (request.floor() == null || request.floor() == 0) {
+            // 범위(-10~30)는 DTO 가 본다. 0층은 없는 층이라(B1=-1, 1F=1) 여기서 거른다.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "층을 다시 골라 주세요.");
+        }
+        Building building = buildingRepository.findById(request.buildingId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 건물입니다."));
+        if (distanceMeters(lat, lng, building.getLatitude(), building.getLongitude()) > buildingMaxDistanceMeters) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "제보 위치가 고른 건물에서 너무 멀어요. 건물 가까이로 옮겨 주세요.");
+        }
+        return building;
+    }
+
+    /**
+     * 캠퍼스 밖(건물 없는) 제보(10-27): 홍대 생활권(캠퍼스 중심에서 offCampusMaxDistanceMeters, 기본 2.5km — 앱 지도를 옮길 수 있는
+     * 범위와 같다) 안이어야 하고, 건물·층이 없어 어디인지 알 수 있게 장소 설명이 필수다.
+     */
+    private void checkOffCampus(ReportCreateRequest request, BigDecimal lat, BigDecimal lng) {
+        if (distanceMeters(lat, lng, CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG) > offCampusMaxDistanceMeters) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "제보는 캠퍼스와 홍대 근처(캠퍼스에서 " + Math.round(offCampusMaxDistanceMeters / 100) / 10.0 + "km 안)까지만 남길 수 있어요.");
+        }
+        if (request.placeLabel() == null || request.placeLabel().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "캠퍼스 밖 제보는 장소 설명을 적어 주세요. 예: 홍대입구역 9번 출구 앞");
+        }
     }
 
     /** 두 좌표 사이 거리(m, 하버사인). 캠퍼스 규모에선 오차가 1m 미만이다. */

@@ -15,14 +15,13 @@ import java.util.List;
 
 /**
  * 좌표·층 범위를 여기서 400 으로 거른다 — 전엔 범위 밖 값(예: lat 1000)이 DECIMAL(10,7) 에 안 들어가 DB 오류(500)가 났다.
- * 건물과의 거리·0층은 ReportService.create 가 본다.
+ * 건물과의 거리·0층·건물 없는(캠퍼스 밖) 제보의 규칙은 ReportService.create 가 본다.
  */
 public record ReportCreateRequest(
-        @NotNull
+        /** 캠퍼스 안 제보의 건물. 캠퍼스 밖(홍대 생활권) 제보는 비워 보낸다 — 그때는 floor 도 비우고 placeLabel 이 필수다. */
         Long buildingId,
 
-        /** 지하는 음수(B1 = -1). 범위는 ReportService.MIN_FLOOR~MAX_FLOOR 와 같게 둔다. */
-        @NotNull
+        /** 지하는 음수(B1 = -1). 범위는 ReportService.MIN_FLOOR~MAX_FLOOR 와 같게 둔다. buildingId 가 있을 때만 필수. */
         @Min(value = -10, message = "층은 지하 10층부터 30층까지 고를 수 있어요.")
         @Max(value = 30, message = "층은 지하 10층부터 30층까지 고를 수 있어요.")
         Integer floor,

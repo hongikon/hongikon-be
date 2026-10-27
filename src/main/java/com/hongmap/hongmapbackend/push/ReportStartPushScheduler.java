@@ -69,7 +69,7 @@ public class ReportStartPushScheduler {
                 }
                 int accepted = reportPushDispatcher.dispatchStarted(new ReportModeratedEvent(
                         report.getId(), report.getUser().getId(), report.getTitle(),
-                        report.getBuilding().getName(), report.getFloor(),
+                        report.placeName(), report.getFloor(),
                         ReportStatus.ACTIVE, ReportStatus.ACTIVE, null, report.getEndsAt(), report.getStartsAt(),
                         report.getContent(), report.getPlaceLabel(), report.getCustomCategoryLabel()));
                 log.info("예정 제보 시작 알림: reportId={}, {}건 접수", report.getId(), accepted);

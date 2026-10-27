@@ -120,7 +120,7 @@ public class AdminReportService {
         // 승인·반려 푸시(ReportPushDispatcher)는 커밋 뒤 비동기로 나간다 — 이 응답을 늦추지 않고, 롤백되면 보내지 않는다.
         eventPublisher.publishEvent(new ReportModeratedEvent(
                 report.getId(), report.getUser().getId(), report.getTitle(),
-                report.getBuilding().getName(), report.getFloor(),
+                report.placeName(), report.getFloor(),
                 previous, target, note, report.getEndsAt(), report.getStartsAt(),
                 report.getContent(), report.getPlaceLabel(), report.getCustomCategoryLabel()));
         // 반려·삭제된 제보의 사진은 더 보여줄 일이 없어 S3 에서 지운다(개인정보 최소 보관). 숨김(HIDDEN)은 재검토용으로 남긴다.
