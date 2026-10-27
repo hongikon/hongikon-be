@@ -1,5 +1,5 @@
 {
- "version": "a09009486327",
+ "version": "8230bf725819",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -1746,6 +1746,21 @@
    "id": "hwp-acrobat-error/start",
    "kind": "answer",
    "line": "정보전산원 안내예요. Acrobat이 안 열리면 메뉴 › 기본 설정 › 보안(고급)에서 '시작할 때 보호 모드 활성화'와 '고급 보안 사용' 체… #한글 #한컴 #실행오류 #안열려"
+  },
+  {
+   "id": "curriculum-rules/more",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '문과대학·법과대학·경제학부·사범대학 등 졸업학점 현황' 안내예요."
+  },
+  {
+   "id": "curriculum-rules/more1",
+   "kind": "answer",
+   "line": "2026 교과과정책자(컴퓨터공학과 교과과정 게시판) '공과대학 졸업학점 현황(공학교육인증과정)' 안내예요."
+  },
+  {
+   "id": "curriculum-rules/start",
+   "kind": "answer",
+   "line": "필수과목이 폐지되거나 선택과목으로 바뀌었을 때의 적용원칙이에요. 폐지됐는데 경과조치가 없거나, 선택과목으로 바뀌기 전에 듣지 않았다면 듣지 않아… #필수과목 #교양필수 #폐지 #없어졌 #적용원칙 #복수전공"
   },
   {
    "id": "dept-office-ce/start",
