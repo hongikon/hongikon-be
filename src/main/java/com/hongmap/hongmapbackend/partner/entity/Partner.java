@@ -77,6 +77,13 @@ public class Partner {
     @Column(name = "ends_on")
     private LocalDate endsOn;
 
+    /**
+     * 근처 제휴 알림 대상인지(관리자가 고른 업체만, 기본 꺼짐). 켜져 있으면 GET /map/data 의 partner 에 nearbyAlert:true.
+     * 위치 판단은 앱(기기) 안에서만 한다 — 서버는 이 표시만 내려 준다. db/alter_partners_nearby_alert_2026_10_26.sql
+     */
+    @Column(name = "nearby_alert", nullable = false)
+    private boolean nearbyAlert;
+
     @OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<PartnerAffiliation> affiliations = new ArrayList<>();
@@ -85,7 +92,7 @@ public class Partner {
     public Partner(String name, String category, BigDecimal latitude, BigDecimal longitude,
                     String benefit, String address, String roadAddress, String hours,
                     String contact, String mapIcon, String linkLabel, String linkUrl,
-                    String code, Integer sortOrder, LocalDate endsOn, String usageNote) {
+                    String code, Integer sortOrder, LocalDate endsOn, String usageNote, Boolean nearbyAlert) {
         this.name = name;
         this.category = category;
         this.latitude = latitude;
@@ -102,6 +109,7 @@ public class Partner {
         this.sortOrder = sortOrder != null ? sortOrder : 0;
         this.endsOn = endsOn;
         this.usageNote = usageNote;
+        this.nearbyAlert = nearbyAlert != null && nearbyAlert;
     }
 
     /** 관리자 지도 편집(PUT /admin/map/partners/{code}) — code·sortOrder·roadAddress 는 그대로 둔다. */
@@ -121,6 +129,11 @@ public class Partner {
         this.linkUrl = linkUrl;
         this.endsOn = endsOn;
         this.usageNote = usageNote;
+    }
+
+    /** 근처 제휴 알림 대상 켜기/끄기(관리자). */
+    public void changeNearbyAlert(boolean nearbyAlert) {
+        this.nearbyAlert = nearbyAlert;
     }
 
     /**

@@ -1335,6 +1335,17 @@
   - 테스트 AskBoardsTest 3. 백엔드 전체 665 통과.
   - ask/catalog.json·sources.json 다시 생성(FE 정합성 점검 2차 반영: 안내 문구 49건 수정, 낱말 41건). 기준 정답표 31/32, 학과 공지 정답표 35/40, 범위 21/21·잘못 거절 0.
 
+## 2026-10-26 — 근처 제휴 알림 서버 쪽: 업체 표시·긴급 스위치·광고성 정보 수신 동의 (dev)
+
+- 배경: 관리자가 고른 제휴업체 근처에 가면 앱이 알림을 띄우는 기능(FE `docs/nearby-partner-alert-impl-plan.md` "서버 구조"). 위치 판단은 앱(기기) 안에서만 하고 서버에는 위치를 보내지 않는다 — 위치 필드·로그 없음.
+- `partners.nearby_alert BOOLEAN NOT NULL DEFAULT FALSE`(`Partner.nearbyAlert`). `GET /map/data` partner 에 `nearbyAlert: true`(켜진 업체만, 아니면 생략). 관리자 목록도 같은 모양.
+- 관리자 `POST/PUT /admin/map/partners` 본문 `nearbyAlert`(선택): POST 에서 생략하면 false, PUT 에서 생략하면 지금 값 유지(다른 필드와 달리 — 구버전 관리자 화면이 저장해도 꺼지지 않게). 권한은 기존 `/admin/map/**` 그대로.
+- 긴급 스위치: `GET /map/data` 최상위 `nearbyAlertsEnabled`(boolean, 항상) = 설정 `hongikon.nearby-alerts.enabled`(env `NEARBY_ALERTS_ENABLED`, **기본 false**, `application-local.properties` 만 true). version 계산 본문(`MapDataPayload`)에 들어가 값을 바꾸면 ETag 가 바뀌어 304 로 막히지 않는다. 필드 추가로 배포 직후 version 이 한 번 바뀐다.
+- `/users/me/notification-settings`: 응답 `partnerAdConsentAt`(광고성 정보 수신 동의 시각, KST ISO-8601 예 `2026-10-26T14:03:00+09:00`, 미동의 null). PATCH `partnerAdConsent: true` 면 지금 시각 기록(이미 있으면 처음 시각 유지), `false` 면 null. 정보통신망법 제50조 동의 기록·2년 재확인용. 컬럼 `user_notification_settings.partner_ad_consent_at DATETIME(6) NULL`(UTC). 회원탈퇴 시 기존처럼 행째 삭제(`UserService` + FK CASCADE) — 테스트로 확인.
+- **DB 변경 — 운영 배포 전에 실행**: `db/alter_partners_nearby_alert_2026_10_26.sql`(두 컬럼, 다시 돌려도 안전). 로컬 MySQL 에서 이미-있음 경로와 ALTER 문(임시 테이블) 확인. 절차서 `docs/deploy-runbook-nearby-alert.md`.
+- 테스트: `MapDataIntegrationTest`(nearbyAlert 생략/true·POST 기본·PUT 생략 유지·false·일반 사용자 403, 최상위 순서·nearbyAlertsEnabled=false), 새 `MapDataNearbyAlertsSwitchTest`(스위치 켜면 true), `NotificationSettingApiIntegrationTest`(기본 null, 동의·처음 시각 유지·철회, 탈퇴 시 삭제), `ExhibitionIntegrationTest` 필드 순서 갱신. 백엔드 전체 668 통과.
+- 남은 것: 개인정보처리방침·이용약관 문구(광고성 정보 수신 동의), 2년 재확인 안내 발송, FE 관리자 화면 "근처 알림 대상" 체크·앱 동의 화면.
+
 ## 2026-10-27 — 캠퍼스 밖(홍대 생활권) 제보 (dev)
 
 - 운영진 요청: 제보를 학교 건물 근처(200m)뿐 아니라 캠퍼스 밖까지. 결정: 범위는 홍대 생활권(캠퍼스 중심 2.5km — 앱 지도를 옮길 수 있는 범위와 같다), 학교 건물이 없는 곳은 건물·층 없이 장소 설명 필수.

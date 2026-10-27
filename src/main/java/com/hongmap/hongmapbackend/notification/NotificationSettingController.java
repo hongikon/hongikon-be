@@ -28,6 +28,7 @@ public class NotificationSettingController {
                     + "newReports: 캠퍼스에 새 제보가 올라왔을 때 알림(기본 꺼짐, 유저당 최대 30분에 한 번). "
                     + "newReportsScope: 새 제보 알림 범위 — CAMPUS(전체 새 제보 + 제보 키워드) 또는 KEYWORDS(제보 키워드에 걸린 제보만). "
                     + "adminAlerts: 관리자 알림(새 제보 승인 대기·새 문의·신고 자동 숨김, 기본 켜짐) — 관리자에게만 의미가 있습니다. "
+                    + "partnerAdConsentAt: 제휴 혜택 알림(광고성 정보) 수신 동의 시각, ISO-8601 KST(예: 2026-10-26T14:03:00+09:00). 동의 안 했으면 null. "
                     + "저장한 적 없으면 기본값을 내려줍니다.")
     @GetMapping("/users/me/notification-settings")
     public NotificationSettingsResponse get(@AuthenticationPrincipal Long userId) {
@@ -36,7 +37,8 @@ public class NotificationSettingController {
 
     @Tag(name = SwaggerConfig.TAG_NEWS_NOTIFICATION)
     @Operation(summary = "제보 알림 설정 변경",
-            description = "보낸 필드만 바꿉니다(부분 수정). 예: {\"newReports\": true}. 바뀐 뒤의 전체 설정을 돌려줍니다.")
+            description = "보낸 필드만 바꿉니다(부분 수정). 예: {\"newReports\": true}. 바뀐 뒤의 전체 설정을 돌려줍니다. "
+                    + "partnerAdConsent: true 면 광고성 정보 수신 동의 시각을 지금으로 기록(이미 동의했으면 처음 시각 유지), false 면 기록을 지웁니다.")
     @PatchMapping("/users/me/notification-settings")
     public NotificationSettingsResponse update(@AuthenticationPrincipal Long userId,
                                                @Valid @RequestBody NotificationSettingsUpdateRequest request) {

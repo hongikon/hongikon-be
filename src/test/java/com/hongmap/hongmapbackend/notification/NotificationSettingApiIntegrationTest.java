@@ -91,8 +91,49 @@ class NotificationSettingApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reportStatus").value(true))
                 .andExpect(jsonPath("$.newReports").value(false))
-                .andExpect(jsonPath("$.newReportsScope").value("CAMPUS"));
+                .andExpect(jsonPath("$.newReportsScope").value("CAMPUS"))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value(org.hamcrest.Matchers.nullValue()));
         assertThat(settingRepository.findById(user.getId())).isEmpty();
+    }
+
+    @Test
+    void 광고성_정보_수신_동의는_처음_시각을_지키고_철회하면_지운다() throws Exception {
+        // 동의 → KST 오프셋 ISO-8601 시각
+        String first = com.jayway.jsonpath.JsonPath.read(
+                mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                                .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdConsent\":true}"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.reportStatus").value(true))
+                        .andReturn().getResponse().getContentAsString(),
+                "$.partnerAdConsentAt");
+        assertThat(first).matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+09:00$");
+        java.time.OffsetDateTime consentAt = java.time.OffsetDateTime.parse(first);
+        assertThat(consentAt.toInstant()).isBetween(java.time.Instant.now().minusSeconds(60), java.time.Instant.now().plusSeconds(1));
+
+        // 다시 동의해도(앱 재설치·중복 탭) 처음 동의 시각 유지. 다른 필드만 바꿔도 그대로.
+        jdbcTemplate.update("UPDATE user_notification_settings SET partner_ad_consent_at = ? WHERE user_id = ?",
+                LocalDateTime.of(2026, 1, 2, 3, 4, 5), user.getId());
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdConsent\":true}"))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value("2026-01-02T12:04:05+09:00"));
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newReports\":true}"))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value("2026-01-02T12:04:05+09:00"));
+        mockMvc.perform(get(BASE).header("Authorization", bearer(user)))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value("2026-01-02T12:04:05+09:00"));
+
+        // 철회 → null
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdConsent\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerAdConsentAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.newReports").value(true));
+        assertThat(settingRepository.findById(user.getId()).orElseThrow().getPartnerAdConsentAt()).isNull();
+
+        // 다른 유저의 기록에는 영향이 없다(자기 설정만)
+        User other = user("다른학생");
+        mockMvc.perform(get(BASE).header("Authorization", bearer(other)))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
@@ -141,8 +182,9 @@ class NotificationSettingApiIntegrationTest {
     @Test
     void 회원탈퇴하면_설정도_지워진다() throws Exception {
         mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"newReports\":true}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newReports\":true,\"partnerAdConsent\":true}"))
                 .andExpect(status().isOk());
+        assertThat(settingRepository.findById(user.getId()).orElseThrow().getPartnerAdConsentAt()).isNotNull();
 
         mockMvc.perform(delete("/auth/me").header("Authorization", bearer(user)))
                 .andExpect(status().isNoContent());

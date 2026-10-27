@@ -39,6 +39,8 @@ public record AdminMapPartnerRequest(
         /** 제휴 종료일(이 날까지 지도에 보인다). 비우면 기한 없음 — PUT 에서 비우면 기한이 지워진다. */
         @Pattern(regexp = "^$|^\\d{4}-\\d{2}-\\d{2}$", message = "종료일은 2026-12-31 처럼 입력해 주세요.") String endsOn,
         /** 이 업체만의 이용 방법. 비우면 소속별 기본 안내 — PUT 에서 비우면 지워진다. */
-        @Size(max = 255, message = "이용 방법은 255자 이하로 입력해 주세요.") String usageNote
+        @Size(max = 255, message = "이용 방법은 255자 이하로 입력해 주세요.") String usageNote,
+        /** 근처 제휴 알림 대상. POST 에서 생략하면 false, PUT 에서 생략하면 지금 값을 그대로 둔다. */
+        Boolean nearbyAlert
 ) {
 }

@@ -68,6 +68,7 @@ public class AdminMapService {
                 .name(f.name).category(f.category).latitude(f.lat).longitude(f.lng)
                 .benefit(f.benefit).address(f.address).hours(f.hours).contact(f.contact)
                 .mapIcon(f.mapIcon).linkLabel(f.linkLabel).linkUrl(f.linkUrl).endsOn(f.endsOn).usageNote(f.usageNote)
+                .nearbyAlert(request.nearbyAlert())
                 .build();
         partner.replaceAffiliations(f.affiliations);
         Partner saved = partnerRepository.save(partner);
@@ -82,6 +83,9 @@ public class AdminMapService {
         PartnerFields f = partnerFields(request);
         partner.updateMapInfo(f.name, f.category, f.lat, f.lng, f.benefit, f.address, f.hours, f.contact,
                 f.mapIcon, f.linkLabel, f.linkUrl, f.endsOn, f.usageNote);
+        if (request.nearbyAlert() != null) {
+            partner.changeNearbyAlert(request.nearbyAlert());
+        }
         partner.replaceAffiliations(f.affiliations);
         partnerRepository.flush();
         mapDataService.invalidateAfterCommit();
