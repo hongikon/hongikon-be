@@ -39,3 +39,9 @@
 - 확인(로컬, 같은 데이터): 기준 정답표 RAG 29/32 · 지금 방식 30/32(±1 흔들림), 학과 공지 34/40, 범위 거절 21/21·잘못 거절 0. '전필 안 해도 졸업?'은 hint 없이도 적용원칙으로.
 - 테스트 `AskRetrieverTest` 5. 백엔드 전체 674 통과.
 - 남은 일: 맥미니 launchd 자동 실행 등록·잠자기 끄기(운영자 — 자동 실행 등록은 이 세션 권한에서 막힘), 맥미니–EC2 사설 터널, 카탈로그 꼬리표·앱 hint 빼기, 공지 색인.
+
+## 2026-10-28 — 물어보기: 추론형 질문 평가(코드 변경 없음, 문서만)
+
+- 학교 FAQ·공지 Q&A 로 만든 추론 정답표 44문항(FE `scripts/ask/cases-reason/reason.json`)으로 Haiku 5.5(지금)·Haiku 추론형 지시·Sonnet 5.5·Opus 5.5 를 비교하고 실패 원인을 나눴다 → [`ask-reasoning-eval.md`](ask-reasoning-eval.md), 제출용 Word 판 `ask-reasoning-eval.docx`.
+- 결과: 정답 Haiku 59% · Sonnet 55% · Opus 75%, 확인된 손해 오류 3 · 0 · 0, 질문당 비용 약 $0.004 · $0.15 · $0.19. 남은 실패의 대부분은 '결과·조건 누락'(원문에는 있음).
+- 실험용 설정(`ask.llm.answer-effort`, `ask.llm.answer-extra-file`)은 별도 빌드에서만 썼고 dev 에 넣지 않았다. 평가 기록 176건(질문은 합성 문항)이 로컬 DB `ask_conversation_logs` 에 남았다(conversation_id `reason-%`).
