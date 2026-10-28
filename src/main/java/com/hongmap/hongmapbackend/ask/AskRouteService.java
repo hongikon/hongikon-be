@@ -31,6 +31,8 @@ public class AskRouteService {
 
     /** RAG 검색 후보로 분류에 넘기는 안내 수. */
     static final int RETRIEVED_MAX = 6;
+    /** 답 쓰기에 원문을 함께 넘기는 홈페이지 쪽 수(학과 홈페이지 등, 안내 목록 밖). */
+    static final int PAGES_MAX = 2;
     /** 분류가 아무 안내도 못 골랐을 때 검색 후보에서 답 쓰기로 넘기는 수. */
     static final int RETRIEVED_FALLBACK = 2;
     /** 이 글자 수 이하의 이어 묻는 질문은 직전 질문을 붙여 검색한다('신청은?' 같은 말만으로는 찾을 게 없다). */
@@ -69,9 +71,14 @@ public class AskRouteService {
             return refuse(blocked.get(), null, progress);
         }
         // ② 찾기(RAG 가 켜져 있으면): 안내 원문 색인에서 뜻·낱말이 가까운 안내 후보. 손으로 적은 낱말(앱 hint) 대신 쓴다(10-28).
-        List<String> retrieved = retriever.enabled() ? retriever.nodes(retrievalQuery(request), RETRIEVED_MAX) : List.of();
-        if (!retrieved.isEmpty()) {
-            progress.retrieved(retrieved);
+        AskRetriever.Found found = retriever.enabled()
+                ? retriever.search(retrievalQuery(request), RETRIEVED_MAX, PAGES_MAX) : new AskRetriever.Found(List.of(), List.of());
+        List<String> retrieved = found.nodes();
+        List<String> pages = found.pages();
+        if (!retrieved.isEmpty() || !pages.isEmpty()) {
+            List<String> shown = new ArrayList<>(retrieved);
+            shown.addAll(pages);
+            progress.retrieved(shown);
         }
         // ③ 고르기: 범위를 함께 판정한다. 학교 질문이 아니면 답 쓰기를 부르지 않고 고정 문구로.
         AskLlmClient.Classification classification = llmClient.classify(classifyMessage(request, retrieved), progress);
@@ -106,7 +113,7 @@ public class AskRouteService {
                 }
             }
         }
-        if (answerIds.isEmpty() && !picked.isEmpty()) {
+        if (answerIds.isEmpty() && !picked.isEmpty() && pages.isEmpty()) {
             return new AskRouteResponse(primary, List.of(primary), null, null, catalog.version());
         }
         List<String> anchors = anchorsFor(answerIds);
@@ -117,7 +124,10 @@ public class AskRouteService {
         }
         progress.picked(answerIds);
         try {
-            AskLlmClient.Answer answer = llmClient.answer(answerIds, answerContext(request) + missingContext(request, answerIds, progress), progress);
+            String context = answerContext(request) + missingContext(request, answerIds, progress);
+            AskLlmClient.Answer answer = pages.isEmpty()
+                    ? llmClient.answer(answerIds, context, progress)
+                    : llmClient.answer(answerIds, pages, context, progress);
             // ③ 출구: 근거 없는 다른 대학 이름이 있어 답을 버렸으면 고정 문구로(AskLlmClient 가 화면으로 나가기 전에 막았다).
             if (answer.blockedSchool() != null) {
                 return refuse(AskScope.OTHER_SCHOOL, answer.blockedSchool(), progress);

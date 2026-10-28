@@ -38,7 +38,13 @@ public class AskRetriever {
     static final double BM25_B = 0.75;
 
     private final AskEmbedClient embedClient;
+    /** 맨 앞 몇 문단 안에 든 홈페이지 쪽만 답 쓰기에 넘긴다(멀리 있는 쪽은 잡음). */
+    static final int PAGE_WINDOW = 10;
+    /** 홈페이지 등 원문 그대로 넣은 자료의 문단 id 앞붙이. */
+    public static final String PAGE_PREFIX = "page:";
+
     private final List<Chunk> chunks;
+    private final Map<String, Page> pages;
     private final float[][] vectors;
     private final Map<String, int[]> postings;
     private final int[] lengths;
@@ -55,6 +61,7 @@ public class AskRetriever {
         this.embedClient = embedClient;
         this.enabled = wanted && index != null && embedClient.configured();
         this.chunks = index == null ? List.of() : index.chunks();
+        this.pages = index == null || index.pages() == null ? Map.of() : Map.copyOf(index.pages());
         this.vectors = index == null ? new float[0][] : index.vectors();
         Map<String, List<Integer>> grams = new HashMap<>();
         this.lengths = new int[chunks.size()];
@@ -82,16 +89,34 @@ public class AskRetriever {
         return enabled;
     }
 
-    /** 질문과 가까운 안내 id(문단 순위를 안내로 묶어 중복 없이) 최대 limit 개. */
+    /** 질문과 가까운 안내 id(문단 순위를 안내로 묶어 중복 없이) 최대 limit 개. 홈페이지 쪽은 빼고. */
     public List<String> nodes(String query, int limit) {
-        Set<String> out = new LinkedHashSet<>();
-        for (Hit hit : chunks(query, limit * 4)) {
-            out.add(hit.nodeId());
-            if (out.size() >= limit) {
-                break;
+        return search(query, limit, 0).nodes();
+    }
+
+    /**
+     * 임베딩을 한 번만 불러 안내 id(최대 nodeLimit)와 홈페이지 쪽 id(맨 앞 {@link #PAGE_WINDOW} 문단 안, 최대 pageLimit)를 함께 고른다.
+     */
+    public Found search(String query, int nodeLimit, int pageLimit) {
+        Set<String> nodes = new LinkedHashSet<>();
+        Set<String> pageIds = new LinkedHashSet<>();
+        List<Hit> hits = chunks(query, Math.max(nodeLimit * 4, PAGE_WINDOW));
+        for (int i = 0; i < hits.size(); i++) {
+            String id = hits.get(i).nodeId();
+            if (id.startsWith(PAGE_PREFIX)) {
+                if (i < PAGE_WINDOW && pageIds.size() < pageLimit && pages.containsKey(id)) {
+                    pageIds.add(id);
+                }
+            } else if (nodes.size() < nodeLimit) {
+                nodes.add(id);
             }
         }
-        return List.copyOf(out);
+        return new Found(List.copyOf(nodes), List.copyOf(pageIds));
+    }
+
+    /** 홈페이지 쪽 정보(제목·학과·주소·원문). 없으면 null. */
+    public Page page(String id) {
+        return pages.get(id);
     }
 
     /** 질문과 가까운 문단 최대 limit 개(RRF 점수 높은 순). */
@@ -201,7 +226,7 @@ public class AskRetriever {
                 vectors[i][d] = halfToFloat(buffer.getShort());
             }
         }
-        return new Index(file.chunks(), vectors);
+        return new Index(file.chunks(), vectors, file.pages());
     }
 
     /** IEEE 754 반정밀도 → float(Java 17 에는 Float.float16ToFloat 가 없다). */
@@ -219,13 +244,24 @@ public class AskRetriever {
         return Float.intBitsToFloat(sign | ((exp - 15 + 127) << 23) | (mant << 13));
     }
 
-    record ChunksFile(String version, String model, int dim, List<Chunk> chunks) {
+    record ChunksFile(String version, String model, int dim, List<Chunk> chunks, Map<String, Page> pages) {
+    }
+
+    /** 원문 그대로 넣은 홈페이지 쪽. title 은 '학과 홈페이지 · 메뉴 제목'. */
+    public record Page(String title, String dept, String url, String text) {
+    }
+
+    /** @param pages 홈페이지 쪽 id(page:…) — 안내 목록 밖이라 답 쓰기에 원문을 따로 넘긴다. */
+    public record Found(List<String> nodes, List<String> pages) {
     }
 
     record Chunk(String id, String text) {
     }
 
-    record Index(List<Chunk> chunks, float[][] vectors) {
+    record Index(List<Chunk> chunks, float[][] vectors, Map<String, Page> pages) {
+        Index(List<Chunk> chunks, float[][] vectors) {
+            this(chunks, vectors, null);
+        }
     }
 
     public record Hit(String nodeId, String text, double score) {

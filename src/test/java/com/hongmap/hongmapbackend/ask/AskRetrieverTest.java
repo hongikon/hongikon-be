@@ -72,6 +72,22 @@ class AskRetrieverTest {
     }
 
     @Test
+    void 홈페이지_쪽은_안내와_따로_앞쪽_문단에서만_고른다() {
+        AskRetriever.Index index = new AskRetriever.Index(List.of(
+                new AskRetriever.Chunk("page:depthome_mse_0403", "신소재공학전공 홈페이지 · 졸업요건 실험과목 2과목"),
+                new AskRetriever.Chunk("grad-mse/start", "신소재공학전공 졸업요건")),
+                new float[][] {{1, 0}, {0.9f, 0.1f}},
+                Map.of("page:depthome_mse_0403", new AskRetriever.Page("신소재공학전공 홈페이지 · 졸업요건", "신소재공학전공",
+                        "https://mse.hongik.ac.kr/mse/0403.do", "실험과목 2과목")));
+        AskRetriever retriever = new AskRetriever(new FakeEmbed(Map.of("신소재 실험과목", new float[] {1, 0})), index, true);
+        AskRetriever.Found found = retriever.search("신소재 실험과목", 3, 2);
+        assertThat(found.nodes()).containsExactly("grad-mse/start");
+        assertThat(found.pages()).containsExactly("page:depthome_mse_0403");
+        assertThat(retriever.page("page:depthome_mse_0403").url()).endsWith("0403.do");
+        assertThat(retriever.search("신소재 실험과목", 3, 0).pages()).isEmpty();
+    }
+
+    @Test
     void 반정밀도_변환과_2글자_자르기() {
         assertThat(AskRetriever.halfToFloat((short) 0x3c00)).isEqualTo(1.0f);
         assertThat(AskRetriever.halfToFloat((short) 0xb800)).isEqualTo(-0.5f);

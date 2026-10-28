@@ -45,3 +45,11 @@
 - 학교 FAQ·공지 Q&A 로 만든 추론 정답표 44문항(FE `scripts/ask/cases-reason/reason.json`)으로 Haiku 5.5(지금)·Haiku 추론형 지시·Sonnet 5.5·Opus 5.5 를 비교하고 실패 원인을 나눴다 → [`ask-reasoning-eval.md`](ask-reasoning-eval.md), 제출용 Word 판 `ask-reasoning-eval.docx`.
 - 결과: 정답 Haiku 59% · Sonnet 55% · Opus 75%, 확인된 손해 오류 3 · 0 · 0, 질문당 비용 약 $0.004 · $0.15 · $0.19. 남은 실패의 대부분은 '결과·조건 누락'(원문에는 있음).
 - 실험용 설정(`ask.llm.answer-effort`, `ask.llm.answer-extra-file`)은 별도 빌드에서만 썼고 dev 에 넣지 않았다. 평가 기록 176건(질문은 합성 문항)이 로컬 DB `ask_conversation_logs` 에 남았다(conversation_id `reason-%`).
+
+## 2026-10-28 — 물어보기 RAG: 학과 홈페이지·교수 정보 규칙 (dev)
+
+- 학과 홈페이지 94쪽(본문 46·위치만 48, FE `scripts/ask/depthome.py` → `data/rag-depthome.json`)을 RAG 색인에 원문 그대로: `build_index.py` 가 FE `data/rag-*.json` 을 'page:<key>' 문단으로 함께 넣는다(2,592문단, `rag-chunks.json` 에 쪽 정보 pages). 낱말 목록은 짜지 않는다.
+- `AskRetriever.search(query, nodeLimit, pageLimit)`: 임베딩 한 번으로 안내 id 와 홈페이지 쪽(맨 앞 10문단 안, 최대 2)을 함께. `page(id)`.
+- `AskRouteService`: 홈페이지 쪽을 `AskLlmClient.answer(ids, pageIds, …)` 로 원문과 함께 넘긴다(없으면 예전 호출). 답에 쓰면 sourceIds 의 page:… 가 학과 홈페이지 링크(references)로 붙는다. 기록 steps '검색 후보'에 page id 도.
+- 답 규칙: 학과 홈페이지 원문은 어느 학과 것인지 밝히고 다른 학과 질문엔 쓰지 않는다. 교수 개인 정보(연구실·전화·이메일·면담·이력)는 쓰지 않고 학과 홈페이지 교수 소개 페이지로 안내(운영진 결정, 교수·교직원·연구실 소개는 위치만 색인). 개인정보 거르기: 학번 줄·게시판 목록 제외, 휴대전화 번호 제거(10-29 공개 저장소 점검 — 첫 색인에 학과연혁 명예의 전당 실명·학번이 들어갔던 것을 이 커밋에서 바로잡음).
+- 확인(로컬): 신소재 실험과목 2과목·컴공 교수님 연구실 → 교수진소개 링크·실용음악전공 졸업요건, 모두 학과 홈페이지 근거·링크. `AskRetrieverTest` +1(홈페이지 쪽 고르기), 물어보기 테스트 72 통과.
