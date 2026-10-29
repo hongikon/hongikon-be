@@ -5,6 +5,13 @@
 
 > 현재 상태: 웹 `/dev/ask`(운영진 시험용, 개발 키)에서만 쓴다. 앱 화면에는 넣지 않는다. 운영 공개 전에 개인정보처리방침 반영이 필요하다([`privacy-ask-conversation-draft.md`](privacy-ask-conversation-draft.md)).
 
+관련 문서:
+- [`ask-scope-policy.md`](ask-scope-policy.md): 범위 규칙
+- [`ask-question-patterns.md`](ask-question-patterns.md): 학생들이 실제로 묻는 질문과 기준 정답표
+- [`ask-embedding-plan.md`](ask-embedding-plan.md): RAG 검색 설계와 실험
+- [`ask-reasoning-eval.md`](ask-reasoning-eval.md): 추론형 질문 모델 비교와 실패 원인
+- 키·설정은 7절에 있다.
+
 ## 1. 전체 흐름
 
 ```
@@ -15,10 +22,15 @@ AskRouteController (Java) ── 개발 키 확인 · IP별 횟수 제한 · 기
   ▼
 AskRouteService.route (Java)
   ① 입구 차단   AskScope.preCheck ── 명백한 악용 패턴(정규식) → 고정 문구. API 호출 없음
-  ② 고르기       AskLlmClient.classify ── Claude Haiku 5.5, 카탈로그 734개 노드 전체 + 범위 규칙(프롬프트 캐시)
+  ①-1 검색 후보 AskRetriever.search ── RAG 를 켰을 때만(ask.rag.enabled, 기본 끔). 3-5절
+                 맥미니 임베딩 서버(bge-m3) + BM25 → 안내 후보 6개 + 학과 홈페이지 쪽 최대 2개
+                 → 앱 hint 대신 고르기에 넘긴다
+  ② 고르기       AskLlmClient.classify ── Claude Haiku 5.5, 카탈로그 773개 노드 전체 + 범위 규칙(프롬프트 캐시)
                  → { scope, nodeIds≤3 }. scope ≠ school 이면 고정 문구(답 쓰기 호출 없음)
-  ③ 답 쓰기     AskLlmClient.answer ── Claude Haiku 5.5, 고른 안내 원문 + 도구 8개(최대 6차례)
-                 도구: search_guides · read_guides · search_notices · read_notice ·
+                 RAG 를 켰는데 못 고르면 검색 후보 앞 2개로 답한다
+  ②-1 공지 후보 학과 이름이 있으면 그 학과 게시판 공지(AskBoards, 3-3절) + 놓친 낱말 공지·안내(3-2절)
+  ③ 답 쓰기     AskLlmClient.answer ── Claude Haiku 5.5, 고른 안내 원문(+ 학과 홈페이지 쪽) + 도구 8개(최대 6차례)
+                 도구: search_guides(RAG 를 켜면 RAG) · read_guides · search_notices(게시판 지정 가능) · read_notice ·
                        search_facilities · search_buildings · search_partners · cafeteria_menu
                  → { answer(요약), sections(목록·표), found, sourceIds }
   ④ 출구 검사   OtherSchoolGuard ── 실시간 전송 길목(Gate) + 최종 답 전체 검사
@@ -32,9 +44,14 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 
 | 단계 | 파일 | 언어 | 하는 일 |
 |---|---|---|---|
-| 데이터 수집 | FE `scripts/ask/crawl.py` · `extract.py` · `gen.py` | Python | 학교 홈페이지 → `askPages.ts`(자동 안내) |
+| 데이터 수집 | FE `scripts/ask/crawl.py` · `extract.py` · `gen.py` | Python | 학교 홈페이지 → `askPages.ts`(자동 안내). `fixes.py` 가 최신 학사 공지와 어긋나는 문구를 바로잡는다 |
+| 학과 홈페이지 수집 | FE `scripts/ask/depthome.py` | Python | 학과 홈페이지 메뉴 → `data/rag-depthome.json`(RAG 색인용 원문, 교수·교직원 소개는 위치만) |
 | 손으로 쓴 안내 | FE `src/constants/askAnswers.ts` | TypeScript | 운영진이 정리한 흐름(예: 아트앤디자인밸리) |
 | 카탈로그 내보내기 | FE `scripts/ask/export-catalog.mjs` | JavaScript | 흐름 → BE `ask/catalog.json`(고르기용 요약)·`sources.json`(원문) |
+| RAG 색인 | BE `tools/embed-server/build_index.py` | Python | `sources.json` + FE `data/rag-*.json` → `ask/rag-chunks.json`·`rag-vectors.bin`. 원문이 바뀌면 다시 돌린다 |
+| 임베딩 서버 | BE `tools/embed-server/server.py` | Python | 맥미니에서 bge-m3 로 질문을 벡터로. 키 필수, 127.0.0.1, 질문 글을 기록하지 않음 |
+| RAG 검색 | BE `ask/AskRetriever.java` · `AskEmbedClient.java` | Java | 임베딩 내적 + 한글 2글자 BM25 → RRF, 안내·홈페이지 쪽으로 묶기 |
+| 학과 게시판 | BE `ask/AskBoards.java` | Java | 질문 속 학과·기관 이름 → 그 게시판 |
 | 범위·거절 문구 | BE `ask/AskScope.java` | Java | 범위 4종, 고정 거절 문구, 입구 차단 정규식 |
 | 고르기 프롬프트 | BE `ask/AskCatalog.java` `PROMPT_HEAD` | 프롬프트(한국어) | 고르기 규칙 + 범위 판정 규칙 + 카탈로그 목록 |
 | 고르기·답 쓰기 호출 | BE `ask/AskLlmClient.java` | Java + 프롬프트 + JSON 스키마 | Claude 호출, 출력 스키마, 도구, 답 쓰기 지시 `ANSWER_SYSTEM` |
@@ -43,7 +60,8 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 흐름 조립 | BE `ask/AskRouteService.java` | Java | ①~⑤를 순서대로 |
 | 기록 | BE `ask/AskConversationRecorder.java` · `AskTrace.java` | Java | 가린 질문·답·과정·토큰·결과(outcome) 저장 |
 | 화면 | FE `src/components/ask/AskChat.tsx` · `src/apis/ask.ts` | TypeScript(React Native Web) | 흘려받기, 요약·목록·표·버튼 그리기 |
-| 평가 | FE `scripts/ask/eval-server.mjs` · `cases/` · `cases-scope/` | JavaScript + JSON | 정답표로 로컬 서버를 돌려 실패 종류·범위·길이 측정 |
+| 평가 | FE `scripts/ask/eval-server.mjs` · `cases/` · `cases-scope/` · `cases-criteria/` | JavaScript + JSON | 정답표로 로컬 서버를 돌려 실패 종류·범위·핵심 조건·길이 측정. 학과 공지 정답표 `cases-dept/` 는 돌리는 스크립트가 아직 저장소에 없다 |
+| 추론형 평가 | FE `scripts/ask/reason-eval/` · `cases-reason/` | JavaScript + JSON | 추론형 질문 44문항을 모델별로 돌리고 Opus 5.5 로 채점 |
 
 ## 3. 2026-10-24 변경
 
@@ -157,6 +175,40 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 - 후보 공지가 질문과 무관해도 모델이 쓸 수 있다 — 지시로 '맞지 않으면 무시'. 기록의 '놓친 낱말' 줄로 확인한다.
 - 학기 날짜를 적은 faq 노드는 새 학기 공지가 나오면 바꿔야 한다(checkedAt 2026-10-25).
 
+## 3-3. 2026-10-25 변경(f1e6a87) — 학과 게시판 먼저, 외부 기회는 학교 질문
+
+| 바꾼 것 | 파일 · 언어 | 전 → 후 | 이유 |
+|---|---|---|---|
+| 학과 게시판 먼저 | `AskBoards.java`(신규), `AskRouteService.missingContext` (Java) | 놓친 낱말로 전체 공지만 찾음 → 질문에 학과·기관 이름이 있으면 그 게시판 공지(최대 4)를 먼저, 전체 공지(최대 4)를 겹치지 않게 뒤에 | 학교 전체 안내를 골라도 학과 장학금·행사는 학과 공지에 있다 |
+| `search_notices` 게시판 지정 | `AskLlmClient` 도구 스키마, `AskLiveData.searchNotices(query, board)` | 낱말만 → + `board`(예: 컴퓨터공학과, 국제교류실) | 답 쓰기 모델이 학과 공지를 직접 찾게 |
+| 범위 판정 | `AskCatalog` 고르기 프롬프트 | 회사·재단·외국 정부 이름이 나오면 다른 곳 질문으로 봄 → 게시판에 올라오는 외부 장학·인턴·채용·공모전·설명회는 school. other_school 은 다른 '대학교'만 | 이런 질문 6건이 '다른 대학'·'학교 무관'으로 거절됐다 |
+| 공지 찾기 | `AskLiveData` | 가운뎃점(‧·・)을 낱말 일부로 봄 → 무시 | '학‧예술상' 공지가 '학예술상'으로 안 찾혔다 |
+
+`AskBoards` 는 정식 이름, '○○과', 줄임말('컴공'·'화공'·'산공'·'전전'·'디예경'·'캠자' 등)을 게시판으로 잇는다. '교육과정'·'과목'처럼 '○○과' 뒤에 낱말이 이어지면 학과로 보지 않는다. '영문'·'회화'처럼 일반 낱말과 겹치는 줄임말은 뺐다. 테스트는 `AskBoardsTest` 이다.
+
+## 3-4. 2026-10-27 변경 — 할 일 질문은 누가·언제·어디서·어떻게
+
+- `AskLlmClient.ANSWER_SYSTEM` 13번 추가. 신청·선택·배정·제출·납부·등록·변경처럼 **학생이 해야 하는 일**을 물으면 '언제'만 물어도 '어떻게'까지 답한다.
+- 원문에 누가·언제·어디서·어떻게 중 둘 이상이 있으면 '신청 방법' 섹션을 반드시 만들고, 이 순서와 머리말로 쓴다. 결과를 알려 주는 방법과 안 하면 생기는 일은 '꼭 확인할 점'으로 보낸다.
+- 원문에 없는 칸은 지어내지 않는다. 빠진 것이 '언제'·'어디서'면 answer 에 '안내에 없어요'라고 밝힌다.
+- 원문 일정이 지난 학기 것이면 그 일정과 게시일을 그대로 쓰고 '이번 일정은 새 공지를 확인해야 해요'라고 밝힌다. 방법은 빼지 않는다.
+- 이유: 운영진 요청("언제·어디서·어떻게가 주된 포인트"). 로컬 확인: 졸업유예 '언제 해?'에 누가·언제·어디서·어떻게 4줄이 나왔고, 휴학·전공 배정 '언제' 질문에도 신청 방법 섹션이 붙었다. 머리말 꼴은 모델이 가끔 바꾼다.
+
+## 3-5. 2026-10-28 변경 — RAG 검색(기본 끔), 학과 홈페이지
+
+설계·실험·남은 일은 [`ask-embedding-plan.md`](ask-embedding-plan.md)에 있다. 여기서는 흐름에서 바뀐 곳만 적는다.
+
+| 바꾼 것 | 파일 · 언어 | 내용 |
+|---|---|---|
+| 검색 후보 | `AskRetriever`, `AskEmbedClient`, `AskRouteService` (Java) | RAG 를 켜면 고르기 전에 원문 색인(2,592문단)에서 후보 6개를 찾아 앱 hint 대신 넘긴다. 고르기가 못 고르면 후보 앞 2개로 답한다. 기록 steps '검색 후보' |
+| `search_guides` | `AskLlmClient` | RAG 를 켜면 낱말 찾기 대신 RAG |
+| 학과 홈페이지 | `AskRetriever.search(query, nodeLimit, pageLimit)`, `AskLlmClient.answer(ids, pageIds, …)` | 같은 임베딩으로 홈페이지 쪽(맨 앞 10문단 안, 최대 2)도 찾아 원문과 함께 넘긴다. 답에 쓰면 학과 홈페이지 링크가 출처로 붙는다 |
+| 답 규칙 | `ANSWER_SYSTEM` | 학과 홈페이지 원문은 어느 학과 것인지 밝히고, 다른 학과 질문에는 쓰지 않는다. 교수 개인 정보(연구실·전화·이메일·면담·이력)는 쓰지 않고 학과 홈페이지 교수 소개 페이지로 안내한다(운영진 결정) |
+| 개인정보 거르기 | FE `depthome.py` | 교수·교직원·연구실 소개는 위치만 색인한다. 학번 줄·게시판 목록은 빼고 휴대전화 번호는 지운다 |
+| 실패 처리 | `AskRouteService` | 켰는데 색인·키가 없으면 지금 방식으로 두고 경고한다. 임베딩 서버가 실패하면 503 이고, 앱은 실패를 알린다 |
+
+결과(로컬, 같은 데이터): 기준 정답표는 RAG 29/32, 지금 방식 30/32(±1 흔들림)이다. 학과 공지 정답표 34/40, 범위 거절 21/21, 잘못 거절 0.
+
 ## 4. 틀릴 수 있는 지점과 알아채는 법
 
 | 지점 | 어떻게 틀리나 | 알아채는 법 |
@@ -172,6 +224,10 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 서울·세종 | 세종 절차가 서울 답에 섞임 — 서버 검사 없음, 지시로만 막음 | 범위 정답표 세종 사례, 답 검토 |
 | 표 | 열이 4개를 넘으면 뒤 열이 잘림 | 답의 표 머리 확인, `MAX_TABLE_COLUMNS` |
 | 실시간 길목 | 화면 글자가 약 28자 늦게 나옴 | 체감 속도. 줄이려면 영문 긴 이름을 목록에서 빼거나 한국어 이름만 붙잡기 |
+| ①-1 RAG | 맥미니·집 인터넷이 멈추면 물어보기 전체가 503 | 기록 outcome, 임베딩 서버 상태. 운영에 켜기 전 사설 터널·자동 실행 확인 |
+| ①-1 RAG | `sources.json` 을 바꾸고 색인을 다시 안 만들면 새 안내를 못 찾음 | `rag-chunks.json` 과 `sources.json` 의 노드 수 비교, `build_index.py` 다시 |
+| 학과 게시판 | 줄임말·별칭이 `AskBoards` 목록에 없으면 전체 공지만 찾음 | 기록 steps '게시판', 학과 공지 정답표(`cases-dept`) |
+| ③ 답 쓰기(추론) | 결론은 맞지만 다른 안내에 있는 결과·조건을 빠뜨림(예: 성적대체 등록금) | 추론형 평가 원인 1(`ask-reasoning-eval.md`) |
 
 ## 5. 평가 결과
 
@@ -192,3 +248,34 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 **읽는 법:**
 - 정답 수는 15문항이 양방향으로 바뀌었다. 모델 답의 자연스러운 흔들림이고 퇴보는 없다.
 - 남은 실패는 대부분 찾기 실패(PICK_MISS)와 원문 정보 부족(RIGHT_NOT_FOUND)이다. 범위·섞임 변경과 무관하고, 후보 검색(RAG)·원문 보강으로 다룰 몫이다.
+
+이후 평가:
+- 10-25 기준 정답표(핵심 조건 포함): [`ask-question-patterns.md`](ask-question-patterns.md)
+- 10-28 RAG 비교: [`ask-embedding-plan.md`](ask-embedding-plan.md), 위 3-5절
+- 10-28 추론형 질문 44문항, 모델 비교: [`ask-reasoning-eval.md`](ask-reasoning-eval.md). 정답률은 Haiku 59%, Opus 75%이고, 확인된 손해 오류는 Haiku 3건, Opus 0건이다.
+
+## 6. 바꿀 때 건드리는 곳
+
+| 하고 싶은 것 | 고칠 곳 | 다시 돌릴 것 |
+|---|---|---|
+| 안내 내용 고치기·추가 | FE `askAnswers.ts` 또는 `topics/*.py` → `gen.py` | `export-catalog.mjs` → (RAG) `build_index.py` → `test-routing.mjs` |
+| 학과 홈페이지 다시 받기 | FE `depthome.py` | `build_index.py` |
+| 답 모양·지시 | BE `AskLlmClient.ANSWER_SYSTEM`, `sections()` 상한 | `eval-server.mjs`(기준·범위 정답표 포함) |
+| 범위 규칙 | BE `AskCatalog.PROMPT_HEAD`, `AskScope` | `eval-server.mjs --scope-only` |
+| 모델 바꾸기 | 설정 `ask.llm.model` | `eval-server.mjs`, `reason-eval/` |
+
+## 7. 키·설정
+
+서버는 키를 파일에 적지 않고 **환경변수**에서 읽는다(`application.properties`). 실제 값은 저장소·이슈·채팅에 남기지 않는다.
+
+| 환경변수 | 쓰는 곳 | 비면 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Claude 호출(고르기·답 쓰기) | 고르기가 꺼져 503, 앱은 낱말 찾기로 |
+| `ASK_DEV_KEY_SHA256` | `/dev/ask` 암호키의 SHA-256 hex(앱 `DevPathGate` 의 `KEY_SHA256` 과 같은 값) | 엔드포인트 404(운영 기본) |
+| `ASK_LLM_MODEL` | 모델(기본 `claude-haiku-5-5`) | 기본값 |
+| `ASK_RAG_ENABLED` · `ASK_EMBED_URL` · `ASK_EMBED_KEY` | RAG(기본 끔). URL 은 사설 터널 주소만, 키는 임베딩 서버 `EMBED_SERVER_KEY` 와 같은 값 | RAG 꺼짐 |
+| `ASK_LLM_TIMEOUT_SECONDS` · `ASK_RATE_LIMIT_*` · `ASK_LOG_*` | 제한 시간, IP별 횟수 제한, 기록 보관 | 기본값 |
+
+- **로컬:** 셸에서 `export ANTHROPIC_API_KEY=…` 하고 local 프로필로 띄운다. `application-local.properties`(git 제외)는 이 환경변수를 읽기만 한다. jar 로 띄울 때는 `--spring.config.additional-location=file:…/application-local.properties` 를 함께 준다.
+- **운영(EC2):** `/home/ubuntu/hongikon-be/.env` 에 적는다. 컨테이너가 `--env-file` 로 읽으므로 `.env` 를 바꾸면 컨테이너를 **다시 만들어야** 한다(`docker restart` 로는 다시 읽지 않는다). 방법은 [`deploy-runbook-2026-10.md`](deploy-runbook-2026-10.md).
+- **평가 스크립트:** `eval-server.mjs`·`reason-eval/run.mjs` 는 `ASK_DEV_KEY`(암호키 원문), `reason-eval/judge.mjs` 는 `ANTHROPIC_API_KEY` 를 셸 환경변수로 받는다.
