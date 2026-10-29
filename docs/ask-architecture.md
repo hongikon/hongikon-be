@@ -10,7 +10,7 @@
 - [`ask-question-patterns.md`](ask-question-patterns.md): 학생들이 실제로 묻는 질문과 기준 정답표
 - [`ask-embedding-plan.md`](ask-embedding-plan.md): RAG 검색 설계와 실험
 - [`ask-reasoning-eval.md`](ask-reasoning-eval.md): 추론형 질문 모델 비교와 실패 원인
-- 키·설정은 7절에 있다.
+- [`ask-setup.md`](ask-setup.md): 키 넣기와 맥미니 임베딩 서버 설정(백엔드 담당자용). 설정 항목 표는 7절에 있다.
 
 ## 1. 전체 흐름
 
@@ -267,6 +267,7 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 ## 7. 키·설정
 
 서버는 키를 파일에 적지 않고 **환경변수**에서 읽는다(`application.properties`). 실제 값은 저장소·이슈·채팅에 남기지 않는다.
+키를 넣고 맥미니 임베딩 서버를 띄우는 단계별 절차는 [`ask-setup.md`](ask-setup.md)에 있다.
 
 | 환경변수 | 쓰는 곳 | 비면 |
 |---|---|---|
