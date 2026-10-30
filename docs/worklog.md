@@ -1373,3 +1373,13 @@
 - `AskRouteService`: 홈페이지 쪽을 `AskLlmClient.answer(ids, pageIds, …)` 로 원문과 함께 넘긴다(없으면 예전 호출). 답에 쓰면 sourceIds 의 page:… 가 학과 홈페이지 링크(references)로 붙는다. 기록 steps '검색 후보'에 page id 도.
 - 답 규칙: 학과 홈페이지 원문은 어느 학과 것인지 밝히고 다른 학과 질문엔 쓰지 않는다. 교수 개인 정보(연구실·전화·이메일·면담·이력)는 쓰지 않고 학과 홈페이지 교수 소개 페이지로 안내(운영진 결정, 교수·교직원·연구실 소개는 위치만 색인). 개인정보 거르기: 학번 줄·게시판 목록 제외, 휴대전화 번호 제거(10-29 공개 저장소 점검 — 첫 색인에 학과연혁 명예의 전당 실명·학번이 들어갔던 것을 이 커밋에서 바로잡음).
 - 확인(로컬): 신소재 실험과목 2과목·컴공 교수님 연구실 → 교수진소개 링크·실용음악전공 졸업요건, 모두 학과 홈페이지 근거·링크. `AskRetrieverTest` +1(홈페이지 쪽 고르기), 물어보기 테스트 72 통과.
+
+## 2026-10-30 — main 을 dev 에 병합(릴리스 전 동기화, 기능 변경 없음) (chore/sync-main-into-dev)
+
+- 릴리스(dev -> main) 전 점검: main 에만 있는 변경이 dev 에 없었다 — 9204618 공식 계정 제보 한도 완화 + 작성자 시간 수정 API(PR #62). f66b103 캠퍼스 밖 제보·84985d6 흡연구역 11곳은 dev 에 같은 내용(7eecd12, 5c30d1e)이 있었다.
+- `git merge origin/main`(merge commit). 충돌 2건:
+  - `ReportService` 생성자 `@Value` 인자 — main 의 공식 계정 한도 2개를 넣음. 결과 파일은 main 과 같다.
+  - `docs/worklog.md` — dev 의 29484fb(10-25)에서 1327줄 -> 7줄로 잘려 있던 것을 main 의 전체 기록 기준으로 되살리고, dev 에만 있던 10-27 뒤쪽 3항목·10-28 섹션 3개를 이어붙임(운영자 확인).
+- 확인: `ReportScheduleRequest`·`ReportOfficialIntegrationTest`·설정 `REPORT_CREATE_OFFICIAL_LIMIT_PER_HOUR`·`REPORT_CREATE_OFFICIAL_MAX_PENDING` 있음. report·admin·push 패키지와 report 테스트는 main 과 같다. ask 패키지·`ask/rag-chunks.json`·`rag-vectors.bin`·`tools/embed-server` 는 dev 와 같다. 병합 결과가 origin/main 을 모두 포함.
+- 백엔드 전체 678 통과.
+- 다음 릴리스에서 main 대비 새로 들어가는 SQL(배포 전 운영 DB): `db/sync_partners_2026_10_16_ttoboketji.sql`, `db/create_ask_conversation_logs_table.sql`(ddl-auto=validate 라 서버 배포 전 필수), `db/sync_facilities_2026_10_18_r_lobby.sql`(앱 OTA 뒤). 새 환경변수는 모두 기본값이 있어 필수 아님(`ASK_RAG_*` 기본 끔, `ASK_LOG_*`).
