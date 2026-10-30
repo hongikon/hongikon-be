@@ -43,7 +43,8 @@ class AskLlmClientTimingTest {
         JsonMapper mapper = JsonMapper.builder().build();
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
-        AskLlmClient client = new AskLlmClient(catalog, null, retriever, mapper, "", "claude-haiku-5-5", 20, "5m");
+        AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
+        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "5m");
         List<String> events = new ArrayList<>();
         AskProgress progress = new AskProgress() {
             @Override

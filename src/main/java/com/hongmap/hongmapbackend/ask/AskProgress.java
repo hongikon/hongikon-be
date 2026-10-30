@@ -28,6 +28,10 @@ public interface AskProgress {
     default void boardSearch(String board, List<String> words, int hits) {
     }
 
+    /** 규정 그래프에서 고른 안내에 이어진 선(edgeIds)과 원문을 함께 넘길 이웃 안내(guides)를 찾았다. */
+    default void ruleGraph(List<String> edgeIds, List<String> guides) {
+    }
+
     /** LLM 이 다른 안내를 낱말로 찾는다(search_guides). */
     default void searching(String query) {
     }

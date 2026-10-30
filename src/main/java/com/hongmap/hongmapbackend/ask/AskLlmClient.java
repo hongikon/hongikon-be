@@ -162,18 +162,29 @@ public class AskLlmClient {
               읽기만 하고 답에 쓰지 않은 것은 넣지 않는다. found=false 면 담당 부서를 가져온 안내 id 하나.
             """;
 
+    /**
+     * 규정 그래프 지시(docs/ask-rule-graph-plan.md 5절 5항). 그래프가 켜져 있을 때만 {@link #ANSWER_SYSTEM} 뒤에 붙인다 —
+     * 꺼져 있으면 답 쓰기 지시가 지금과 같다(평가 기준선 haiku-base 를 그대로 두려고).
+     */
+    static final String RULE_GRAPH_SYSTEM = """
+            - [함께 볼 규정]은 학생 상황에 해당할 때만 쓴다. 해당 없는 규정을 늘어놓지 않는다.
+            - 해당하면 결론 문장에 반영하고(예: "경고는 그대로예요"), 그 규정의 근거 안내 id 를 sourceIds 에 근거로 짚는다.
+            - 조건 칸을 질문에서 알 수 없고 그 조건으로 결론이 갈리면, 갈리는 기준을 보이고 되묻는다.
+            """;
+
     private final AnthropicClient client;
     private final AskCatalog catalog;
     private final AskLiveData liveData;
     private final AskRetriever retriever;
     private final JsonMapper jsonMapper;
     private final String model;
+    private final String answerSystem;
     private final List<TextBlockParam> classifySystem;
     private final OutputConfig classifyConfig;
     private final OutputConfig answerConfig;
     private final List<Tool> answerTools;
 
-    public AskLlmClient(AskCatalog catalog, AskLiveData liveData, AskRetriever retriever, JsonMapper jsonMapper,
+    public AskLlmClient(AskCatalog catalog, AskLiveData liveData, AskRetriever retriever, AskRuleGraph ruleGraph, JsonMapper jsonMapper,
                         @Value("${anthropic.api-key:}") String apiKey,
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
@@ -183,6 +194,7 @@ public class AskLlmClient {
         this.retriever = retriever;
         this.jsonMapper = jsonMapper;
         this.model = model;
+        this.answerSystem = ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM;
         this.client = apiKey == null || apiKey.isBlank() ? null : AnthropicOkHttpClient.builder()
                 .apiKey(apiKey)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
@@ -263,6 +275,11 @@ public class AskLlmClient {
 
     public boolean enabled() {
         return client != null;
+    }
+
+    /** 답 쓰기 시스템 프롬프트(규정 그래프가 켜져 있으면 지시 세 줄이 붙는다). */
+    String answerSystem() {
+        return answerSystem;
     }
 
     /**
@@ -362,7 +379,7 @@ public class AskLlmClient {
         MessageCreateParams.Builder params = MessageCreateParams.builder()
                 .model(model)
                 .maxTokens(ANSWER_MAX_TOKENS)
-                .system(ANSWER_SYSTEM)
+                .system(answerSystem)
                 .outputConfig(answerConfig)
                 .addUserMessage(first.toString());
         answerTools.forEach(params::addTool);

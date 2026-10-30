@@ -1400,3 +1400,18 @@
   - 1h 단가: 캐시 쓰기가 입력의 1.25배 → 2배(Haiku 8.5만 토큰 쓰기 $0.0106 → $0.0170, Sonnet $0.213 → $0.340), 읽기는 그대로(Haiku $0.00085, Sonnet $0.0170). 5~60분 간격 질문이 읽기로 바뀌면 질문당 Haiku 약 $0.0098 절약. 1시간 넘게 쉬면 여전히 식는다(아침 첫 질문 등).
 - 테스트: `AskTimingTest` 6(줄 형식·생략·trace 붙이기·가림), `AskLlmClientTimingTest` 4(기본 5m 이 지금과 같은 캐시 지점, 1h, 잘못된 값, 키 없이 호출 실패해도 시간 알림 — 실제 API 안 부름), `AskRetrieverTest` +1(임베딩·색인 시간), `AskRouteIntegrationTest` +3(비스트리밍·실패·스트리밍 기록). 백엔드 전체 692 통과.
 - DB 변경 없음. 운영 반영: 배포만 하면 시간 줄이 쌓인다. 1시간 TTL 은 EC2 `.env` 에 `ASK_LLM_CACHE_TTL=1h`(되돌리기는 지우거나 5m).
+
+## 2026-10-30 — 물어보기 규정 그래프 백엔드(기본 꺼짐) (feat/ask-rule-graph)
+
+- 설계 `docs/ask-rule-graph-plan.md` 3·4·5·8절 구현. 켜는 설정은 `ask.graph.enabled=${ASK_GRAPH_ENABLED:false}` 하나, 기본 꺼짐. 상한 `ask.graph.max-edges`(8)·`max-guides`(2), 환경변수 `ASK_GRAPH_MAX_EDGES`·`ASK_GRAPH_MAX_GUIDES`.
+- `AskRuleGraph`(새 파일): `ask/rule-graph.json` 읽기·검사·이웃 찾기.
+  - 검사(4-1): reviewed 가 비면 읽지 않는다(버린 선으로 세지 않음). guide 가 카탈로그에 없으면 버림. catalogVersion 이 지금 카탈로그와 다르면 quote 가 그 안내 원문에 글자 그대로 있는 선만 남김(그래프 전체는 끄지 않음). 이웃 찾기에 쓰는 칸이 틀린 선(없는 점, 5종 밖의 종류, 빈 fact, 정해진 이름 밖의 condition 칸)도 버림. 버린 선 개수·id 를 시작 로그에, 확인된 선의 20% 초과면 경고.
+  - 이웃(5절 2~3): 출발점 = answerIds 안내를 guides 에 가진 점. 1단계 = 나가는 모든 선 + 들어오는 예외·제한 선, 2단계 = 1단계 결과 선이 닿은 점의 결과 선만, 3단계 없음. 단계 → 종류(결과 > 예외 > 제한 > 선행조건 > 기간) → 파일 순서로 최대 max-edges. 이웃 안내 원문은 1단계 결과·예외 선의 근거 안내만, answerIds 에 없는 것 최대 max-guides.
+  - 선 id: 파일의 id 칸, 없으면 '시작점>끝점:종류'.
+  - 파일이 없거나 읽기 실패, 쓸 선이 0개면 꺼짐(지금 동작 그대로).
+- `AskRouteService.route()`: progress.picked() 뒤, answerContext() 전에 `ruleGraph.related(answerIds)` — 이웃 안내 id 를 answerIds 뒤에 더하고 [함께 볼 규정] 블록을 context 끝에 붙인다. RAG 와 무관.
+- `AskLlmClient`: 5절 5항 세 줄을 `RULE_GRAPH_SYSTEM` 으로 두고 그래프가 켜져 있을 때만 `ANSWER_SYSTEM` 뒤에 붙인다(꺼지면 답 쓰기 지시가 지금과 같다 — 평가 기준선 유지). 고르기 시스템 프롬프트·카탈로그·모델·effort·출력 스키마는 그대로.
+- 기록: `AskTrace` steps 에 '규정 그래프: 선 id, … (이웃 안내 …)' 한 줄. 속도 개선의 '시간:' 줄은 그대로 맨 끝. 질문 글 추가 저장 없음.
+- `src/main/resources/ask/rule-graph.json`: version 2026-10-30.0, catalogVersion 9f87fc904d88(지금 catalog.json), nodes·edges 비어 있음 — 켜도 쓸 선이 없어 꺼진 상태와 같다. 실제 선은 프론트 추출·운영진 검토(설계 10절 3) 뒤에 넣는다.
+- 테스트: `AskRuleGraphTest` 13(이웃 1·2단계·3단계 미도달·자르기 순서와 상한, reviewed 무시, guide 없음·quote 불일치 버림, 20% 경고, 칸 오류, 파일 없음·빈 기본 파일, 지시 세 줄 조건부, 꺼짐/파일 없음이면 context·answerIds 그대로, 켜짐이면 블록·이웃 안내·steps 줄). 테스트 그래프 `src/test/resources/ask/rule-graph-test.json`, 가짜 카탈로그·Mockito 클라이언트(실제 API 호출 없음). 백엔드 전체 705 통과.
+- DB 변경 없음.

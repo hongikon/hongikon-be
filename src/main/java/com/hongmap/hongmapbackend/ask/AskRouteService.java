@@ -45,18 +45,22 @@ public class AskRouteService {
     private final AskLlmClient llmClient;
     private final AskLiveData liveData;
     private final AskRetriever retriever;
+    private final AskRuleGraph ruleGraph;
     private final Clock clock;
 
     @Autowired
-    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever) {
-        this(catalog, llmClient, liveData, retriever, Clock.systemUTC());
+    public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever,
+                           AskRuleGraph ruleGraph) {
+        this(catalog, llmClient, liveData, retriever, ruleGraph, Clock.systemUTC());
     }
 
-    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever, Clock clock) {
+    AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever,
+                    AskRuleGraph ruleGraph, Clock clock) {
         this.catalog = catalog;
         this.llmClient = llmClient;
         this.liveData = liveData;
         this.retriever = retriever;
+        this.ruleGraph = ruleGraph;
         this.clock = clock;
     }
 
@@ -126,8 +130,15 @@ public class AskRouteService {
             }
         }
         progress.picked(answerIds);
+        // 규정 그래프(켜져 있을 때만): 고른 안내에 이어진 규정(결과·예외 …)을 [함께 볼 규정]으로 붙이고, 이웃 안내 원문도 함께 넘긴다
+        // (docs/ask-rule-graph-plan.md). RAG 와 무관하게 고른 안내에서 출발한다.
+        AskRuleGraph.Related related = ruleGraph.related(answerIds);
+        if (!related.isEmpty()) {
+            related.guides().stream().filter(id -> !answerIds.contains(id)).forEach(answerIds::add);
+            progress.ruleGraph(related.edgeIds(), related.guides());
+        }
         try {
-            String context = answerContext(request) + missingContext(request, answerIds, progress);
+            String context = answerContext(request) + missingContext(request, answerIds, progress) + related.block();
             AskLlmClient.Answer answer = pages.isEmpty()
                     ? llmClient.answer(answerIds, context, progress)
                     : llmClient.answer(answerIds, pages, context, progress);
