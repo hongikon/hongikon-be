@@ -176,7 +176,8 @@ public class AskLlmClient {
     public AskLlmClient(AskCatalog catalog, AskLiveData liveData, AskRetriever retriever, JsonMapper jsonMapper,
                         @Value("${anthropic.api-key:}") String apiKey,
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
-                        @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds) {
+                        @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
+                        @Value("${ask.llm.cache-ttl:5m}") String cacheTtl) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
@@ -190,7 +191,7 @@ public class AskLlmClient {
                 .build();
         this.classifySystem = List.of(TextBlockParam.builder()
                 .text(catalog.systemPrompt())
-                .cacheControl(CacheControlEphemeral.builder().build())
+                .cacheControl(cacheControl(cacheTtl))
                 .build());
         // scope 를 먼저 — 범위를 정한 다음 안내를 고르게(docs/ask-scope-policy.md).
         Map<String, Object> classifyProperties = new LinkedHashMap<>();
@@ -264,19 +265,41 @@ public class AskLlmClient {
         return client != null;
     }
 
+    /**
+     * 카탈로그 캐시 지점(ask.llm.cache-ttl). 5m(기본)이면 지금과 같은 요청(ttl 칸 없음 — 기본 5분)을 그대로 보낸다.
+     * 1h 면 캐시가 1시간 산다 — 쓰기 값이 기본 입력의 1.25배에서 2배로 오르는 대신, 5~60분 쉬었다 온 질문도 캐시를 읽는다
+     * (읽을 때마다 1시간이 다시 시작된다). 다른 값이면 기동에서 실패시킨다(조용히 5분으로 돌아가지 않게).
+     */
+    static CacheControlEphemeral cacheControl(String ttl) {
+        String value = ttl == null ? "" : ttl.trim();
+        if (value.isEmpty() || value.equals("5m")) {
+            return CacheControlEphemeral.builder().build();
+        }
+        if (value.equals("1h")) {
+            return CacheControlEphemeral.builder().ttl(CacheControlEphemeral.Ttl.TTL_1H).build();
+        }
+        throw new IllegalArgumentException("ask.llm.cache-ttl 은 5m 또는 1h 여야 한다: " + ttl);
+    }
+
     /** 질문(+직전 대화)에 필요한 안내 id 를 고른다(최대 {@link #MAX_PICKS}개, 카탈로그 확인은 부르는 쪽이 다시 한다). */
     public Classification classify(String userMessage) {
         return classify(userMessage, AskProgress.NONE);
     }
 
     public Classification classify(String userMessage, AskProgress progress) {
-        Message message = call(MessageCreateParams.builder()
-                .model(model)
-                .maxTokens(CLASSIFY_MAX_TOKENS)
-                .systemOfTextBlockParams(classifySystem)
-                .outputConfig(classifyConfig)
-                .addUserMessage(userMessage)
-                .build(), "분류", progress);
+        long startedAt = System.nanoTime();
+        Message message;
+        try {
+            message = call(MessageCreateParams.builder()
+                    .model(model)
+                    .maxTokens(CLASSIFY_MAX_TOKENS)
+                    .systemOfTextBlockParams(classifySystem)
+                    .outputConfig(classifyConfig)
+                    .addUserMessage(userMessage)
+                    .build(), "분류", progress);
+        } finally {
+            progress.classifyTimed(millisSince(startedAt));
+        }
         JsonNode json = parseJson(message);
         JsonNode nodeIds = json.get("nodeIds");
         if (nodeIds == null || !nodeIds.isArray()) {
@@ -344,6 +367,18 @@ public class AskLlmClient {
                 .addUserMessage(first.toString());
         answerTools.forEach(params::addTool);
 
+        // 단계별 시간(기록 steps '시간:' 줄) — 실패해도 그때까지 잰 값을 알린다.
+        AnswerClock clock = new AnswerClock();
+        try {
+            return writeAnswer(params, read, references, ground, progress, clock);
+        } finally {
+            clock.report(progress);
+        }
+    }
+
+    /** 답 쓰기 차례들 — 도구를 부르면 결과를 붙여 다시 부르고, 답이 나오면 돌려준다. */
+    private Answer writeAnswer(MessageCreateParams.Builder params, Set<String> read, Map<String, AskLiveData.Reference> references,
+                               StringBuilder ground, AskProgress progress, AnswerClock clock) {
         boolean writing = false;
         for (int round = 0; ; round++) {
             AnswerTextExtractor extractor = new AnswerTextExtractor();
@@ -361,7 +396,12 @@ public class AskLlmClient {
                 wrote[0] = true;
                 progress.delta(text);
             };
-            Message message = stream(params.build(), "답", progress, chunk -> emit.accept(gate.feed(extractor.feed(chunk))));
+            Message message = stream(params.build(), "답", progress, chunk -> {
+                if (clock.firstTextAt < 0 && !chunk.isEmpty()) {
+                    clock.firstTextAt = System.nanoTime();
+                }
+                emit.accept(gate.feed(extractor.feed(chunk)));
+            });
             // StopReason 은 응답마다 새로 만들어지는 값 객체라 == 로 비교하면 늘 다르다(도구 호출을 답으로 읽어 실패했었다, 10-15) — equals 로.
             if (!StopReason.TOOL_USE.equals(message.stopReason().orElse(null))) {
                 Answer answer = toAnswer(message, read, references, ground.toString());
@@ -376,6 +416,8 @@ public class AskLlmClient {
             if (wrote[0]) {
                 progress.resetText();
             }
+            clock.toolRounds++;
+            long toolStartedAt = System.nanoTime();
             List<ContentBlockParam> results = new ArrayList<>();
             for (ContentBlock block : message.content()) {
                 block.toolUse().ifPresent(use -> {
@@ -387,6 +429,7 @@ public class AskLlmClient {
                             .build()));
                 });
             }
+            clock.toolNanos += System.nanoTime() - toolStartedAt;
             params.addMessage(message).addMessage(MessageParam.builder()
                     .role(MessageParam.Role.USER)
                     .contentOfBlockParams(results)
@@ -395,6 +438,23 @@ public class AskLlmClient {
                 params.toolChoice(ToolChoiceNone.builder().build());
             }
         }
+    }
+
+    /** 답 쓰기 한 번의 시간 재기. */
+    private static final class AnswerClock {
+        private final long startedAt = System.nanoTime();
+        private long firstTextAt = -1;
+        private int toolRounds;
+        private long toolNanos;
+
+        void report(AskProgress progress) {
+            progress.answerTimed(toolRounds, toolNanos / 1_000_000,
+                    firstTextAt < 0 ? -1 : (firstTextAt - startedAt) / 1_000_000, millisSince(startedAt));
+        }
+    }
+
+    private static long millisSince(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
     /** 공지 게시판 이름. 대학공지 분류(학사·장학 …)는 학교 전체, 그 밖은 학과·기관 게시판이다. */

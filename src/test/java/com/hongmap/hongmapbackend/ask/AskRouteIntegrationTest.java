@@ -323,6 +323,71 @@ class AskRouteIntegrationTest {
                 && row.getOutcome() == AskConversationLog.Outcome.FAILED);
     }
 
+    @Test
+    void 기록_과정_끝에_단계별_시간_한_줄을_남긴다() throws Exception {
+        when(llmClient.classify(anyString(), any())).thenAnswer(call -> {
+            call.<AskProgress>getArgument(1).classifyTimed(1200);
+            return school(ANSWER_NODE);
+        });
+        when(llmClient.answer(anyList(), anyString(), any())).thenAnswer(call -> {
+            call.<AskProgress>getArgument(2).answerTimed(2, 800, 3000, 5000);
+            return new AskLlmClient.Answer("일반휴학은 돌려받지 않아요.", true, List.of(ANSWER_NODE));
+        });
+        String body = mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"휴학 등록금 시간 기록\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        AskConversationLog row = logRepository.findById(logIdOf(body)).orElseThrow();
+        String[] lines = row.getSteps().split("\n");
+        assertThat(lines[0]).startsWith("고름: ");
+        assertThat(lines[lines.length - 1])
+                .startsWith("시간: 고르기 1200ms · 도구 2회 800ms · 첫 글자 3000ms · 답 쓰기 5000ms · 전체 ")
+                .endsWith("ms")
+                .doesNotContain("임베딩");
+        // 질문·답은 지금처럼 각자 칸에만 — 시간 줄에 섞지 않는다.
+        assertThat(lines[lines.length - 1]).doesNotContain("휴학");
+    }
+
+    @Test
+    void 실패해도_그때까지의_시간을_남긴다() throws Exception {
+        when(llmClient.classify(anyString(), any())).thenAnswer(call -> {
+            call.<AskProgress>getArgument(1).classifyTimed(700);
+            throw new AskUnavailableException("call failed");
+        });
+        mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"시간 기록 실패 확인\"}")).andExpect(status().isServiceUnavailable());
+        assertThat(logRepository.findAll()).anyMatch(row -> row.getQuestion().equals("시간 기록 실패 확인")
+                && row.getOutcome() == AskConversationLog.Outcome.FAILED
+                && row.getSteps().matches("시간: 고르기 700ms · 전체 \\d+ms"));
+    }
+
+    @Test
+    void 흘려받기도_단계별_시간을_남긴다() throws Exception {
+        when(llmClient.classify(anyString(), any())).thenAnswer(call -> {
+            call.<AskProgress>getArgument(1).classifyTimed(900);
+            return school(ANSWER_NODE);
+        });
+        when(llmClient.answer(anyList(), anyString(), any())).thenAnswer(call -> {
+            call.<AskProgress>getArgument(2).answerTimed(0, 0, 1500, 2500);
+            return new AskLlmClient.Answer("일반휴학은 돌려받지 않아요.", true, List.of(ANSWER_NODE));
+        });
+        MvcResult result = mockMvc.perform(post("/ask/route/stream").contentType(MediaType.APPLICATION_JSON)
+                        .header(AskRouteController.DEV_KEY_HEADER, KEY)
+                        .content("{\"question\":\"흘려받기 시간 기록\"}")
+                        .with(request -> {
+                            request.setRemoteAddr(randomIp());
+                            return request;
+                        }))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String body = "";
+        for (int i = 0; i < 100 && !body.contains("event:done"); i++) {
+            Thread.sleep(50);
+            body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        }
+        assertThat(body).contains("event:done");
+        assertThat(logRepository.findAll()).anyMatch(row -> row.getQuestion().equals("흘려받기 시간 기록")
+                && row.getSteps().contains("시간: 고르기 900ms · 도구 0회 0ms · 첫 글자 1500ms · 답 쓰기 2500ms · 전체 "));
+    }
+
     private long logIdOf(String body) {
         return Long.parseLong(body.replaceAll(".*\"logId\":(\\d+).*", "$1"));
     }

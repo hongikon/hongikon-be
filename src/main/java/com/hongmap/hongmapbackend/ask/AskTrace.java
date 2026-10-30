@@ -11,6 +11,7 @@ final class AskTrace implements AskProgress {
 
     private final AskProgress next;
     private final List<String> steps = new ArrayList<>();
+    private final AskTiming timing = new AskTiming();
     private AskUsage usage = AskUsage.ZERO;
     private AskScope refusedScope;
     private String blockedSchool;
@@ -21,6 +22,13 @@ final class AskTrace implements AskProgress {
 
     List<String> steps() {
         return steps;
+    }
+
+    /** 기록용 — 지금까지의 과정 뒤에 단계별 시간 한 줄({@link AskTiming#line})을 붙인다. */
+    List<String> steps(long totalMs) {
+        List<String> out = new ArrayList<>(steps);
+        out.add(timing.line(totalMs));
+        return out;
     }
 
     AskUsage usage() {
@@ -101,6 +109,21 @@ final class AskTrace implements AskProgress {
     public void checkingCafeteria(String date) {
         steps.add("학식: " + date);
         next.checkingCafeteria(date);
+    }
+
+    @Override
+    public void retrievalTimed(long embedMs, long searchMs) {
+        timing.retrieval(embedMs, searchMs);
+    }
+
+    @Override
+    public void classifyTimed(long ms) {
+        timing.classify(ms);
+    }
+
+    @Override
+    public void answerTimed(int toolRounds, long toolMs, long firstTextMs, long totalMs) {
+        timing.answer(toolRounds, toolMs, firstTextMs, totalMs);
     }
 
     @Override
