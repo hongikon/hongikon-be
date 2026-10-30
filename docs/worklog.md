@@ -1383,3 +1383,20 @@
 - 확인: `ReportScheduleRequest`·`ReportOfficialIntegrationTest`·설정 `REPORT_CREATE_OFFICIAL_LIMIT_PER_HOUR`·`REPORT_CREATE_OFFICIAL_MAX_PENDING` 있음. report·admin·push 패키지와 report 테스트는 main 과 같다. ask 패키지·`ask/rag-chunks.json`·`rag-vectors.bin`·`tools/embed-server` 는 dev 와 같다. 병합 결과가 origin/main 을 모두 포함.
 - 백엔드 전체 678 통과.
 - 다음 릴리스에서 main 대비 새로 들어가는 SQL(배포 전 운영 DB): `db/sync_partners_2026_10_16_ttoboketji.sql`, `db/create_ask_conversation_logs_table.sql`(ddl-auto=validate 라 서버 배포 전 필수), `db/sync_facilities_2026_10_18_r_lobby.sql`(앱 OTA 뒤). 새 환경변수는 모두 기본값이 있어 필수 아님(`ASK_RAG_*` 기본 끔, `ASK_LOG_*`).
+
+## 2026-10-30 — 물어보기 속도 개선 1차: 단계별 시간 기록, 카탈로그 캐시 1시간 TTL 설정 (feat/ask-latency-trace)
+
+- 배경: 질문이 드물면 고르기 카탈로그(약 8.5만 토큰) 프롬프트 캐시가 5분 만에 식는다. 실측(운영, Haiku 5.5·RAG 켬) 캐시 식음 15~23초·질문당 약 $0.010~0.012, 캐시 있음 6.8~15초·$0.003~0.005. 기록에는 전체 시간(latency_ms)뿐이라 어느 단계가 느린지 몰랐다.
+- 답 내용·모델·effort·시스템 프롬프트·카탈로그·출력 스키마는 바꾸지 않았다. `AskRouteService.route()` 의 anchorsFor ~ answerContext 구간(규정 그래프 자리)은 건드리지 않았다.
+- 단계별 시간: `AskTiming`(새 파일)이 모으고 `AskTrace.steps(전체ms)` 가 기존 과정 줄 뒤에 한 줄을 붙인다. 예: `시간: 임베딩 120ms · 색인 35ms · 고르기 2100ms · 도구 2회 1800ms · 첫 글자 5400ms · 답 쓰기 8200ms · 전체 10500ms`.
+  - 임베딩·색인: `AskRetriever.search` 가 임베딩 서버 호출과 색인 순위 매기기를 따로 잰다(`Found.embedMs`·`searchMs`, 2인자 생성자 유지). RAG 꺼짐이면 줄에서 뺀다.
+  - 고르기: `AskLlmClient.classify` 호출 시간(실패해도 finally 로 알림).
+  - 답 쓰기: 도구 차례 수·도구 실행 시간 합·첫 text delta(모델 원 글자, 화면 길목 Gate 앞)·전체. 반복 루프를 `writeAnswer` 로 떼어 들여쓰기는 그대로 두고 finally 로 실패·취소에도 알린다.
+  - 전체: 컨트롤러의 latency_ms 와 같은 값. /ask/route·/ask/route/stream, ANSWERED·REFUSED·FAILED·STOPPED 모두 같은 줄을 남긴다. 거치지 않은 단계는 뺀다(거절이면 `고르기 · 전체` 만, 임베딩 실패면 `전체` 만).
+  - `AskProgress` 에 기본 빈 메서드 3개(retrievalTimed·classifyTimed·answerTimed) — SSE 이벤트는 그대로(앱에 새 이벤트 없음).
+  - 저장: 새 컬럼 없음. steps 는 TEXT(65,535바이트)이고 줄 하나가 약 150바이트라 길이 문제 없음. 질문·답은 더 저장하지 않고, 줄은 `AskPrivacy.mask` 를 그대로 거친다(숫자 7자리 이하라 가림에 걸리지 않음 — 테스트).
+- 캐시 유지: 쓰는 SDK(anthropic-java 2.34.0)의 `CacheControlEphemeral.Ttl.TTL_1H` 가 베타가 아닌 일반 메시지 API 에 있어 1시간 TTL 방식으로 했다(스케줄러는 만들지 않음).
+  - 설정 `ask.llm.cache-ttl=${ASK_LLM_CACHE_TTL:5m}`. 5m(기본)이면 ttl 칸 없이 지금과 글자까지 같은 요청. 1h 면 카탈로그 캐시 지점에만 ttl 1h. 다른 값이면 기동 실패.
+  - 1h 단가: 캐시 쓰기가 입력의 1.25배 → 2배(Haiku 8.5만 토큰 쓰기 $0.0106 → $0.0170, Sonnet $0.213 → $0.340), 읽기는 그대로(Haiku $0.00085, Sonnet $0.0170). 5~60분 간격 질문이 읽기로 바뀌면 질문당 Haiku 약 $0.0098 절약. 1시간 넘게 쉬면 여전히 식는다(아침 첫 질문 등).
+- 테스트: `AskTimingTest` 6(줄 형식·생략·trace 붙이기·가림), `AskLlmClientTimingTest` 4(기본 5m 이 지금과 같은 캐시 지점, 1h, 잘못된 값, 키 없이 호출 실패해도 시간 알림 — 실제 API 안 부름), `AskRetrieverTest` +1(임베딩·색인 시간), `AskRouteIntegrationTest` +3(비스트리밍·실패·스트리밍 기록). 백엔드 전체 692 통과.
+- DB 변경 없음. 운영 반영: 배포만 하면 시간 줄이 쌓인다. 1시간 TTL 은 EC2 `.env` 에 `ASK_LLM_CACHE_TTL=1h`(되돌리기는 지우거나 5m).

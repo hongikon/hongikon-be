@@ -64,6 +64,29 @@ class AskRetrieverTest {
     }
 
     @Test
+    void 검색은_임베딩_서버_호출과_색인_검색_시간을_따로_잰다() {
+        FakeEmbed slow = new FakeEmbed(Map.of()) {
+            @Override
+            public float[] embed(String text) {
+                try {
+                    Thread.sleep(30);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return new float[] {1, 0};
+            }
+        };
+        AskRetriever.Found found = new AskRetriever(slow, index(), true).search("휴학", 3, 2);
+        assertThat(found.nodes()).isNotEmpty();
+        assertThat(found.embedMs()).isGreaterThanOrEqualTo(25);
+        assertThat(found.searchMs()).isGreaterThanOrEqualTo(0).isLessThan(found.embedMs());
+
+        AskRetriever.Found off = new AskRetriever(slow, index(), false).search("휴학", 3, 2);
+        assertThat(off.nodes()).isEmpty();
+        assertThat(off.embedMs()).isZero();
+    }
+
+    @Test
     void 임베딩_서버가_실패하면_낱말로_대신하지_않고_실패한다() {
         FakeEmbed embed = new FakeEmbed(Map.of());
         embed.fail = true;

@@ -98,9 +98,16 @@ public class AskRetriever {
      * 임베딩을 한 번만 불러 안내 id(최대 nodeLimit)와 홈페이지 쪽 id(맨 앞 {@link #PAGE_WINDOW} 문단 안, 최대 pageLimit)를 함께 고른다.
      */
     public Found search(String query, int nodeLimit, int pageLimit) {
+        if (!enabled || query == null || query.isBlank()) {
+            return new Found(List.of(), List.of());
+        }
         Set<String> nodes = new LinkedHashSet<>();
         Set<String> pageIds = new LinkedHashSet<>();
-        List<Hit> hits = chunks(query, Math.max(nodeLimit * 4, PAGE_WINDOW));
+        // 임베딩 서버 호출과 색인 검색 시간을 따로 잰다(기록 steps '시간:' 줄 — 어느 쪽이 느린지 보려고).
+        long startedAt = System.nanoTime();
+        float[] q = embedClient.embed(query);
+        long embeddedAt = System.nanoTime();
+        List<Hit> hits = rank(query, q, Math.max(nodeLimit * 4, PAGE_WINDOW));
         for (int i = 0; i < hits.size(); i++) {
             String id = hits.get(i).nodeId();
             if (id.startsWith(PAGE_PREFIX)) {
@@ -111,7 +118,8 @@ public class AskRetriever {
                 nodes.add(id);
             }
         }
-        return new Found(List.copyOf(nodes), List.copyOf(pageIds));
+        return new Found(List.copyOf(nodes), List.copyOf(pageIds),
+                (embeddedAt - startedAt) / 1_000_000, (System.nanoTime() - embeddedAt) / 1_000_000);
     }
 
     /** 홈페이지 쪽 정보(제목·학과·주소·원문). 없으면 null. */
@@ -124,7 +132,10 @@ public class AskRetriever {
         if (!enabled || query == null || query.isBlank()) {
             return List.of();
         }
-        float[] q = embedClient.embed(query);
+        return rank(query, embedClient.embed(query), limit);
+    }
+
+    private List<Hit> rank(String query, float[] q, int limit) {
         int n = chunks.size();
         double[] dense = new double[n];
         for (int i = 0; i < n; i++) {
@@ -252,7 +263,11 @@ public class AskRetriever {
     }
 
     /** @param pages 홈페이지 쪽 id(page:…) — 안내 목록 밖이라 답 쓰기에 원문을 따로 넘긴다. */
-    public record Found(List<String> nodes, List<String> pages) {
+    /** embedMs·searchMs: 임베딩 서버 호출·색인 검색에 걸린 시간(검색하지 않았으면 0). */
+    public record Found(List<String> nodes, List<String> pages, long embedMs, long searchMs) {
+        public Found(List<String> nodes, List<String> pages) {
+            this(nodes, pages, 0, 0);
+        }
     }
 
     record Chunk(String id, String text) {

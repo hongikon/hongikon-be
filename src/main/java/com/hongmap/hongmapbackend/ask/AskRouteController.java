@@ -95,10 +95,12 @@ public class AskRouteController {
         try {
             AskRouteResponse response = askRouteService.route(request, trace);
             record(request, response);
-            return response.withLogId(recorder.record(request, response, outcome(response, trace), trace.steps(), trace.usage(), elapsed(startedAt)));
+            long latency = elapsed(startedAt);
+            return response.withLogId(recorder.record(request, response, outcome(response, trace), trace.steps(latency), trace.usage(), latency));
         } catch (AskUnavailableException e) {
             askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
-            recorder.record(request, null, AskConversationLog.Outcome.FAILED, trace.steps(), trace.usage(), elapsed(startedAt));
+            long latency = elapsed(startedAt);
+            recorder.record(request, null, AskConversationLog.Outcome.FAILED, trace.steps(latency), trace.usage(), latency);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE_MESSAGE);
         }
     }
@@ -151,12 +153,14 @@ public class AskRouteController {
                 record(request, response);
                 // 학생이 멈춤을 눌러 연결이 끊겼으면 '멈춤'으로 남긴다(끊긴 뒤에도 답은 끝까지 만들어져 있다).
                 AskConversationLog.Outcome outcome = closed.get() ? AskConversationLog.Outcome.STOPPED : outcome(response, trace);
-                Long logId = recorder.record(request, response, outcome, trace.steps(), trace.usage(), elapsed(startedAt));
+                long latency = elapsed(startedAt);
+                Long logId = recorder.record(request, response, outcome, trace.steps(latency), trace.usage(), latency);
                 send(emitter, closed, "done", response.withLogId(logId));
             } catch (AskUnavailableException e) {
                 askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
+                long latency = elapsed(startedAt);
                 recorder.record(request, null, closed.get() ? AskConversationLog.Outcome.STOPPED : AskConversationLog.Outcome.FAILED,
-                        trace.steps(), trace.usage(), elapsed(startedAt));
+                        trace.steps(latency), trace.usage(), latency);
                 send(emitter, closed, "error", Map.of("message", UNAVAILABLE_MESSAGE));
             } catch (RuntimeException e) {
                 log.warn("물어보기 흘려보내기 실패: {}", e.toString());
