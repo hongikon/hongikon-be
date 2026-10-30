@@ -8,6 +8,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportImageUploadRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportImageUploadResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
+import com.hongmap.hongmapbackend.report.dto.ReportScheduleRequest;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -79,6 +81,18 @@ public class ReportController {
         // 추후 필요 시 reportService.getAllReports(...) 분기 추가.
         boolean includeUpcoming = include != null && include.trim().equalsIgnoreCase("upcoming");
         return reportService.getLiveReports(userId, buildingId, includeUpcoming);
+    }
+
+    @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
+    @Operation(summary = "제보 시간 수정", description = "공식 계정이 자기 제보(승인 대기·공개)의 시작·종료 시각을 고칩니다. "
+            + "일반 회원 403. 시작 시각을 그대로 두면 이미 시작한 제보의 종료 시각만 바꿀 수 있습니다.")
+    @PutMapping("/reports/{id}/schedule")
+    public ReportResponse updateSchedule(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody ReportScheduleRequest request
+    ) {
+        return reportService.updateSchedule(userId, id, request);
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)

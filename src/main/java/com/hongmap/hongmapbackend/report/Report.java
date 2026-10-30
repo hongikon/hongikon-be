@@ -183,6 +183,12 @@ public class Report {
         }
     }
 
+    /** 시작·종료 시각을 고친다(공식 계정 작성자, ReportService.updateSchedule 이 규칙을 본 뒤). */
+    public void changeSchedule(LocalDateTime startsAt, LocalDateTime endsAt) {
+        this.startsAt = startsAt;
+        this.endsAt = endsAt;
+    }
+
     /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */
     public void moderate(ReportStatus status, String note, LocalDateTime reviewedAt) {
         this.status = status;
