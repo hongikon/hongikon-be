@@ -52,6 +52,21 @@ public interface AskProgress {
     default void checkingCafeteria(String date) {
     }
 
+    /** RAG 검색에 걸린 시간 — 임베딩 서버 호출과 색인 검색(ms, 기록용). */
+    default void retrievalTimed(long embedMs, long searchMs) {
+    }
+
+    /** 고르기(classify) 호출에 걸린 시간(ms, 실패해도 알린다 — 기록용). */
+    default void classifyTimed(long ms) {
+    }
+
+    /**
+     * 답 쓰기에 걸린 시간(ms, 실패해도 그때까지 — 기록용). toolRounds 는 도구를 부른 차례 수, toolMs 는 도구 실행 시간 합,
+     * firstTextMs 는 답 쓰기 시작부터 첫 text delta 까지(나오지 않았으면 -1).
+     */
+    default void answerTimed(int toolRounds, long toolMs, long firstTextMs, long totalMs) {
+    }
+
     /** LLM 호출 한 번의 토큰(기록·비용 확인용). */
     default void usage(long input, long output, long cacheRead) {
     }

@@ -73,6 +73,9 @@ public class AskRouteService {
         // ② 찾기(RAG 가 켜져 있으면): 안내 원문 색인에서 뜻·낱말이 가까운 안내 후보. 손으로 적은 낱말(앱 hint) 대신 쓴다(10-28).
         AskRetriever.Found found = retriever.enabled()
                 ? retriever.search(retrievalQuery(request), RETRIEVED_MAX, PAGES_MAX) : new AskRetriever.Found(List.of(), List.of());
+        if (retriever.enabled()) {
+            progress.retrievalTimed(found.embedMs(), found.searchMs());
+        }
         List<String> retrieved = found.nodes();
         List<String> pages = found.pages();
         if (!retrieved.isEmpty() || !pages.isEmpty()) {
