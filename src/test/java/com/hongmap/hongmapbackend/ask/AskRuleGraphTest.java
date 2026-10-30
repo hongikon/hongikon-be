@@ -81,8 +81,8 @@ class AskRuleGraphTest {
     void 블록은_선마다_한_줄이고_조건이_있으면_되묻기_기준을_붙인다() {
         String block = graph(8, 2).related(List.of("retake/apply")).block();
         assertThat(block).startsWith("\n\n" + AskRuleGraph.BLOCK_HEAD + "\n");
-        assertThat(block).contains("- 학기재수강 →(결과) 성적경고: 학기재수강을 해도 이미 받은 성적경고는 없어지지 않는다. (근거: retake/apply)");
-        assertThat(block).contains("- 장학 →(예외) 학기재수강: 장학생은 학기재수강을 하면 장학금을 돌려낸다. (근거: scholarship/leave) (조건: 장학생 — 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
+        assertThat(block).contains("- 학기재수강 ->(결과) 성적경고: 학기재수강을 해도 이미 받은 성적경고는 없어지지 않는다. (근거: retake/apply)");
+        assertThat(block).contains("- 장학 ->(예외) 학기재수강: 장학생은 학기재수강을 하면 장학금을 돌려낸다. (근거: scholarship/leave) (조건: 장학생 - 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
         assertThat(block.split("\n")).hasSize(2 + 1 + 5);
     }
 

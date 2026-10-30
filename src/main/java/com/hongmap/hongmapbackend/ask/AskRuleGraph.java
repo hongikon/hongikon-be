@@ -190,15 +190,15 @@ public class AskRuleGraph {
         return new Related(used.stream().map(Edge::id).toList(), guides, block.toString());
     }
 
-    /** "- 학기재수강 →(결과) 성적경고: 사실 문장 (근거: 안내 id)" — 조건이 있으면 뒤에 조건과 되묻기 기준. */
+    /** "- 학기재수강 ->(결과) 성적경고: 사실 문장 (근거: 안내 id)" - 조건이 있으면 뒤에 조건과 되묻기 기준. */
     private String line(Edge edge) {
-        StringBuilder line = new StringBuilder("- ").append(name(edge.from())).append(" →(").append(edge.type()).append(") ")
+        StringBuilder line = new StringBuilder("- ").append(name(edge.from())).append(" ->(").append(edge.type()).append(") ")
                 .append(name(edge.to())).append(": ").append(edge.fact().trim()).append(" (근거: ").append(edge.guide()).append(')');
         if (edge.condition() != null && !edge.condition().isEmpty()) {
             List<String> parts = new ArrayList<>();
             edge.condition().forEach((key, value) -> parts.add(Boolean.TRUE.equals(value) ? key : key + "=" + value));
             line.append(" (조건: ").append(String.join(", ", parts))
-                    .append(" — 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
+                    .append(" - 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
         }
         return line.toString();
     }
