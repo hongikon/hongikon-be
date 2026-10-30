@@ -1345,3 +1345,41 @@
 - **DB 변경 — 운영 배포 전에 실행**: `db/alter_report_building_nullable.sql`(NOT NULL 해제만, 기존 행 영향 없음). 로컬 MySQL 에 적용·확인. validate 는 NULL 여부를 보지 않아 빠뜨려도 기동은 되지만 캠퍼스 밖 제보 등록이 500.
 - 테스트: `ReportAbuseGuardIntegrationTest` 캠퍼스 밖 1건(장소 없으면 400, 3.3km 400, 750m 201·건물/층 null, 관리자 목록·승인·지도 목록·내 제보 내역에 나옴). 백엔드 전체 669 통과(작업 트리의 다른 미커밋 작업 포함 상태).
 - 흡연구역 11곳(운영진이 직접 찍은 좌표): `db/sync_facilities_2026_10_27_smoking.sql` — 새 9곳(K동 옥상·앞, L동 4층, U동 적색 계단, G동 여자휴게실 앞, MH동 앞, C동 8층 테라스·후문 계단, T동 주차장), 기존 B동은 같은 자리라 좌표를 새로 찍은 1층 테라스로(기존이 49m 어긋남), 제2기숙사는 메모만. 건물 윤곽·중심과 대조(15~62m), MH동 앞(Z1 윤곽 안)·T동 주차장(Z4 쪽)은 운영진 확인. K동 옥상·G동 앞은 층 미상이라 NULL. 다시 돌려도 안전(code 기준 덮어쓰기). 로컬 적용·`GET /map/data` 11곳 확인. 서버 배포 불필요 — 운영 RDS 에 실행하면 지도 데이터 캐시(5분) 뒤 앱에 보인다.
+- 물어보기 카탈로그 다시 생성(FE 교과과정 적용원칙 흐름 `curriculum-rules` 추가 — 필수과목 폐지·선택 변경·개설 학년 변경·복수전공 동일과목). 로컬 확인: 적용원칙 질문 4건 정답, '컴공 전필'·'회화과 전필'은 학과 답 그대로.
+- 물어보기 답 규칙 13(운영진 요청 — '언제·어디서·어떻게가 주된 포인트'): 학생이 해야 하는 일(신청·선택·배정·제출·납부·등록·변경)은 '언제'만 물어도 '신청 방법' 섹션에 '누가:'·'언제:'·'어디서:'·'어떻게:'를 원문에 있는 것만 쓰고, 지난 일정이면 그 일정·게시일을 밝히되 방법은 빼지 않는다. 로컬 확인: 졸업유예 '언제 해?' → 누가·언제·어디서·어떻게 4줄. 둘 이상 있으면 섹션을 반드시 만들게 다시 다듬음 — 휴학·전공 배정 '언제' 질문도 신청 방법 섹션이 붙는다(머리말 꼴은 모델이 가끔 바꾼다).
+- 카탈로그 다시 생성(FE 신소재·화공시스템공학부 전공 배정 흐름 `major-assign-msechem`, 신소재·화공 졸업요건 답에 배정 한 줄). '컴공 전필을 학과장 심사로 인정?' → 적용원칙 근거로 '그런 제도는 확인되지 않아요, 예외는 폐지·선택 변경뿐'.
+
+## 2026-10-28 — 물어보기 RAG(로컬 임베딩, 맥미니) (dev)
+
+- 운영진 결정: 손으로 적은 낱말 목록으로 안내를 고르는 방식을 그만두고, 원문 색인에서 찾는 진짜 RAG 로. 임베딩 모델은 로컬(bge-m3), 임베딩 서버는 맥미니(운영 포함). 설계·실험 `docs/ask-embedding-plan.md`.
+- 검색 실험(안내 773개 → 2,366문단): bge-m3 + BM25(RRF)가 정답표 R@10 90.6%, 기준 정답표 사실 포함 26/26(BM25 만 78.3%·24/26).
+- 새 파일: `tools/embed-server/`(server.py 키 필수·127.0.0.1·질문 글 기록 안 함, build_index.py, run.sh, launchd.plist.template, README), `AskEmbedClient`, `AskRetriever`(bge-m3 내적 + 한글 2글자 BM25 → RRF, 안내로 묶기), 색인 `ask/rag-chunks.json`·`rag-vectors.bin`(float16, 약 7.7MB — sources.json 이 바뀌면 build_index.py 다시).
+- `AskRouteService`: RAG 가 켜져 있으면 분류 전에 검색 후보 6개 → 앱 hint 대신 분류에. 분류가 못 고르면 후보 앞 2개로 답. `search_guides` 도구도 RAG. 기록 steps '검색 후보'.
+- 설정 `ask.rag.enabled`(기본 false)·`embed-url`·`embed-key`·`embed-timeout-ms`. 켰는데 색인·키가 없으면 지금 방식으로 두고 경고. 임베딩 서버 실패 → 503(앱은 실패 안내).
+- 확인(로컬, 같은 데이터): 기준 정답표 RAG 29/32 · 지금 방식 30/32(±1 흔들림), 학과 공지 34/40, 범위 거절 21/21·잘못 거절 0. '전필 안 해도 졸업?'은 hint 없이도 적용원칙으로.
+- 테스트 `AskRetrieverTest` 5. 백엔드 전체 674 통과.
+- 남은 일: 맥미니 launchd 자동 실행 등록·잠자기 끄기(운영자 — 자동 실행 등록은 이 세션 권한에서 막힘), 맥미니–EC2 사설 터널, 카탈로그 꼬리표·앱 hint 빼기, 공지 색인.
+
+## 2026-10-28 — 물어보기: 추론형 질문 평가(코드 변경 없음, 문서만)
+
+- 학교 FAQ·공지 Q&A 로 만든 추론 정답표 44문항(FE `scripts/ask/cases-reason/reason.json`)으로 Haiku 5.5(지금)·Haiku 추론형 지시·Sonnet 5.5·Opus 5.5 를 비교하고 실패 원인을 나눴다 → [`ask-reasoning-eval.md`](ask-reasoning-eval.md), 제출용 Word 판 `ask-reasoning-eval.docx`.
+- 결과: 정답 Haiku 59% · Sonnet 55% · Opus 75%, 확인된 손해 오류 3 · 0 · 0, 질문당 비용 약 $0.004 · $0.15 · $0.19. 남은 실패의 대부분은 '결과·조건 누락'(원문에는 있음).
+- 실험용 설정(`ask.llm.answer-effort`, `ask.llm.answer-extra-file`)은 별도 빌드에서만 썼고 dev 에 넣지 않았다. 평가 기록 176건(질문은 합성 문항)이 로컬 DB `ask_conversation_logs` 에 남았다(conversation_id `reason-%`).
+
+## 2026-10-28 — 물어보기 RAG: 학과 홈페이지·교수 정보 규칙 (dev)
+
+- 학과 홈페이지 94쪽(본문 46·위치만 48, FE `scripts/ask/depthome.py` → `data/rag-depthome.json`)을 RAG 색인에 원문 그대로: `build_index.py` 가 FE `data/rag-*.json` 을 'page:<key>' 문단으로 함께 넣는다(2,592문단, `rag-chunks.json` 에 쪽 정보 pages). 낱말 목록은 짜지 않는다.
+- `AskRetriever.search(query, nodeLimit, pageLimit)`: 임베딩 한 번으로 안내 id 와 홈페이지 쪽(맨 앞 10문단 안, 최대 2)을 함께. `page(id)`.
+- `AskRouteService`: 홈페이지 쪽을 `AskLlmClient.answer(ids, pageIds, …)` 로 원문과 함께 넘긴다(없으면 예전 호출). 답에 쓰면 sourceIds 의 page:… 가 학과 홈페이지 링크(references)로 붙는다. 기록 steps '검색 후보'에 page id 도.
+- 답 규칙: 학과 홈페이지 원문은 어느 학과 것인지 밝히고 다른 학과 질문엔 쓰지 않는다. 교수 개인 정보(연구실·전화·이메일·면담·이력)는 쓰지 않고 학과 홈페이지 교수 소개 페이지로 안내(운영진 결정, 교수·교직원·연구실 소개는 위치만 색인). 개인정보 거르기: 학번 줄·게시판 목록 제외, 휴대전화 번호 제거(10-29 공개 저장소 점검 — 첫 색인에 학과연혁 명예의 전당 실명·학번이 들어갔던 것을 이 커밋에서 바로잡음).
+- 확인(로컬): 신소재 실험과목 2과목·컴공 교수님 연구실 → 교수진소개 링크·실용음악전공 졸업요건, 모두 학과 홈페이지 근거·링크. `AskRetrieverTest` +1(홈페이지 쪽 고르기), 물어보기 테스트 72 통과.
+
+## 2026-10-30 — main 을 dev 에 병합(릴리스 전 동기화, 기능 변경 없음) (chore/sync-main-into-dev)
+
+- 릴리스(dev -> main) 전 점검: main 에만 있는 변경이 dev 에 없었다 — 9204618 공식 계정 제보 한도 완화 + 작성자 시간 수정 API(PR #62). f66b103 캠퍼스 밖 제보·84985d6 흡연구역 11곳은 dev 에 같은 내용(7eecd12, 5c30d1e)이 있었다.
+- `git merge origin/main`(merge commit). 충돌 2건:
+  - `ReportService` 생성자 `@Value` 인자 — main 의 공식 계정 한도 2개를 넣음. 결과 파일은 main 과 같다.
+  - `docs/worklog.md` — dev 의 29484fb(10-25)에서 1327줄 -> 7줄로 잘려 있던 것을 main 의 전체 기록 기준으로 되살리고, dev 에만 있던 10-27 뒤쪽 3항목·10-28 섹션 3개를 이어붙임(운영자 확인).
+- 확인: `ReportScheduleRequest`·`ReportOfficialIntegrationTest`·설정 `REPORT_CREATE_OFFICIAL_LIMIT_PER_HOUR`·`REPORT_CREATE_OFFICIAL_MAX_PENDING` 있음. report·admin·push 패키지와 report 테스트는 main 과 같다. ask 패키지·`ask/rag-chunks.json`·`rag-vectors.bin`·`tools/embed-server` 는 dev 와 같다. 병합 결과가 origin/main 을 모두 포함.
+- 백엔드 전체 678 통과.
+- 다음 릴리스에서 main 대비 새로 들어가는 SQL(배포 전 운영 DB): `db/sync_partners_2026_10_16_ttoboketji.sql`, `db/create_ask_conversation_logs_table.sql`(ddl-auto=validate 라 서버 배포 전 필수), `db/sync_facilities_2026_10_18_r_lobby.sql`(앱 OTA 뒤). 새 환경변수는 모두 기본값이 있어 필수 아님(`ASK_RAG_*` 기본 끔, `ASK_LOG_*`).

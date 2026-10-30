@@ -16,6 +16,18 @@ public interface AskProgress {
     default void picked(List<String> ids) {
     }
 
+    /** RAG 검색(임베딩 + BM25)으로 안내 후보를 찾았다(뜻이 가까운 순). */
+    default void retrieved(List<String> ids) {
+    }
+
+    /** 질문 낱말 중 고른 안내 원문에 없는 것으로 공지·안내를 미리 찾았다(hits 는 찾은 후보 수). */
+    default void missingTerms(List<String> terms, int hits) {
+    }
+
+    /** 질문 속 학과·기관 게시판에서 공지를 미리 찾았다(hits 는 찾은 공지 수). */
+    default void boardSearch(String board, List<String> words, int hits) {
+    }
+
     /** LLM 이 다른 안내를 낱말로 찾는다(search_guides). */
     default void searching(String query) {
     }
@@ -32,8 +44,16 @@ public interface AskProgress {
     default void readingNotice(String title) {
     }
 
+    /** LLM 이 학교 지도 시설 정보를 찾는다(search_facilities). */
+    default void searchingFacilities(String query) {
+    }
+
     /** LLM 이 그날 학식을 본다(cafeteria_menu). */
     default void checkingCafeteria(String date) {
+    }
+
+    /** LLM 호출 한 번의 토큰(기록·비용 확인용). */
+    default void usage(long input, long output, long cacheRead) {
     }
 
     /** 답 글자가 나오기 시작했다. */
@@ -46,5 +66,11 @@ public interface AskProgress {
 
     /** 지금까지 보낸 답 글자를 지운다(그 차례가 답이 아니라 더 찾아보기로 끝났을 때). */
     default void resetText() {
+    }
+
+    /**
+     * 범위 밖이라 고정 문구로 답했다(docs/ask-scope-policy.md). blockedSchool 은 출구 검사가 막은 다른 대학 이름 — 입구에서 거절했으면 null.
+     */
+    default void refused(AskScope scope, String blockedSchool) {
     }
 }

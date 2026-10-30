@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.ask;
 
+import com.hongmap.hongmapbackend.ask.dto.AskRouteFeedbackRequest;
 import com.hongmap.hongmapbackend.ask.dto.AskRouteRequest;
 import com.hongmap.hongmapbackend.ask.dto.AskRouteResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,6 +57,7 @@ public class AskRouteController {
     private final AskRateLimiter askRateLimiter;
     private final AskTranscript askTranscript;
     private final AskCatalog askCatalog;
+    private final AskConversationRecorder recorder;
     private final byte[] devKeySha256;
     private final ExecutorService streams = Executors.newFixedThreadPool(STREAM_THREADS, new ThreadFactory() {
         private final AtomicInteger count = new AtomicInteger();
@@ -69,8 +71,10 @@ public class AskRouteController {
     });
 
     public AskRouteController(AskRouteService askRouteService, AskRateLimiter askRateLimiter, AskTranscript askTranscript,
-                              AskCatalog askCatalog, @Value("${ask.dev-key-sha256:}") String devKeySha256) {
+                              AskCatalog askCatalog, AskConversationRecorder recorder,
+                              @Value("${ask.dev-key-sha256:}") String devKeySha256) {
         this.askCatalog = askCatalog;
+        this.recorder = recorder;
         this.askRouteService = askRouteService;
         this.askRateLimiter = askRateLimiter;
         this.askTranscript = askTranscript;
@@ -86,14 +90,42 @@ public class AskRouteController {
                                   @Valid @RequestBody AskRouteRequest request,
                                   HttpServletRequest httpRequest) {
         authorize(key, httpRequest);
+        long startedAt = System.nanoTime();
+        AskTrace trace = new AskTrace(AskProgress.NONE);
         try {
-            AskRouteResponse response = askRouteService.route(request);
+            AskRouteResponse response = askRouteService.route(request, trace);
             record(request, response);
-            return response;
+            return response.withLogId(recorder.record(request, response, outcome(response, trace), trace.steps(), trace.usage(), elapsed(startedAt)));
         } catch (AskUnavailableException e) {
             askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
+            recorder.record(request, null, AskConversationLog.Outcome.FAILED, trace.steps(), trace.usage(), elapsed(startedAt));
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE_MESSAGE);
         }
+    }
+
+    @Operation(summary = "물어보기 답에 '해결됐나요' 응답 붙이기(개발 중)", description = "logId 는 /ask/route 응답의 logId. "
+            + "같은 대화(conversationId)의 기록만 바꾼다. X-Ask-Dev-Key 필요(질문 한도는 쓰지 않는다). 없는 기록이면 404.")
+    @PostMapping("/ask/route/feedback")
+    public void feedback(@RequestHeader(value = DEV_KEY_HEADER, required = false) String key,
+                         @Valid @RequestBody AskRouteFeedbackRequest request) {
+        checkKey(key);
+        if (!recorder.resolve(request.logId(), request.conversationId(), request.resolved())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    private AskConversationLog.Outcome outcome(AskRouteResponse response, AskTrace trace) {
+        if (trace.refusedScope() != null) {
+            return trace.blockedSchool() != null ? AskConversationLog.Outcome.MIX_BLOCKED : AskConversationLog.Outcome.REFUSED;
+        }
+        if (response.answer() != null) {
+            return Boolean.FALSE.equals(response.found()) ? AskConversationLog.Outcome.NOT_FOUND : AskConversationLog.Outcome.ANSWERED;
+        }
+        return askCatalog.isQuestion(response.nodeId()) ? AskConversationLog.Outcome.QUESTION : AskConversationLog.Outcome.NO_ANSWER;
+    }
+
+    private static long elapsed(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
     @Operation(summary = "물어보기 답 흘려받기(개발 중, SSE)", description = "POST /ask/route 와 같은 요청·인증·한도. 진행을 이벤트로 흘려보낸다: "
@@ -108,16 +140,23 @@ public class AskRouteController {
         httpResponse.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
         AtomicBoolean closed = new AtomicBoolean(false);
+        long startedAt = System.nanoTime();
         emitter.onCompletion(() -> closed.set(true));
         emitter.onTimeout(() -> closed.set(true));
         emitter.onError(error -> closed.set(true));
         streams.execute(() -> {
+            AskTrace trace = new AskTrace(new StreamProgress(emitter, closed));
             try {
-                AskRouteResponse response = askRouteService.route(request, new StreamProgress(emitter, closed));
+                AskRouteResponse response = askRouteService.route(request, trace);
                 record(request, response);
-                send(emitter, closed, "done", response);
+                // 학생이 멈춤을 눌러 연결이 끊겼으면 '멈춤'으로 남긴다(끊긴 뒤에도 답은 끝까지 만들어져 있다).
+                AskConversationLog.Outcome outcome = closed.get() ? AskConversationLog.Outcome.STOPPED : outcome(response, trace);
+                Long logId = recorder.record(request, response, outcome, trace.steps(), trace.usage(), elapsed(startedAt));
+                send(emitter, closed, "done", response.withLogId(logId));
             } catch (AskUnavailableException e) {
                 askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
+                recorder.record(request, null, closed.get() ? AskConversationLog.Outcome.STOPPED : AskConversationLog.Outcome.FAILED,
+                        trace.steps(), trace.usage(), elapsed(startedAt));
                 send(emitter, closed, "error", Map.of("message", UNAVAILABLE_MESSAGE));
             } catch (RuntimeException e) {
                 log.warn("물어보기 흘려보내기 실패: {}", e.toString());
@@ -137,13 +176,17 @@ public class AskRouteController {
     }
 
     private void authorize(String key, HttpServletRequest httpRequest) {
+        checkKey(key);
+        askRateLimiter.acquire(httpRequest.getRemoteAddr());
+    }
+
+    private void checkKey(String key) {
         if (devKeySha256 == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         if (key == null || !MessageDigest.isEqual(devKeySha256, sha256(key))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        askRateLimiter.acquire(httpRequest.getRemoteAddr());
     }
 
     private void record(AskRouteRequest request, AskRouteResponse response) {
@@ -204,6 +247,11 @@ public class AskRouteController {
         @Override
         public void readingNotice(String title) {
             send(emitter, closed, "noticeRead", Map.of("title", title));
+        }
+
+        @Override
+        public void searchingFacilities(String query) {
+            send(emitter, closed, "facilitySearch", Map.of("query", query));
         }
 
         @Override
