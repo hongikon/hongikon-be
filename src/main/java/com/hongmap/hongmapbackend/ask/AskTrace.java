@@ -66,6 +66,12 @@ final class AskTrace implements AskProgress {
     }
 
     @Override
+    public void ruleGraph(List<String> edgeIds, List<String> guides) {
+        steps.add("규정 그래프: " + String.join(", ", edgeIds)
+                + (guides.isEmpty() ? "" : " (이웃 안내 " + String.join(", ", guides) + ")"));
+    }
+
+    @Override
     public void boardSearch(String board, List<String> words, int hits) {
         steps.add("학과 공지 찾기: " + board + " · " + String.join(", ", words) + " (" + hits + ")");
     }
