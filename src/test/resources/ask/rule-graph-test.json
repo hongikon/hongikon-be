@@ -1,0 +1,32 @@
+{
+  "version": "test.1",
+  "catalogVersion": "test-v1",
+  "nodes": [
+    { "id": "semester-retake", "name": "학기재수강", "guides": ["retake/apply"] },
+    { "id": "academic-warning", "name": "성적경고", "guides": ["warning/general"] },
+    { "id": "expulsion", "name": "제적", "guides": ["expulsion/general"] },
+    { "id": "readmission", "name": "재입학", "guides": ["readmit/general"] },
+    { "id": "leave", "name": "휴학", "guides": ["leave/general"] },
+    { "id": "scholarship", "name": "장학", "guides": ["scholarship/leave"] }
+  ],
+  "edges": [
+    { "id": "e-step3", "from": "expulsion", "to": "readmission", "type": "결과",
+      "fact": "제적되면 재입학을 신청해야 한다.", "guide": "expulsion/general", "quote": "재입학", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-period", "from": "semester-retake", "to": "leave", "type": "기간",
+      "fact": "학기재수강은 휴학 중에는 신청하지 않는다.", "guide": "retake/apply", "quote": "휴학 중", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-step2", "from": "academic-warning", "to": "expulsion", "type": "결과",
+      "fact": "성적경고를 연속 3회 받으면 제적된다.", "guide": "warning/general", "quote": "연속 3회", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-limit", "from": "semester-retake", "to": "academic-warning", "type": "제한",
+      "fact": "학기재수강은 재학 중 한 번만 할 수 있다.", "guide": "retake/apply", "quote": "한 번만", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-in-exception", "from": "scholarship", "to": "semester-retake", "type": "예외",
+      "fact": "장학생은 학기재수강을 하면 장학금을 돌려낸다.", "guide": "scholarship/leave", "quote": "돌려낸다", "condition": { "장학생": true }, "reviewed": "2026-10-30 test" },
+    { "id": "e-step1", "from": "semester-retake", "to": "academic-warning", "type": "결과",
+      "fact": "학기재수강을 해도 이미 받은 성적경고는 없어지지 않는다.", "guide": "retake/apply", "quote": "없어지지 않는다", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-in-result", "from": "leave", "to": "semester-retake", "type": "결과",
+      "fact": "들어오는 결과 선은 1단계에 넣지 않는다.", "guide": "leave/general", "quote": "휴학", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-step2-other", "from": "academic-warning", "to": "leave", "type": "예외",
+      "fact": "2단계에서는 결과 선만 따라간다.", "guide": "warning/general", "quote": "경고", "condition": null, "reviewed": "2026-10-30 test" },
+    { "id": "e-unreviewed", "from": "semester-retake", "to": "expulsion", "type": "결과",
+      "fact": "확인 안 된 선은 읽지 않는다.", "guide": "retake/apply", "quote": "학기재수강", "condition": null, "reviewed": "" }
+  ]
+}
