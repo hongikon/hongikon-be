@@ -51,6 +51,20 @@ class AskCatalogTest {
     }
 
     @Test
+    void 같은_흐름과_같은_되묻기_묶음의_안내를_이웃으로_찾는다() {
+        AskCatalog catalog = new AskCatalog(new AskCatalog.CatalogFile("v", List.of(
+                new AskCatalog.Entry("leave/start", "question", "휴학", List.of("leave/apply", "return/start")),
+                new AskCatalog.Entry("leave/apply", "answer", "휴학 신청"),
+                new AskCatalog.Entry("leave/tuition", "answer", "휴학 등록금"),
+                new AskCatalog.Entry("return/start", "answer", "복학"),
+                new AskCatalog.Entry("seasonal/start", "answer", "계절학기"))), new AskCatalog.SourcesFile("v", Map.of()));
+
+        assertThat(catalog.family("leave/apply")).containsExactlyInAnyOrder("leave/tuition", "return/start");
+        assertThat(catalog.family("seasonal/start")).isEmpty();
+        assertThat(catalog.family("없는/안내")).isEmpty();
+    }
+
+    @Test
     void 두_파일의_버전이_다르면_기동하지_않는다() {
         assertThatThrownBy(() -> new AskCatalog(new AskCatalog.CatalogFile("a", List.of()), new AskCatalog.SourcesFile("b", Map.of())))
                 .isInstanceOf(IllegalStateException.class);

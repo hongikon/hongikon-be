@@ -58,6 +58,28 @@ class AskRetrieverTest {
     }
 
     @Test
+    void 이웃_안내는_안내_평균_벡터로_뜻이_가까운_것과_질문에_가까운_순서를_고른다() {
+        AskRetriever retriever = new AskRetriever(new FakeEmbed(Map.of()), index(), true);
+        // curriculum-rules (0,1) 과 grad-ce (0.6,0.8) 는 0.8, leave (1,0) 과 grad-ce 는 0.6 — 0.75 이상만 이웃.
+        assertThat(retriever.similarGuides("curriculum-rules/start")).containsExactly("grad-ce/start");
+        assertThat(retriever.similarGuides("leave/start")).isEmpty();
+        assertThat(retriever.similarGuides("없는/안내")).isEmpty();
+        assertThat(retriever.closestToQuery(List.of("leave/start", "grad-ce/start", "없는/안내"), new float[] {0, 1}, 1))
+                .containsExactly("grad-ce/start");
+        assertThat(retriever.closestToQuery(List.of("leave/start"), null, 2)).isEmpty();
+    }
+
+    @Test
+    void RAG_가_꺼져_있으면_이웃_안내도_끈다() {
+        AskRetriever off = new AskRetriever(new FakeEmbed(Map.of()), index(), false);
+        off.neighborLimit = 2;
+        assertThat(off.neighborLimit()).isZero();
+        AskRetriever on = new AskRetriever(new FakeEmbed(Map.of()), index(), true);
+        on.neighborLimit = 2;
+        assertThat(on.neighborLimit()).isEqualTo(2);
+    }
+
+    @Test
     void 색인이나_키가_없으면_꺼지고_빈_후보() {
         assertThat(new AskRetriever(new FakeEmbed(Map.of()), null, true).enabled()).isFalse();
         assertThat(new AskRetriever(new FakeEmbed(Map.of()), index(), false).nodes("휴학", 3)).isEmpty();

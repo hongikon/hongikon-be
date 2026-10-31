@@ -141,6 +141,29 @@ public class AskCatalog {
         return entry.next().stream().filter(entries::containsKey).toList();
     }
 
+    /**
+     * 같은 집안의 다른 안내: 같은 흐름(id 의 '/' 앞이 같은 것)과, id 를 버튼으로 가진 되묻기 단계의 다른 버튼(되묻기 단계는 빼고, 카탈로그 순서).
+     * 주제별 규칙 없이 카탈로그 구조만 쓴다.
+     */
+    public List<String> family(String id) {
+        if (id == null || !entries.containsKey(id)) {
+            return List.of();
+        }
+        String flow = id.contains("/") ? id.substring(0, id.indexOf('/')) : id;
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (Entry entry : entries.values()) {
+            if (entry.id().startsWith(flow + "/") || entry.id().equals(flow)) {
+                out.add(entry.id());
+            }
+            if (entry.next() != null && entry.next().contains(id)) {
+                entry.next().stream().filter(entries::containsKey).forEach(out::add);
+            }
+        }
+        out.remove(id);
+        out.removeIf(this::isQuestion);
+        return List.copyOf(out);
+    }
+
     /** 안내 원문. 없으면 null. */
     public String source(String id) {
         return id == null ? null : sources.get(id);
