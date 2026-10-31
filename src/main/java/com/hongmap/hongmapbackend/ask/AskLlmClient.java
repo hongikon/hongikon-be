@@ -64,6 +64,9 @@ public class AskLlmClient {
      * 공지를 이것저것 찾다 한도에 걸려 답 없이 끝나던 문제(10-16, 4번 한도).
      */
     static final int MAX_TOOL_ROUNDS = 6;
+    /** 캐시 데우기 요청의 출력 한도와 글 — 응답은 쓰지 않는다. */
+    static final long WARM_MAX_TOKENS = 64;
+    static final String WARM_MESSAGE = "(캐시 데우기 — 답하지 않아도 된다)";
     /** 한 요청에서 읽을 수 있는 원문 수(처음 고른 것 포함). */
     static final int MAX_READS = 8;
     /**
@@ -209,17 +212,27 @@ public class AskLlmClient {
     private final OutputConfig classifyConfig;
     private final OutputConfig answerConfig;
     private final List<Tool> answerTools;
+    /** 앞부분 캐시가 1시간짜리인지(그때만 데운다 — {@link #warmIfIdle}). */
+    private final boolean longCache;
+    /**
+     * 고르기·답 쓰기 앞부분을 마지막으로 읽거나 쓴(성공한) 호출의 시작 시각(System.nanoTime, 아직 없으면 0).
+     * 캐시는 그 요청 시작부터 TTL 동안 산다 — 어느 사용자의 질문이든 읽으면 다시 시작되므로, 이 시각이 최근이면 데우지 않는다.
+     * 두 앞부분은 캐시가 따로라(범위 밖 질문은 고르기만 부른다) 따로 잰다.
+     */
+    private final java.util.concurrent.atomic.AtomicLong lastClassifyAt = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong lastAnswerAt = new java.util.concurrent.atomic.AtomicLong();
 
     public AskLlmClient(AskCatalog catalog, AskLiveData liveData, AskRetriever retriever, AskRuleGraph ruleGraph, JsonMapper jsonMapper,
                         @Value("${anthropic.api-key:}") String apiKey,
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
-                        @Value("${ask.llm.cache-ttl:5m}") String cacheTtl) {
+                        @Value("${ask.llm.cache-ttl:1h}") String cacheTtl) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
         this.jsonMapper = jsonMapper;
         this.model = model;
+        this.longCache = cacheControl(cacheTtl).ttl().isPresent();
         this.answerSystem = ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM;
         this.answerSystemBlocks = List.of(TextBlockParam.builder()
                 .text(answerSystem)
@@ -328,6 +341,53 @@ public class AskLlmClient {
         throw new IllegalArgumentException("ask.llm.cache-ttl 은 5m 또는 1h 여야 한다: " + ttl);
     }
 
+    /**
+     * 캐시 데우기 — 앞부분 캐시가 1시간짜리이고 마지막 호출 뒤 idle 넘게 지났으면, 고르기·답 쓰기와 앞부분(모델·도구·지시·출력 형식)이
+     * 똑같은 짧은 요청을 하나씩 보내 캐시 시간을 다시 시작한다. 질문 글은 보내지 않는다. 데웠으면 true.
+     * 출력 형식을 쓰는 요청이라 max_tokens 0(출력 없이 데우기)은 못 써서 짧은 한도로 보내고 응답은 버린다.
+     */
+    public boolean warmIfIdle(Duration idle) {
+        if (client == null || !longCache) {
+            return false;
+        }
+        boolean warmed = false;
+        try {
+            if (idleSince(lastClassifyAt, idle)) {
+                long startedAt = System.nanoTime();
+                call(MessageCreateParams.builder()
+                        .model(model)
+                        .maxTokens(WARM_MAX_TOKENS)
+                        .systemOfTextBlockParams(classifySystem)
+                        .outputConfig(classifyConfig)
+                        .addUserMessage(WARM_MESSAGE)
+                        .build(), "데우기 분류", AskProgress.NONE);
+                lastClassifyAt.set(startedAt);
+                warmed = true;
+            }
+            if (idleSince(lastAnswerAt, idle)) {
+                long startedAt = System.nanoTime();
+                MessageCreateParams.Builder answer = MessageCreateParams.builder()
+                        .model(model)
+                        .maxTokens(WARM_MAX_TOKENS)
+                        .systemOfTextBlockParams(answerSystemBlocks)
+                        .outputConfig(answerConfig)
+                        .addUserMessage(WARM_MESSAGE);
+                answerTools.forEach(answer::addTool);
+                call(answer.build(), "데우기 답", AskProgress.NONE);
+                lastAnswerAt.set(startedAt);
+                warmed = true;
+            }
+        } catch (AskUnavailableException e) {
+            // 다음 확인 때 다시 데운다.
+        }
+        return warmed;
+    }
+
+    private static boolean idleSince(java.util.concurrent.atomic.AtomicLong last, Duration idle) {
+        long at = last.get();
+        return at == 0 || System.nanoTime() - at >= idle.toNanos();
+    }
+
     /** 질문(+직전 대화)에 필요한 안내 id 를 고른다(최대 {@link #MAX_PICKS}개, 카탈로그 확인은 부르는 쪽이 다시 한다). */
     public Classification classify(String userMessage) {
         return classify(userMessage, AskProgress.NONE);
@@ -344,6 +404,7 @@ public class AskLlmClient {
                     .outputConfig(classifyConfig)
                     .addUserMessage(userMessage)
                     .build(), "분류", progress);
+            lastClassifyAt.set(startedAt);
         } finally {
             progress.classifyTimed(millisSince(startedAt));
         }
@@ -467,12 +528,14 @@ public class AskLlmClient {
                 wrote[0] = true;
                 progress.delta(text);
             };
+            long callStartedAt = System.nanoTime();
             Message message = stream(params.build(), "답", progress, chunk -> {
                 if (clock.firstTextAt < 0 && !chunk.isEmpty()) {
                     clock.firstTextAt = System.nanoTime();
                 }
                 emit.accept(gate.feed(extractor.feed(chunk)));
             });
+            lastAnswerAt.set(callStartedAt);
             // StopReason 은 응답마다 새로 만들어지는 값 객체라 == 로 비교하면 늘 다르다(도구 호출을 답으로 읽어 실패했었다, 10-15) — equals 로.
             if (!StopReason.TOOL_USE.equals(message.stopReason().orElse(null))) {
                 Answer answer = toAnswer(message, read, references, ground.toString());
@@ -505,6 +568,12 @@ public class AskLlmClient {
                     .role(MessageParam.Role.USER)
                     .contentOfBlockParams(results)
                     .build());
+            // 도구를 한 번이라도 부르면 다음 차례부터 대화 꼬리에 자동 캐시(5분)를 둔다 — 2차례째가 앞 원문·도구 결과를 써 두고
+            // 3차례째부터 읽는다. 질문의 약 3/4 은 도구를 안 불러 첫 차례에는 두지 않는다(읽히지 않는 쓰기 값만 붙으니까).
+            // 꼬리는 그 질문 안에서 몇 초 사이에만 다시 읽어 5분이면 된다(앞부분 1시간 표시 뒤에 5분은 허용되는 순서).
+            if (round == 0) {
+                params.cacheControl(CacheControlEphemeral.builder().build());
+            }
             if (round + 1 >= MAX_TOOL_ROUNDS) {
                 params.toolChoice(ToolChoiceNone.builder().build());
             }
@@ -784,8 +853,8 @@ public class AskLlmClient {
     /** 질문 원문은 남기지 않는다. 캐시가 잘 읽히는지(cacheRead)와 비용, 끝난 이유만 본다. */
     private static void logUsage(Message message, String label, long startedAt, AskProgress progress) {
         Usage usage = message.usage();
-        progress.usage(usage.inputTokens() + usage.cacheCreationInputTokens().orElse(0L), usage.outputTokens(),
-                usage.cacheReadInputTokens().orElse(0L));
+        progress.usage(usage.inputTokens(), usage.outputTokens(), usage.cacheReadInputTokens().orElse(0L),
+                usage.cacheCreationInputTokens().orElse(0L));
         log.info("물어보기 LLM {} in={} cacheRead={} cacheWrite={} out={} stop={} {}ms", label,
                 usage.inputTokens(),
                 usage.cacheReadInputTokens().orElse(0L),

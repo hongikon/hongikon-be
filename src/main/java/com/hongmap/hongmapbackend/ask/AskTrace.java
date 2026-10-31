@@ -24,10 +24,13 @@ final class AskTrace implements AskProgress {
         return steps;
     }
 
-    /** 기록용 — 지금까지의 과정 뒤에 단계별 시간 한 줄({@link AskTiming#line})을 붙인다. */
+    /** 기록용 — 지금까지의 과정 뒤에 단계별 시간 한 줄({@link AskTiming#line})과 토큰 한 줄({@link AskUsage#line})을 붙인다. */
     List<String> steps(long totalMs) {
         List<String> out = new ArrayList<>(steps);
         out.add(timing.line(totalMs));
+        if (!usage.equals(AskUsage.ZERO)) {
+            out.add(usage.line());
+        }
         return out;
     }
 
@@ -133,9 +136,9 @@ final class AskTrace implements AskProgress {
     }
 
     @Override
-    public void usage(long input, long output, long cacheRead) {
-        usage = usage.plus(input, output, cacheRead);
-        next.usage(input, output, cacheRead);
+    public void usage(long input, long output, long cacheRead, long cacheWrite) {
+        usage = usage.plus(input, output, cacheRead, cacheWrite);
+        next.usage(input, output, cacheRead, cacheWrite);
     }
 
     @Override
