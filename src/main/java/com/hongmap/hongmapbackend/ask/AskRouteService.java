@@ -136,6 +136,14 @@ public class AskRouteService {
             }
         }
         progress.picked(answerIds);
+        // 이웃 안내(RAG 가 켜져 있고 ask.rag.neighbors > 0 일 때): 고른 안내와 같은 흐름·같은 되묻기 묶음·뜻이 가까운 안내 중
+        // 질문과 가장 가까운 것의 원문을 함께 넘긴다. 답이 다른 안내에 나눠 적힌 경우(군입대 성적대체 → 등록금 이월 등)를 손으로 적은
+        // 규정 선 없이 메운다(10-31 평가 '필요한 안내가 안 넘어감' 유형).
+        List<String> neighbors = neighbors(answerIds, found.query());
+        if (!neighbors.isEmpty()) {
+            answerIds.addAll(neighbors);
+            log.info("물어보기 이웃 안내: {}", neighbors);
+        }
         // 규정 그래프(켜져 있을 때만): 고른 안내에 이어진 규정(결과·예외 …)을 [함께 볼 규정]으로 붙이고, 이웃 안내 원문도 함께 넘긴다
         // (docs/ask-rule-graph-plan.md). RAG 와 무관하게 고른 안내에서 출발한다.
         AskRuleGraph.Related related = ruleGraph.related(answerIds, request.question());
@@ -389,5 +397,20 @@ public class AskRouteService {
 
     private static String oneLine(String text) {
         return text.replaceAll("\\s+", " ").trim();
+    }
+
+    List<String> neighbors(List<String> answerIds, float[] query) {
+        int limit = retriever.neighborLimit();
+        if (limit <= 0 || query == null || answerIds.isEmpty()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
+        for (String id : answerIds) {
+            candidates.addAll(catalog.family(id));
+            retriever.similarGuides(id).stream().filter(other -> !catalog.isQuestion(other)).forEach(candidates::add);
+        }
+        candidates.removeAll(answerIds);
+        candidates.remove(AskCatalog.NONE);
+        return retriever.closestToQuery(candidates, query, limit);
     }
 }

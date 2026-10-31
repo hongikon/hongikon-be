@@ -99,6 +99,10 @@ public class AskLlmClient {
             - 건물 자체(어디 있는지·몇 층까지·운영시간·그 건물에 뭐가 있는지·지금 하는 전시)는 search_buildings, 학교 제휴업체 혜택은 search_partners 로 찾는다.
             - 찾아봐도 확인되지 않으면 found=false 로 하고 "안내에서 확인되지 않아요"라고 분명히 말한 뒤, 원문에 있는 담당 부서와 전화를 알려 준다. 원문에 부서도 없으면 학교 담당 부서에 문의하라고만 한다.
             - 학생 상황에 따라 답이 달라지면(휴학 종류, 신입생 여부, 단과대학 등) 경우를 나눠 짧게 쓰거나 어느 경우인지 되묻는다.
+            - 경우 나누기(결론이 갈릴 때): 원문에서 학생이 말하지 않은 조건·선택에 따라 결론(되는지·무엇을 해야 하는지·결과·몇 학기)이
+              달라지면 한 경우를 골라 단정하지 않는다. answer 첫 문장에 '경우에 따라 달라요' 또는 '두 가지 방법이 있어요'라고 쓰고,
+              경우마다 그 조건과 결론을 한 문장씩(최대 3개) 쓴다. 고를 수 있는 방법이면 각 방법을 고르면 생기는 결과(학기 수·등록금·불이익)도 쓴다.
+              어느 경우인지 학생이 알아야 답할 수 있으면 끝에 짧게 되묻는다. 학생이 이미 말한 조건이면 그 경우만 답한다.
             - 학생이 무엇을 골라야 할지 모르겠다거나 막연하게 물으면, 원문들의 차이를 짧게 비교하고 대부분 무엇부터 하면 되는지 원문 근거로 안내한다. 같은 되묻기를 그대로 되풀이하지 않는다.
             - 원문 표현이 학생 질문과 다르면(예: 원문은 '수료 요건', 학생은 '졸업요건') 원문 내용이 질문에 어떻게 답하는지 이어서 설명한다.
             - 답 모양(학생이 휴대폰으로 읽는다 — 필요한 것만 짧게. 많이 쓰는 것보다 바로 알아보게 쓰는 게 중요하다):
@@ -109,8 +113,8 @@ public class AskLlmClient {
               3) 표: 같은 속성(대상·금액·기간·장소 등)을 가진 것 3개 이상을 비교하면 items 대신 table 에 쓴다
                  (예: 장학금 종류별 대상·금액, 기간별 환급률, 층별 업체). 열은 2~4개, 칸 값은 원문 표현 그대로, 질문에 맞는 행만 넣는다.
                  원문에 '항목 | 항목' 모양 행이 있으면 표로 옮기기 좋은 자료다. 표를 쓰면 같은 내용을 items 에 되풀이하지 않는다.
-              4) 경우가 여럿이면(기기별, 휴학 종류별 등) 전부 나열하지 않는다. 학생에게 가장 흔한 경우로 답하고,
-                 나머지는 '다른 경우는 ~만 달라요' 한 줄로 묶거나 answer 끝에 어느 경우인지 짧게 되묻는다.
+              4) 경우가 여럿이어도 결론은 같고 절차 세부만 다르면(기기별 설정 방법 등) 전부 나열하지 않는다. 학생에게 가장 흔한 경우로 답하고,
+                 나머지는 '다른 경우는 ~만 달라요' 한 줄로 묶거나 answer 끝에 어느 경우인지 짧게 되묻는다. 결론이 갈리면 위 '경우 나누기'를 따른다.
               5) 주제 전체를 묻는 질문('교환학생 정보 알려줘')은 무엇인지와 지금 할 일을 answer 에 짧게 쓰고, sections 는 일정·신청 방법처럼
                  꼭 필요한 것 2개 이내로. 원문에 날짜가 없으면 search_notices 로 최근 공지를 확인해 공지 게시일과 함께 쓴다.
               6) 전화번호와 링크 주소는 쓰지 않는다 — 앱이 근거 안내의 담당 부서 전화·학교 페이지 버튼을 아래에 붙인다.
@@ -165,7 +169,11 @@ public class AskLlmClient {
               (예: '고려대 학생인데 홍대 도서관 들어갈 수 있어?' → '다른 대학 학생(외부인)은 …').
             - 캠퍼스: 서울캠퍼스 기준으로 답한다. 원문에 세종캠퍼스 내용이 함께 있으면 학생이 세종을 물었을 때만 쓰거나 '세종캠퍼스는 …'으로
               따로 밝힌다. 서울 절차와 세종 절차를 섞어 하나의 절차처럼 쓰지 않는다.
-            - [오늘]이 주어지면 날짜가 지났는지 다가오는지 그 날짜 기준으로 말한다. 원문 일정이 지난 학기 것이면 그렇다고 밝힌다.
+            - 결론(되는지·어떻게 하는지)은 원문의 규칙과 조건으로 쓴다. 학생이 '이번 학기·지금·오늘·이번 주'처럼 시점을 말하지 않았으면
+              [오늘] 날짜만 보고 '기간이 지나서 안 돼요'로 결론을 바꾸지 않는다. 규칙대로 답한 뒤, 이번 일정이 이미 지났으면
+              '이번 학기 신청 기간(○.○~○.○)은 지났어요'처럼 결론 뒤에 덧붙인다.
+            - 학생이 시점을 말했으면 [오늘] 기준으로 날짜가 지났는지 다가오는지 말한다. 원문 일정이 지난 학기 것이면 그렇다고 밝힌다.
+            - 원문에 규칙으로 적힌 시점(예: '철회 기간이 끝난 이틀 후부터', '입영 10일 전')은 공지의 특정 날짜로 바꿔 쓰지 않는다 — 규칙을 먼저 쓰고 날짜는 예로 든다.
             - 학기 중인지 방학인지에 따라 답이 갈리면(운영시간 등) search_guides('학사일정')로 개강·종강일을 찾아 [오늘]이 어디에 드는지 판단한다.
             - 학생이 구체적으로 말한 상황(예: '재발급', '잃어버렸어')에는 바로 그 경우의 방법을 답한다. 이미 분명한 것을 다시 되묻지 않는다.
             - 직전 대화를 참고해 '그거', '아까', '그럼' 같은 말을 해석한다. 이미 한 말을 그대로 되풀이하지 말고 이번 질문에 답한다.
@@ -195,6 +203,8 @@ public class AskLlmClient {
     private final JsonMapper jsonMapper;
     private final String model;
     private final String answerSystem;
+    /** 답 쓰기 지시(캐시 표시 붙임). 도구 설명 → 지시 순으로 앞부분이 매번 같아 캐시로 읽는다(질문당 답 쓰기 입력의 약 절반). */
+    private final List<TextBlockParam> answerSystemBlocks;
     private final List<TextBlockParam> classifySystem;
     private final OutputConfig classifyConfig;
     private final OutputConfig answerConfig;
@@ -211,6 +221,10 @@ public class AskLlmClient {
         this.jsonMapper = jsonMapper;
         this.model = model;
         this.answerSystem = ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM;
+        this.answerSystemBlocks = List.of(TextBlockParam.builder()
+                .text(answerSystem)
+                .cacheControl(cacheControl(cacheTtl))
+                .build());
         this.client = apiKey == null || apiKey.isBlank() ? null : AnthropicOkHttpClient.builder()
                 .apiKey(apiKey)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
@@ -292,6 +306,10 @@ public class AskLlmClient {
     /** 답 쓰기 시스템 프롬프트(규정 그래프가 켜져 있으면 지시 세 줄이 붙는다). */
     String answerSystem() {
         return answerSystem;
+    }
+
+    List<TextBlockParam> answerSystemBlocks() {
+        return answerSystemBlocks;
     }
 
     /**
@@ -415,7 +433,7 @@ public class AskLlmClient {
         MessageCreateParams.Builder params = MessageCreateParams.builder()
                 .model(model)
                 .maxTokens(ANSWER_MAX_TOKENS)
-                .system(answerSystem)
+                .systemOfTextBlockParams(answerSystemBlocks)
                 .outputConfig(answerConfig)
                 .addUserMessage(first.toString());
         answerTools.forEach(params::addTool);

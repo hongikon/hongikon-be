@@ -50,6 +50,15 @@ public class AskRetriever {
     private final int[] lengths;
     private final double avgLength;
     private final boolean enabled;
+    /** 안내 하나의 대표 벡터(그 안내 문단 벡터 평균, 길이 1). 이웃 안내 찾기에 쓴다. */
+    private final Map<String, float[]> guideVectors;
+    /** 고른 안내의 이웃(같은 흐름·같은 되묻기 묶음·뜻이 가까운 안내) 중 원문까지 함께 넘길 수. 0 이면 끈다. */
+    @Value("${ask.rag.neighbors:0}")
+    int neighborLimit;
+    /** 뜻이 가까운 안내로 칠 안내끼리 유사도(bge-m3 평균 벡터 내적). */
+    static final double NEIGHBOR_MIN_SIMILARITY = 0.75;
+    /** 고른 안내 하나당 뜻이 가까운 이웃 후보 수. */
+    static final int NEIGHBOR_SIMILAR_MAX = 4;
 
     @Autowired
     public AskRetriever(AskCatalog catalog, AskEmbedClient embedClient, JsonMapper jsonMapper,
@@ -80,6 +89,7 @@ public class AskRetriever {
         Map<String, int[]> packed = new HashMap<>();
         grams.forEach((gram, list) -> packed.put(gram, list.stream().mapToInt(Integer::intValue).toArray()));
         this.postings = packed;
+        this.guideVectors = guideVectors(chunks, vectors);
         if (wanted && !enabled) {
             log.warn("물어보기 RAG 를 켜려 했지만 색인({}) 또는 임베딩 서버 키(ask.rag.embed-key)가 없어 지금 방식(카탈로그 고르기)으로 둔다.", CHUNKS_RESOURCE);
         } else if (enabled) {
@@ -121,7 +131,7 @@ public class AskRetriever {
             }
         }
         return new Found(List.copyOf(nodes), List.copyOf(pageIds),
-                (embeddedAt - startedAt) / 1_000_000, (System.nanoTime() - embeddedAt) / 1_000_000);
+                (embeddedAt - startedAt) / 1_000_000, (System.nanoTime() - embeddedAt) / 1_000_000, q);
     }
 
     /**
@@ -151,6 +161,69 @@ public class AskRetriever {
             out.add(chunks.get(i).id());
         }
         return List.copyOf(out);
+    }
+
+    public int neighborLimit() {
+        return enabled ? neighborLimit : 0;
+    }
+
+    /** 이 안내와 뜻이 가까운 다른 안내(유사도 {@link #NEIGHBOR_MIN_SIMILARITY} 이상, 가까운 순 최대 {@link #NEIGHBOR_SIMILAR_MAX}). */
+    public List<String> similarGuides(String id) {
+        float[] v = guideVectors.get(id);
+        if (v == null) {
+            return List.of();
+        }
+        List<Map.Entry<String, Double>> scored = new ArrayList<>();
+        guideVectors.forEach((other, w) -> {
+            if (!other.equals(id)) {
+                double s = dot(v, w);
+                if (s >= NEIGHBOR_MIN_SIMILARITY) {
+                    scored.add(Map.entry(other, s));
+                }
+            }
+        });
+        scored.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        return scored.stream().limit(NEIGHBOR_SIMILAR_MAX).map(Map.Entry::getKey).toList();
+    }
+
+    /** 후보 안내를 질문과 가까운 순으로 최대 limit 개(벡터가 없는 안내는 뺀다). */
+    public List<String> closestToQuery(java.util.Collection<String> candidates, float[] query, int limit) {
+        if (query == null || limit <= 0) {
+            return List.of();
+        }
+        return candidates.stream().filter(guideVectors::containsKey)
+                .sorted((a, b) -> Double.compare(dot(query, guideVectors.get(b)), dot(query, guideVectors.get(a))))
+                .limit(limit).toList();
+    }
+
+    private static double dot(float[] a, float[] b) {
+        double s = 0;
+        for (int d = 0; d < a.length && d < b.length; d++) {
+            s += a[d] * b[d];
+        }
+        return s;
+    }
+
+    /** 안내마다 문단 벡터 평균(길이 1로). 홈페이지 쪽은 뺀다. */
+    private static Map<String, float[]> guideVectors(List<Chunk> chunks, float[][] vectors) {
+        Map<String, float[]> sums = new HashMap<>();
+        for (int i = 0; i < chunks.size() && i < vectors.length; i++) {
+            String id = chunks.get(i).id();
+            if (id.startsWith(PAGE_PREFIX) || vectors[i].length == 0) {
+                continue;
+            }
+            float[] sum = sums.computeIfAbsent(id, k -> new float[vectors[0].length]);
+            for (int d = 0; d < sum.length; d++) {
+                sum[d] += vectors[i][d];
+            }
+        }
+        sums.values().forEach(sum -> {
+            double norm = Math.sqrt(dot(sum, sum));
+            for (int d = 0; d < sum.length && norm > 0; d++) {
+                sum[d] /= norm;
+            }
+        });
+        return Map.copyOf(sums);
     }
 
     /** 홈페이지 쪽 정보(제목·학과·주소·원문). 없으면 null. */
@@ -300,9 +373,10 @@ public class AskRetriever {
 
     /** @param pages 홈페이지 쪽 id(page:…) — 안내 목록 밖이라 답 쓰기에 원문을 따로 넘긴다. */
     /** embedMs·searchMs: 임베딩 서버 호출·색인 검색에 걸린 시간(검색하지 않았으면 0). */
-    public record Found(List<String> nodes, List<String> pages, long embedMs, long searchMs) {
+    /** query: 질문 벡터(이웃 안내 순위에 다시 쓴다, 검색하지 않았으면 null). */
+    public record Found(List<String> nodes, List<String> pages, long embedMs, long searchMs, float[] query) {
         public Found(List<String> nodes, List<String> pages) {
-            this(nodes, pages, 0, 0);
+            this(nodes, pages, 0, 0, null);
         }
     }
 
