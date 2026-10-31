@@ -275,6 +275,7 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | `ASK_DEV_KEY_SHA256` | `/dev/ask` 암호키의 SHA-256 hex(앱 `DevPathGate` 의 `KEY_SHA256` 과 같은 값) | 엔드포인트 404(운영 기본) |
 | `ASK_LLM_MODEL` | 모델(기본 `claude-haiku-5-5`) | 기본값 |
 | `ASK_RAG_ENABLED` · `ASK_EMBED_URL` · `ASK_EMBED_KEY` | RAG(기본 끔). URL 은 사설 터널 주소만, 키는 임베딩 서버 `EMBED_SERVER_KEY` 와 같은 값 | RAG 꺼짐 |
+| `ASK_GRAPH_ENABLED` | 규정 그래프(기본 끔). 켜도 `reviewed` 가 찬 선만 쓴다 | 그래프 꺼짐 |
 | `ASK_LLM_TIMEOUT_SECONDS` · `ASK_RATE_LIMIT_*` · `ASK_LOG_*` | 제한 시간, IP별 횟수 제한, 기록 보관 | 기본값 |
 
 - **로컬:** 셸에서 `export ANTHROPIC_API_KEY=…` 하고 local 프로필로 띄운다. `application-local.properties`(git 제외)는 이 환경변수를 읽기만 한다. jar 로 띄울 때는 `--spring.config.additional-location=file:…/application-local.properties` 를 함께 준다.
