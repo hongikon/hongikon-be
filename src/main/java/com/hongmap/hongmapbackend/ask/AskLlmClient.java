@@ -619,9 +619,11 @@ public class AskLlmClient {
         }
         List<AskRouteResponse.Section> sections = sections(json.path("sections"));
         if (sections.size() < json.path("sections").size()) {
-            String raw = json.path("sections").toString();
-            log.warn("물어보기 답 섹션 {}개 중 {}개를 버렸다(빈 항목·빈 표): {}", json.path("sections").size(),
-                    json.path("sections").size() - sections.size(), raw.length() > 500 ? raw.substring(0, 500) + "…" : raw);
+            // 답 글은 남기지 않는다(학생이 쓴 말이 섞일 수 있다) — 섹션 제목과 개수만.
+            List<String> titles = new ArrayList<>();
+            json.path("sections").forEach(section -> titles.add(section.path("title").asString("")));
+            log.warn("물어보기 답 섹션 {}개 중 {}개를 버렸다(빈 항목·빈 표). 제목: {}", json.path("sections").size(),
+                    json.path("sections").size() - sections.size(), titles);
         }
         // 출구 검사 — 요약과 표·목록 칸 모두. 근거 원문에 없는 다른 대학 이름이 하나라도 있으면 답 전체를 버린다.
         StringBuilder all = new StringBuilder(answer.asString());
