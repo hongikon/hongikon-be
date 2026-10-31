@@ -138,7 +138,7 @@ public class AskRouteService {
         progress.picked(answerIds);
         // 규정 그래프(켜져 있을 때만): 고른 안내에 이어진 규정(결과·예외 …)을 [함께 볼 규정]으로 붙이고, 이웃 안내 원문도 함께 넘긴다
         // (docs/ask-rule-graph-plan.md). RAG 와 무관하게 고른 안내에서 출발한다.
-        AskRuleGraph.Related related = ruleGraph.related(answerIds);
+        AskRuleGraph.Related related = ruleGraph.related(answerIds, request.question());
         if (!related.isEmpty()) {
             related.guides().stream().filter(id -> !answerIds.contains(id)).forEach(answerIds::add);
             progress.ruleGraph(related.edgeIds(), related.guides());

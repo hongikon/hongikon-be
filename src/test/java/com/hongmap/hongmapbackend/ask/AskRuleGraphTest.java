@@ -181,7 +181,7 @@ class AskRuleGraphTest {
     // ---- 답 쓰기 지시 ----
 
     @Test
-    void 답_쓰기_지시는_그래프가_켜져_있을_때만_세_줄이_붙는다() throws Exception {
+    void 답_쓰기_지시는_그래프가_켜져_있을_때만_붙는다() throws Exception {
         AskCatalog real = new AskCatalog(MAPPER);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskLlmClient off = new AskLlmClient(real, null, retriever, new AskRuleGraph(real, (AskRuleGraph.GraphFile) null, false, 8, 2), MAPPER,
@@ -189,7 +189,7 @@ class AskRuleGraphTest {
         assertThat(off.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM);
         AskLlmClient on = new AskLlmClient(real, null, retriever, graph(8, 2), MAPPER, "", "claude-haiku-5-5", 20, "5m");
         assertThat(on.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM + AskLlmClient.RULE_GRAPH_SYSTEM);
-        assertThat(AskLlmClient.RULE_GRAPH_SYSTEM.split("\n")).hasSize(3);
+        assertThat(AskLlmClient.RULE_GRAPH_SYSTEM).contains("[함께 볼 규정]은 보조다");
     }
 
     // ---- AskRouteService 에 끼우기 ----
@@ -200,6 +200,10 @@ class AskRuleGraphTest {
     private static final AskRouteRequest REQUEST = new AskRouteRequest("학기재수강 하면 경고 없어져?", null, null);
 
     private static Routed route(AskRuleGraph graph) {
+        return route(graph, REQUEST);
+    }
+
+    private static Routed route(AskRuleGraph graph, AskRouteRequest request) {
         AskCatalog catalog = catalog("test-v1");
         AskLlmClient llm = mock(AskLlmClient.class);
         when(llm.classify(anyString(), any())).thenReturn(new AskLlmClient.Classification(AskScope.SCHOOL, List.of("retake/apply")));
@@ -208,7 +212,7 @@ class AskRuleGraphTest {
         AskRouteService service = new AskRouteService(catalog, llm, mock(AskLiveData.class), retriever, graph,
                 Clock.fixed(Instant.parse("2026-10-30T03:00:00Z"), ZoneOffset.UTC));
         AskTrace trace = new AskTrace(AskProgress.NONE);
-        service.route(REQUEST, trace);
+        service.route(request, trace);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> ids = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
@@ -234,13 +238,24 @@ class AskRuleGraphTest {
     void 켜져_있으면_context_끝에_블록이_붙고_이웃_안내가_answerIds_뒤에_더해진다() {
         AskRuleGraph graph = graph(8, 2);
         Routed routed = route(graph);
-        assertThat(routed.answerIds()).containsExactly("retake/apply", "scholarship/leave");
-        assertThat(routed.context()).endsWith(graph.related(List.of("retake/apply")).block());
+        // 질문에 '장학생' 상황이 없으니 장학생 조건 선(e-in-exception)과 그 이웃 안내는 넘기지 않는다(10-31 평가).
+        assertThat(routed.answerIds()).containsExactly("retake/apply");
+        assertThat(routed.context()).endsWith(graph.related(List.of("retake/apply"), REQUEST.question()).block());
+        assertThat(routed.context()).doesNotContain("장학생은 학기재수강");
         assertThat(routed.context()).startsWith(routed.service().answerContext(REQUEST));
         // 쓴 선 id 는 기록 steps 에 한 줄로(질문 글은 넣지 않는다), 시간 줄은 그 뒤 맨 끝.
         assertThat(routed.trace().steps())
-                .contains("규정 그래프: e-step1, e-in-exception, e-limit, e-period, e-step2 (이웃 안내 scholarship/leave)");
+                .anyMatch(step -> step.startsWith("규정 그래프: e-step1") && !step.contains("e-in-exception"));
         List<String> recorded = routed.trace().steps(10);
         assertThat(recorded.get(recorded.size() - 1)).startsWith(AskTiming.PREFIX);
+    }
+
+    @Test
+    void 질문에_조건_상황이_있으면_그_조건_선과_이웃_안내를_넘긴다() {
+        AskRuleGraph graph = graph(8, 2);
+        AskRouteRequest scholar = new AskRouteRequest("장학생인데 학기재수강 하면 경고 없어져?", null, null);
+        Routed routed = route(graph, scholar);
+        assertThat(routed.answerIds()).containsExactly("retake/apply", "scholarship/leave");
+        assertThat(routed.context()).contains("장학생은 학기재수강을 하면 장학금을 돌려낸다.").contains("학생이 말한 상황");
     }
 }

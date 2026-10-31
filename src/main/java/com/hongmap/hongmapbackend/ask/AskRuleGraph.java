@@ -36,7 +36,7 @@ public class AskRuleGraph {
     /** condition 에 쓸 수 있는 칸 이름(4절). */
     static final Set<String> CONDITION_KEYS = Set.of("학년", "이수학기", "휴학중", "장학생", "분할납부", "군복무", "졸업유예");
 
-    static final String BLOCK_HEAD = "[함께 볼 규정] 고른 안내와 이어진 규정이다. 학생 상황에 해당할 때만 결론과 결과에 반영한다.";
+    static final String BLOCK_HEAD = "[함께 볼 규정] 고른 안내와 이어진 규정이다(보조). 원래 안내로 답을 다 쓴 뒤, 학생 상황에 해당하는 결과만 덧붙인다.";
 
     private final Map<String, Node> nodes;
     private final List<Edge> edges;
@@ -49,8 +49,8 @@ public class AskRuleGraph {
     @Autowired
     public AskRuleGraph(AskCatalog catalog, JsonMapper jsonMapper,
                         @Value("${ask.graph.enabled:false}") boolean wanted,
-                        @Value("${ask.graph.max-edges:8}") int maxEdges,
-                        @Value("${ask.graph.max-guides:2}") int maxGuides) {
+                        @Value("${ask.graph.max-edges:4}") int maxEdges,
+                        @Value("${ask.graph.max-guides:1}") int maxGuides) {
         this(catalog, wanted ? read(jsonMapper, RESOURCE) : null, wanted, maxEdges, maxGuides);
     }
 
@@ -141,6 +141,16 @@ public class AskRuleGraph {
      * 선은 단계 → 종류 순으로 최대 max-edges, 이웃 안내 원문은 1단계 결과·예외 선의 근거 안내만 최대 max-guides(answerIds 에 없는 것).
      */
     public Related related(List<String> answerIds) {
+        return related(answerIds, null);
+    }
+
+    /**
+     * {@link #related(List)} 에 학생 상황을 더한다. question 이 있으면 조건이 붙은 선은 질문에서 읽은 상황({@link AskSituation})이
+     * 맞을 때만 쓴다 — 모르는 상황의 조건 선을 넘기면 모델이 그 조건으로 답을 채우고 원래 안내의 방법·결과를 빠뜨렸다(10-31 평가).
+     * question 이 null 이면 거르지 않는다.
+     */
+    public Related related(List<String> answerIds, String question) {
+        Map<String, Object> situation = question == null ? null : AskSituation.from(question);
         if (!enabled || answerIds.isEmpty()) {
             return Related.EMPTY;
         }
@@ -157,7 +167,9 @@ public class AskRuleGraph {
         }
         Map<Edge, Integer> found = new LinkedHashMap<>();
         Set<String> reached = new LinkedHashSet<>();
-        for (Edge edge : edges) {
+        List<Edge> usable = situation == null ? edges
+                : edges.stream().filter(edge -> AskSituation.satisfies(edge.condition(), situation)).toList();
+        for (Edge edge : usable) {
             boolean out = starts.contains(edge.from());
             boolean in = starts.contains(edge.to()) && (edge.type().equals("예외") || edge.type().equals("제한"));
             if (out || in) {
@@ -167,7 +179,7 @@ public class AskRuleGraph {
                 }
             }
         }
-        for (Edge edge : edges) {
+        for (Edge edge : usable) {
             if (reached.contains(edge.from()) && edge.type().equals("결과")) {
                 found.putIfAbsent(edge, 2);
             }
@@ -185,20 +197,20 @@ public class AskRuleGraph {
         }
         StringBuilder block = new StringBuilder("\n\n").append(BLOCK_HEAD);
         for (Edge edge : used) {
-            block.append('\n').append(line(edge));
+            block.append('\n').append(line(edge, situation != null));
         }
         return new Related(used.stream().map(Edge::id).toList(), guides, block.toString());
     }
 
     /** "- 학기재수강 ->(결과) 성적경고: 사실 문장 (근거: 안내 id)" - 조건이 있으면 뒤에 조건과 되묻기 기준. */
-    private String line(Edge edge) {
+    private String line(Edge edge, boolean matched) {
         StringBuilder line = new StringBuilder("- ").append(name(edge.from())).append(" ->(").append(edge.type()).append(") ")
                 .append(name(edge.to())).append(": ").append(edge.fact().trim()).append(" (근거: ").append(edge.guide()).append(')');
         if (edge.condition() != null && !edge.condition().isEmpty()) {
             List<String> parts = new ArrayList<>();
             edge.condition().forEach((key, value) -> parts.add(Boolean.TRUE.equals(value) ? key : key + "=" + value));
             line.append(" (조건: ").append(String.join(", ", parts))
-                    .append(" - 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
+                    .append(matched ? " - 학생이 말한 상황)" : " - 질문에서 알 수 없으면 갈리는 기준을 보이고 묻는다)");
         }
         return line.toString();
     }
