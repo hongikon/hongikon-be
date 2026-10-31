@@ -241,11 +241,7 @@ public class AskLlmClient {
                         "additionalProperties", false),
                 Map.of("type", "null")));
         Map<String, Object> section = Map.of("type", "object",
-                "properties", Map.of(
-                        "title", Map.of("type", "string"),
-                        "items", Map.of("type", "array", "items", Map.of("type", "string")),
-                        "ordered", Map.of("type", "boolean"),
-                        "table", table),
+                "properties", sectionProperties(table),
                 "required", List.of("title", "items", "ordered", "table"),
                 "additionalProperties", false);
         Map<String, Object> answerProperties = new LinkedHashMap<>();
@@ -794,6 +790,20 @@ public class AskLlmClient {
         } catch (JacksonException e) {
             throw new AskUnavailableException("bad json", e);
         }
+    }
+
+    /**
+     * 답 섹션 칸. 순서를 고정한다(제목 → 항목 → 번호 여부 → 표) — 모델은 스키마 칸 순서대로 답을 채우는데, Map.of 는 JVM 을 켤 때마다
+     * 순서가 바뀌어 서버를 다시 켤 때마다 답 모양이 달라졌다. 항목이 제목보다 앞에 오면 Haiku 가 빈 섹션을 자주 만들어(서버가 버림)
+     * '꼭 확인할 점' 같은 결과가 빠졌다(10-31 평가: 같은 코드에서 44문항 정답 평균 19.6 → 고정 후 25.0).
+     */
+    static Map<String, Object> sectionProperties(Object table) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("title", Map.of("type", "string"));
+        properties.put("items", Map.of("type", "array", "items", Map.of("type", "string")));
+        properties.put("ordered", Map.of("type", "boolean"));
+        properties.put("table", table);
+        return properties;
     }
 
     private static JsonOutputFormat schema(Map<String, Object> properties, List<String> required) {
