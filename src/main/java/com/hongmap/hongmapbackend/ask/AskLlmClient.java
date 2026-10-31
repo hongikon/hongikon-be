@@ -131,20 +131,33 @@ public class AskLlmClient {
                  '메뉴 위치는 안내에 없어요'라고 밝히고 담당 부서를 알려 준다.
               12) 종류·조문이 많은 주제(장학금 종류, 규정 조문 등)는 학생 대부분이 해당하는 주요한 것만 표나 항목으로 보이고,
                  나머지는 '그 밖의 ○○은 학교 홈페이지 ○○ 페이지에서 확인해요' 한 줄로 넘긴다(앱이 학교 페이지 버튼을 붙인다). 규정 조문을 그대로 늘어놓지 않는다.
-              13) 학생이 해야 하는 일(신청·선택·배정·제출·납부·등록·변경)에 관한 질문은 '언제'만 물어도 '어떻게'까지 답한다 — 학생은 그다음 할 일을 알아야 한다.
-                 원문에 이 넷 중 둘 이상이 있으면 '신청 방법' 섹션을 반드시 만든다(answer 에만 풀어 쓰지 않는다 — 학생이 한눈에 찾게).
+              13) '신청 방법' 섹션은 학생이 방법·절차를 물을 때만 만든다 — 메시지의 [질문 종류] 줄을 따른다(서버가 질문 낱말로 판단한다:
+                 '어떻게·방법·절차·신청하려면·지원하려면·어디서·서류·준비물·자격', '신청하고 싶어·지원할래' 등).
+                 이름만 묻거나('홍아람', '홍아람이 뭐야') 소개·일정만 물으면('언제야') 이 섹션을 만들지 않는다 — answer 에 무엇인지와
+                 기간·마감을 짧게 쓰고(9번의 마감·자격 제한은 한 줄로 남긴다), 신청할 수 있는 일이면 끝에 '지원 방법이 궁금하면 물어봐 주세요.' 한 문장을 붙인다.
+                 방법·절차를 물었고 원문에 누가·언제·어디서·어떻게 중 둘 이상이 있으면 '신청 방법' 섹션을 반드시 만든다(answer 에만 풀어 쓰지 않는다 — 학생이 한눈에 찾게).
                  그 섹션에 원문에 있는 것만 이 순서·머리말로 쓴다: '누가: '(대상), '언제: '(기간·마감), '어디서: '(장소·호실 또는 사이트 메뉴 경로),
                  '어떻게: '(방법·준비물·본인 여부). 결과를 언제·어떻게 알려 주는지, 안 하면 생기는 일은 '꼭 확인할 점'으로.
                  원문에 없는 칸은 지어내지 않고 빼며, 빠진 것이 '언제'·'어디서'면 answer 에 '안내에 없어요'라고 밝힌다.
                  원문 일정이 지난 학기·지난해 것이면 그 일정과 게시일을 그대로 쓰고 '이번 일정은 새 공지를 확인해야 해요'라고 밝힌다 — 방법은 빼지 않는다.
+              14) 동아리·학회 같은 학생 단체의 모집·가입 기간과 방법은 단체마다 따로 정한다(운영진 확인). 원문·공지에 그 단체의 모집 기간이 없으면
+                 '확인되지 않아요'로 끝내지 않는다 — '동아리 모집은 동아리마다 따로 해서, 관심 있는 동아리에 직접 문의해야 해요'라고 답하고,
+                 원문에 있는 그 동아리의 인스타그램·동아리방 위치를 알려 준다. 어느 동아리인지 모르면 분야(공연·스포츠·레저·학술·종교·사회·전시)를 되묻는다.
+                 원문에 '상시 모집'처럼 모집 정보가 있는 동아리는 그대로 알려 준다. 학생지원팀·총동아리연합회는 각 동아리 연락처를 모를 때의 문의처로만 쓴다.
+              15) '○○ 학회'·'○○ 동아리 뭐 있어'처럼 무엇이 있는지 묻는 목록형 질문이면 원문에 있는 이름을 실제로 보인다 —
+                 '14개가 나와 있어요'처럼 개수·위치만 말하고 끝내지 않는다. 이름과 성격이 함께 있으면 표(이름 | 성격)로, 12개가 넘으면
+                 주요한 것을 보이고 나머지는 학교·학과 홈페이지 링크로 넘긴다. 표는 sections 의 table 칸에 실제로 넣는다 —
+                 answer 에 '아래 표'라고 쓰고 sections 를 비우지 않는다(섹션 제목은 '○○ 목록'처럼 붙인다).
             - 질문이 특정 학과·단과대학이나 이름이 붙은 장학금·프로그램·행사(예: '컴퓨터공학과 동문장학금', '○○장학금')를 말하면,
               [안내 원문]에 그 이름이 없을 때 학교 전체 안내로 대신 답하지 않는다 — 먼저 search_notices 로 그 이름(학과 이름도 함께)을 찾고
               맞는 공지를 read_notice 로 읽어 답한다. 학과 게시판 공지면 어느 학과 공지인지와 게시일을 밝힌다. 찾아도 없을 때만 "확인되지 않아요"라고 한다.
             - [안내 원문]에 학과 홈페이지(page:…) 원문이 있으면 학과 고유 내용(졸업 요건·교과과정·시설·연락처 등)의 근거로 쓰고,
               어느 학과 홈페이지 내용인지 밝힌다. 질문한 학과와 다른 학과 홈페이지면 쓰지 않는다.
-            - 교수(교원) 정보: 교수 개인의 연구실 호실·전화·이메일·면담 시간·개인 이력은 원문에 있어도 쓰지 않는다(10-28 운영진 결정).
-              교수님에 관한 질문이면 그 학과 홈페이지 교수 소개 페이지(page:… 교수진 소개)로 안내하고 sourceIds 에 그 page id 를 넣는다 —
-              앱이 그 페이지 링크를 붙인다. 어느 학과 교수님인지 모르면 학과를 되묻는다. 학과 사무실 위치·전화는 써도 된다.
+            - 교수(교원) 정보: 학과 교수진 원문(page:… 교수진)에 있는 이름·소속 학과·직위·연구분야는 답에 써도 된다
+              ('○○ 연구하시는 교수님', '○○ 교수님 전공 분야' — 10-31 운영진 결정). 교수 개인의 연구실 호실·전화·이메일·면담 시간·
+              학력·개인 이력은 원문에 있어도 쓰지 않는다. 연락·면담을 물으면 그 학과 홈페이지 교수진 페이지로 안내한다.
+              교수님에 관한 답에는 sourceIds 에 그 page id 를 넣는다 — 앱이 그 페이지 링크를 붙인다. 어느 학과 교수님인지 모르면
+              학과를 되묻는다. 원문에 없는 교수님은 지어내지 않는다. 학과 사무실 위치·전화는 써도 된다.
             - 다른 대학(절대 규칙): 홍익대학교 안내만 쓴다. 다른 대학 이름은 근거 원문에 그 이름이 있을 때만 원문 그대로 쓴다
               (예: 행복기숙사 참여 대학 목록). 다른 대학의 제도·시설·일정을 말하거나 다른 대학 질문에 홍익대 정보로 대신 답하지 않는다 —
               그런 질문이면 '홍익대학교 안내만 다뤄요'라고만 하고 found=false. 서버가 근거 없는 다른 대학 이름이 든 답을 버린다.
@@ -167,9 +180,12 @@ public class AskLlmClient {
      * 꺼져 있으면 답 쓰기 지시가 지금과 같다(평가 기준선 haiku-base 를 그대로 두려고).
      */
     static final String RULE_GRAPH_SYSTEM = """
-            - [함께 볼 규정]은 학생 상황에 해당할 때만 쓴다. 해당 없는 규정을 늘어놓지 않는다.
-            - 해당하면 결론 문장에 반영하고(예: "경고는 그대로예요"), 그 규정의 근거 안내 id 를 sourceIds 에 근거로 짚는다.
-            - 조건 칸을 질문에서 알 수 없고 그 조건으로 결론이 갈리면, 갈리는 기준을 보이고 되묻는다.
+            - [함께 볼 규정]은 보조다. 먼저 [안내 원문]으로 원래 답(결론·방법·조건·기한·안 하면 생기는 일)을 빠짐없이 쓴다 —
+              [함께 볼 규정] 때문에 원래 안내의 방법·조건을 줄이거나 빼지 않는다.
+            - 그다음 학생 상황에 해당하는 규정의 결과만 결론 문장이나 '꼭 확인할 점'에 덧붙이고(예: "경고는 그대로예요"),
+              그 규정의 근거 안내 id 를 sourceIds 에 짚는다. 해당 없는 규정은 쓰지 않는다.
+            - '(조건: … - 학생이 말한 상황)'인 규정은 학생이 말한 상황이니 그대로 적용한다. 서버가 상황을 모르는 조건 규정은 넘기지 않으니
+              '○○이면 달라요'처럼 학생이 말하지 않은 조건으로 답을 채우지 않는다.
             """;
 
     private final AnthropicClient client;
@@ -225,11 +241,7 @@ public class AskLlmClient {
                         "additionalProperties", false),
                 Map.of("type", "null")));
         Map<String, Object> section = Map.of("type", "object",
-                "properties", Map.of(
-                        "title", Map.of("type", "string"),
-                        "items", Map.of("type", "array", "items", Map.of("type", "string")),
-                        "ordered", Map.of("type", "boolean"),
-                        "table", table),
+                "properties", sectionProperties(table),
                 "required", List.of("title", "items", "ordered", "table"),
                 "additionalProperties", false);
         Map<String, Object> answerProperties = new LinkedHashMap<>();
@@ -353,11 +365,35 @@ public class AskLlmClient {
      * sourceIds 에 그 id 를 넣어 학교 페이지 링크로 붙는다.
      */
     public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, AskProgress progress) {
+        return answer(initialIds, pageIds, contextMessage, List.of(), progress);
+    }
+
+    /** 학식 질문 지시 — 메뉴를 미리 넘길 때만 붙는다(AskCafeteriaQuestion). 링크만 주고 끝내던 답을 막는다(10-31). */
+    static final String CAFETERIA_BLOCK = """
+            [학식 메뉴] 서버가 저장해 둔 메뉴를 미리 꺼낸 것이다. 학교 식당 메뉴를 묻는 질문이면 이것으로 답한다.
+            - answer 에 그날(요일 포함) 메뉴가 있는지 먼저 말하고, 메뉴는 sections 의 table 하나에 '식당·끼니 | 시간 | 가격 | 메뉴' 열로 그대로 옮긴다.
+            - 홈페이지 식당 페이지 링크만 주고 끝내지 않는다. cafeteria_menu 를 다시 부르지 않는다(다른 날을 물을 때만).
+            - 그날 메뉴가 없으면 그렇다고 말하고 [다음 메뉴가 있는 날]의 메뉴를 표로 보인다.
+            - 쓴 날짜의 cafeteria:날짜 를 sourceIds 에 넣는다. 식당 메뉴를 묻는 질문이 아니면 이 블록은 무시한다.
+            """;
+
+    /** menus: 학식 질문이면 서버가 미리 꺼낸 메뉴(날짜순). 첫 요청에 넣고 근거(cafeteria:날짜)로 등록한다. */
+    public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
+                         AskProgress progress) {
         Set<String> read = new LinkedHashSet<>();
         Map<String, AskLiveData.Reference> references = new LinkedHashMap<>();
         StringBuilder first = new StringBuilder("[안내 원문]\n");
         for (String id : initialIds) {
             appendSource(first, id, read);
+        }
+        if (!menus.isEmpty()) {
+            first.append(CAFETERIA_BLOCK);
+            for (AskLiveData.DayMenu menu : menus) {
+                AskLiveData.Reference reference = menu.reference();
+                first.append(reference.ref()).append(" · ").append(AskLiveData.dayLabel(reference.date())).append('\n')
+                        .append(menu.text()).append('\n');
+                references.put(reference.ref(), reference);
+            }
         }
         for (String id : pageIds) {
             AskRetriever.Page page = retriever.page(id);
@@ -581,6 +617,13 @@ public class AskLlmClient {
             throw new AskUnavailableException("no answer");
         }
         List<AskRouteResponse.Section> sections = sections(json.path("sections"));
+        if (sections.size() < json.path("sections").size()) {
+            // 답 글은 남기지 않는다(학생이 쓴 말이 섞일 수 있다) — 섹션 제목과 개수만.
+            List<String> titles = new ArrayList<>();
+            json.path("sections").forEach(section -> titles.add(section.path("title").asString("")));
+            log.warn("물어보기 답 섹션 {}개 중 {}개를 버렸다(빈 항목·빈 표). 제목: {}", json.path("sections").size(),
+                    json.path("sections").size() - sections.size(), titles);
+        }
         // 출구 검사 — 요약과 표·목록 칸 모두. 근거 원문에 없는 다른 대학 이름이 하나라도 있으면 답 전체를 버린다.
         StringBuilder all = new StringBuilder(answer.asString());
         for (AskRouteResponse.Section section : sections) {
@@ -747,6 +790,20 @@ public class AskLlmClient {
         } catch (JacksonException e) {
             throw new AskUnavailableException("bad json", e);
         }
+    }
+
+    /**
+     * 답 섹션 칸. 순서를 고정한다(제목 → 항목 → 번호 여부 → 표) — 모델은 스키마 칸 순서대로 답을 채우는데, Map.of 는 JVM 을 켤 때마다
+     * 순서가 바뀌어 서버를 다시 켤 때마다 답 모양이 달라졌다. 항목이 제목보다 앞에 오면 Haiku 가 빈 섹션을 자주 만들어(서버가 버림)
+     * '꼭 확인할 점' 같은 결과가 빠졌다(10-31 평가: 같은 코드에서 44문항 정답 평균 19.6 → 고정 후 25.0).
+     */
+    static Map<String, Object> sectionProperties(Object table) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("title", Map.of("type", "string"));
+        properties.put("items", Map.of("type", "array", "items", Map.of("type", "string")));
+        properties.put("ordered", Map.of("type", "boolean"));
+        properties.put("table", table);
+        return properties;
     }
 
     private static JsonOutputFormat schema(Map<String, Object> properties, List<String> required) {

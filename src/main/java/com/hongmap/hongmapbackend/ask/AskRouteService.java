@@ -82,6 +82,9 @@ public class AskRouteService {
         }
         List<String> retrieved = found.nodes();
         List<String> pages = found.pages();
+        if (pages.isEmpty()) {
+            pages = departmentPages(request.question());
+        }
         if (!retrieved.isEmpty() || !pages.isEmpty()) {
             List<String> shown = new ArrayList<>(retrieved);
             shown.addAll(pages);
@@ -120,7 +123,10 @@ public class AskRouteService {
                 }
             }
         }
-        if (answerIds.isEmpty() && !picked.isEmpty() && pages.isEmpty()) {
+        // 학식 질문이면 그날 메뉴를 미리 꺼낸다 — 모델이 cafeteria_menu 를 안 부르고 식단 안내(홈페이지 링크)만 보고 답하던 것(10-31).
+        List<AskLiveData.DayMenu> menus = cafeteriaMenus(request.question());
+        menus.forEach(menu -> progress.checkingCafeteria(menu.reference().date()));
+        if (answerIds.isEmpty() && !picked.isEmpty() && pages.isEmpty() && menus.isEmpty()) {
             return new AskRouteResponse(primary, List.of(primary), null, null, catalog.version());
         }
         List<String> anchors = anchorsFor(answerIds);
@@ -132,14 +138,15 @@ public class AskRouteService {
         progress.picked(answerIds);
         // 규정 그래프(켜져 있을 때만): 고른 안내에 이어진 규정(결과·예외 …)을 [함께 볼 규정]으로 붙이고, 이웃 안내 원문도 함께 넘긴다
         // (docs/ask-rule-graph-plan.md). RAG 와 무관하게 고른 안내에서 출발한다.
-        AskRuleGraph.Related related = ruleGraph.related(answerIds);
+        AskRuleGraph.Related related = ruleGraph.related(answerIds, request.question());
         if (!related.isEmpty()) {
             related.guides().stream().filter(id -> !answerIds.contains(id)).forEach(answerIds::add);
             progress.ruleGraph(related.edgeIds(), related.guides());
         }
         try {
             String context = answerContext(request) + missingContext(request, answerIds, progress) + related.block();
-            AskLlmClient.Answer answer = pages.isEmpty()
+            AskLlmClient.Answer answer = !menus.isEmpty() ? llmClient.answer(answerIds, pages, context, menus, progress)
+                    : pages.isEmpty()
                     ? llmClient.answer(answerIds, context, progress)
                     : llmClient.answer(answerIds, pages, context, progress);
             // ③ 출구: 근거 없는 다른 대학 이름이 있어 답을 버렸으면 고정 문구로(AskLlmClient 가 화면으로 나가기 전에 막았다).
@@ -159,13 +166,38 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.references()).withSections(answer.sections());
+                    answer.found(), catalog.version(), links), answer.references())
+                    .withSections(AskQuestionIntent.filter(request.question(), answer.sections()));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             if (answerIds.isEmpty()) {
                 return new AskRouteResponse(AskCatalog.NONE, List.of(), null, null, catalog.version());
             }
             return new AskRouteResponse(primary, answerIds, null, null, catalog.version());
+        }
+    }
+
+    /**
+     * 학식 질문({@link AskCafeteriaQuestion})이면 물은 날의 메뉴, 아니면 빈 목록. 하루를 물으면 메뉴가 없을 때 다음 메뉴가 있는 날을 붙이고,
+     * 이번 주를 물으면 날마다 그대로. 메뉴를 못 읽으면(DB 오류) 빈 목록 — 답 쓰기는 지금처럼 cafeteria_menu 도구로 볼 수 있다.
+     */
+    List<AskLiveData.DayMenu> cafeteriaMenus(String question) {
+        List<LocalDate> dates = AskCafeteriaQuestion.dates(question, LocalDate.now(clock.withZone(KST)));
+        if (dates.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<AskLiveData.DayMenu> menus = new ArrayList<>();
+            for (LocalDate date : dates) {
+                AskLiveData.DayMenu menu = liveData.cafeteria(date, dates.size() == 1);
+                if (menu != null) {
+                    menus.add(menu);
+                }
+            }
+            return menus;
+        } catch (RuntimeException e) {
+            log.warn("물어보기 학식 메뉴를 미리 못 읽었다 — 도구에 맡긴다: {}", e.toString());
+            return List.of();
         }
     }
 
@@ -215,6 +247,13 @@ public class AskRouteService {
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
+    /** 질문에 학과 이름이 있으면 그 학과 홈페이지 쪽을 낱말로 찾는다 — RAG 가 꺼져 있거나 RAG 가 홈페이지 쪽을 못 골랐을 때(10-31 '컴공 학회'). */
+    List<String> departmentPages(String question) {
+        return AskBoards.find(question)
+                .map(match -> retriever.deptPages(match.board(), question.replace(match.alias(), " "), PAGES_MAX))
+                .orElse(List.of());
+    }
+
     String answerContext(AskRouteRequest request) {
         // 답 쓰기는 캐시하지 않으니 날짜를 넣어도 된다(분류 프롬프트에는 넣지 않는다 — 캐시가 깨진다).
         StringBuilder message = new StringBuilder("[오늘] ").append(LocalDate.now(clock.withZone(KST))).append(" (한국 시간)\n\n");
@@ -233,7 +272,8 @@ public class AskRouteService {
             }
             message.append('\n');
         }
-        return message.append("[이번 질문]\n").append(oneLine(request.question())).toString();
+        return message.append(AskQuestionIntent.contextLine(request.question()))
+                .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
     /**
