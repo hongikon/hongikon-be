@@ -353,11 +353,35 @@ public class AskLlmClient {
      * sourceIds 에 그 id 를 넣어 학교 페이지 링크로 붙는다.
      */
     public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, AskProgress progress) {
+        return answer(initialIds, pageIds, contextMessage, List.of(), progress);
+    }
+
+    /** 학식 질문 지시 — 메뉴를 미리 넘길 때만 붙는다(AskCafeteriaQuestion). 링크만 주고 끝내던 답을 막는다(10-31). */
+    static final String CAFETERIA_BLOCK = """
+            [학식 메뉴] 서버가 저장해 둔 메뉴를 미리 꺼낸 것이다. 학교 식당 메뉴를 묻는 질문이면 이것으로 답한다.
+            - answer 에 그날(요일 포함) 메뉴가 있는지 먼저 말하고, 메뉴는 sections 의 table 하나에 '식당·끼니 | 시간 | 가격 | 메뉴' 열로 그대로 옮긴다.
+            - 홈페이지 식당 페이지 링크만 주고 끝내지 않는다. cafeteria_menu 를 다시 부르지 않는다(다른 날을 물을 때만).
+            - 그날 메뉴가 없으면 그렇다고 말하고 [다음 메뉴가 있는 날]의 메뉴를 표로 보인다.
+            - 쓴 날짜의 cafeteria:날짜 를 sourceIds 에 넣는다. 식당 메뉴를 묻는 질문이 아니면 이 블록은 무시한다.
+            """;
+
+    /** menus: 학식 질문이면 서버가 미리 꺼낸 메뉴(날짜순). 첫 요청에 넣고 근거(cafeteria:날짜)로 등록한다. */
+    public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
+                         AskProgress progress) {
         Set<String> read = new LinkedHashSet<>();
         Map<String, AskLiveData.Reference> references = new LinkedHashMap<>();
         StringBuilder first = new StringBuilder("[안내 원문]\n");
         for (String id : initialIds) {
             appendSource(first, id, read);
+        }
+        if (!menus.isEmpty()) {
+            first.append(CAFETERIA_BLOCK);
+            for (AskLiveData.DayMenu menu : menus) {
+                AskLiveData.Reference reference = menu.reference();
+                first.append(reference.ref()).append(" · ").append(AskLiveData.dayLabel(reference.date())).append('\n')
+                        .append(menu.text()).append('\n');
+                references.put(reference.ref(), reference);
+            }
         }
         for (String id : pageIds) {
             AskRetriever.Page page = retriever.page(id);

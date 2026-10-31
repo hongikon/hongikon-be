@@ -21,9 +21,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -383,7 +385,10 @@ public class AskLiveData {
     public record NoticeBody(Reference reference, String board, String content) {
     }
 
-    /** 그날 학식(날짜를 못 읽으면 오늘). 메뉴가 없으면 식당만 나온다. */
+    /** 그날 메뉴가 없을 때(주말·휴일) 다음 메뉴가 있는 날을 찾아보는 날 수. */
+    static final int NEXT_MENU_DAYS = 7;
+
+    /** 그날 학식(날짜를 못 읽으면 오늘). 그날 메뉴가 없으면 다음 메뉴가 있는 날을 붙인다. */
     public DayMenu cafeteria(String date) {
         LocalDate day;
         try {
@@ -391,6 +396,35 @@ public class AskLiveData {
         } catch (DateTimeParseException e) {
             day = cafeteriaMenuService.today();
         }
+        return cafeteria(day, true);
+    }
+
+    /**
+     * 그날 학식. lookAhead 면 그날 메뉴가 없을 때 {@link #NEXT_MENU_DAYS}일 안의 다음 메뉴가 있는 날을 붙인다 —
+     * 토요일에 '오늘 학식'을 물으면 '오늘은 없음'만 말하고 끝나지 않게(10-31). 이번 주 전체를 볼 때는 끈다(날마다 이미 다 본다).
+     */
+    public DayMenu cafeteria(LocalDate day, boolean lookAhead) {
+        DayMenu menu = menuOn(day);
+        if (menu.served() || !lookAhead) {
+            return menu;
+        }
+        for (int i = 1; i <= NEXT_MENU_DAYS; i++) {
+            DayMenu next = menuOn(day.plusDays(i));
+            if (next.served()) {
+                return new DayMenu(menu.reference(), menu.text() + "\n[다음 메뉴가 있는 날] " + dayLabel(next.reference().date())
+                        + "\n" + next.text(), false);
+            }
+        }
+        return menu;
+    }
+
+    /** '2026-10-31(토)'. */
+    static String dayLabel(String date) {
+        LocalDate day = LocalDate.parse(date);
+        return date + "(" + day.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN) + ")";
+    }
+
+    private DayMenu menuOn(LocalDate day) {
         CafeteriaDayResponse response = cafeteriaMenuService.day(day);
         StringBuilder text = new StringBuilder();
         boolean any = false;
@@ -412,10 +446,11 @@ public class AskLiveData {
             }
         }
         Reference reference = new Reference("cafeteria:" + day, "학식 " + day, response.sourceUrl(), day.toString());
-        return new DayMenu(reference, any ? text.toString() : text + "(이날 저장된 메뉴가 없어요)\n");
+        return new DayMenu(reference, any ? text.toString() : text + "(이날 저장된 메뉴가 없어요)\n", any);
     }
 
-    public record DayMenu(Reference reference, String text) {
+    /** served: 그날 끼니가 하나라도 저장돼 있나(다음 날을 붙였으면 그날 기준으로 false). */
+    public record DayMenu(Reference reference, String text, boolean served) {
     }
 
     private static Reference reference(News news) {
