@@ -287,6 +287,8 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | `ASK_LLM_MODEL` | 모델(기본 `claude-haiku-5-5`) | 기본값 |
 | `ASK_RAG_ENABLED` · `ASK_EMBED_URL` · `ASK_EMBED_KEY` | RAG(기본 끔). URL 은 사설 터널 주소만, 키는 임베딩 서버 `EMBED_SERVER_KEY` 와 같은 값 | RAG 꺼짐 |
 | `ASK_GRAPH_ENABLED` | 규정 그래프(기본 끔). 켜도 `reviewed` 가 찬 선만 쓴다 | 그래프 꺼짐 |
+| `ASK_LLM_CACHE_TTL` | 앞부분(고르기 카탈로그·답 쓰기 지시) 캐시 유지 시간 `1h`(기본) 또는 `5m` | 기본값 |
+| `ASK_LLM_WARM_ENABLED` · `ASK_LLM_WARM_HOURS` · `ASK_LLM_WARM_IDLE_MINUTES` | 캐시 데우기(기본 켬, 하루 종일, 50분 쉬면 — 시간대를 줄이려면 한국 시간 `7-24` 처럼). `1h` 캐시일 때만 | 기본값 |
 | `ASK_LLM_TIMEOUT_SECONDS` · `ASK_RATE_LIMIT_*` · `ASK_LOG_*` | 제한 시간, IP별 횟수 제한, 기록 보관 | 기본값 |
 
 - **로컬:** 셸에서 `export ANTHROPIC_API_KEY=…` 하고 local 프로필로 띄운다. `application-local.properties`(git 제외)는 이 환경변수를 읽기만 한다. jar 로 띄울 때는 `--spring.config.additional-location=file:…/application-local.properties` 를 함께 준다.
