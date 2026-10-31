@@ -54,7 +54,8 @@ public class AskRetriever {
     @Autowired
     public AskRetriever(AskCatalog catalog, AskEmbedClient embedClient, JsonMapper jsonMapper,
                         @Value("${ask.rag.enabled:false}") boolean wanted) throws IOException {
-        this(embedClient, wanted ? load(catalog, jsonMapper) : null, wanted);
+        // RAG 를 꺼도 색인은 읽는다 — 학과 홈페이지 쪽은 낱말 점수만으로 찾아 쓴다(deptPages, 10-31).
+        this(embedClient, load(catalog, jsonMapper), wanted);
     }
 
     AskRetriever(AskEmbedClient embedClient, Index index, boolean wanted) {
@@ -120,6 +121,35 @@ public class AskRetriever {
         }
         return new Found(List.copyOf(nodes), List.copyOf(pageIds),
                 (embeddedAt - startedAt) / 1_000_000, (System.nanoTime() - embeddedAt) / 1_000_000);
+    }
+
+    /**
+     * 한 학과의 홈페이지 쪽 중 질문 낱말과 겹치는 것(BM25 점수 순) 최대 limit 개. 임베딩 서버를 쓰지 않아 RAG 가 꺼져 있어도 된다.
+     * 학과 홈페이지 원문(학회·졸업요건·실험실 등)은 카탈로그에 없어서, RAG 를 끄면 '컴공 학회'에 학회 목록 대신 공지만 답하던 것(10-31).
+     * 다른 학과 쪽은 고르지 않는다.
+     */
+    public List<String> deptPages(String dept, String query, int limit) {
+        if (dept == null || query == null || query.isBlank() || limit <= 0 || pages.isEmpty()) {
+            return List.of();
+        }
+        double[] scores = bm25(query);
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < scores.length; i++) {
+            String id = chunks.get(i).id();
+            Page page = pages.get(id);
+            if (scores[i] > 0 && page != null && dept.equals(page.dept())) {
+                order.add(i);
+            }
+        }
+        order.sort((a, b) -> Double.compare(scores[b], scores[a]));
+        Set<String> out = new LinkedHashSet<>();
+        for (int i : order) {
+            if (out.size() >= limit) {
+                break;
+            }
+            out.add(chunks.get(i).id());
+        }
+        return List.copyOf(out);
     }
 
     /** 홈페이지 쪽 정보(제목·학과·주소·원문). 없으면 null. */

@@ -82,6 +82,9 @@ public class AskRouteService {
         }
         List<String> retrieved = found.nodes();
         List<String> pages = found.pages();
+        if (pages.isEmpty()) {
+            pages = departmentPages(request.question());
+        }
         if (!retrieved.isEmpty() || !pages.isEmpty()) {
             List<String> shown = new ArrayList<>(retrieved);
             shown.addAll(pages);
@@ -163,7 +166,8 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.references()).withSections(answer.sections());
+                    answer.found(), catalog.version(), links), answer.references())
+                    .withSections(AskQuestionIntent.filter(request.question(), answer.sections()));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             if (answerIds.isEmpty()) {
@@ -243,6 +247,13 @@ public class AskRouteService {
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
+    /** 질문에 학과 이름이 있으면 그 학과 홈페이지 쪽을 낱말로 찾는다 — RAG 가 꺼져 있거나 RAG 가 홈페이지 쪽을 못 골랐을 때(10-31 '컴공 학회'). */
+    List<String> departmentPages(String question) {
+        return AskBoards.find(question)
+                .map(match -> retriever.deptPages(match.board(), question.replace(match.alias(), " "), PAGES_MAX))
+                .orElse(List.of());
+    }
+
     String answerContext(AskRouteRequest request) {
         // 답 쓰기는 캐시하지 않으니 날짜를 넣어도 된다(분류 프롬프트에는 넣지 않는다 — 캐시가 깨진다).
         StringBuilder message = new StringBuilder("[오늘] ").append(LocalDate.now(clock.withZone(KST))).append(" (한국 시간)\n\n");
@@ -261,7 +272,8 @@ public class AskRouteService {
             }
             message.append('\n');
         }
-        return message.append("[이번 질문]\n").append(oneLine(request.question())).toString();
+        return message.append(AskQuestionIntent.contextLine(request.question()))
+                .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
     /**

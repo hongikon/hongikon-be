@@ -111,6 +111,23 @@ class AskRetrieverTest {
     }
 
     @Test
+    void RAG_가_꺼져도_그_학과_홈페이지_쪽만_낱말로_찾는다() {
+        AskRetriever.Index index = new AskRetriever.Index(List.of(
+                new AskRetriever.Chunk("page:depthome_ce_0103", "컴퓨터공학전공 학회 소개 GDSC Hongik 개발 커뮤니티 HI-ARC 알고리즘"),
+                new AskRetriever.Chunk("page:depthome_ce_0201", "컴퓨터공학과 졸업요건 130학점"),
+                new AskRetriever.Chunk("page:depthome_ee_0104", "전자전기공학부 학회 소개")),
+                new float[][] {{1, 0}, {1, 0}, {1, 0}},
+                Map.of("page:depthome_ce_0103", new AskRetriever.Page("학회 소개", "컴퓨터공학과", "https://wwwce.hongik.ac.kr/wwwce/0103.do", "학회"),
+                        "page:depthome_ce_0201", new AskRetriever.Page("졸업요건", "컴퓨터공학과", "https://wwwce.hongik.ac.kr/wwwce/0201.do", "졸업"),
+                        "page:depthome_ee_0104", new AskRetriever.Page("학회 소개", "전자전기공학부", "https://ee.hongik.ac.kr/ee/0104.do", "학회")));
+        AskRetriever off = new AskRetriever(new FakeEmbed(Map.of()), index, false);
+        assertThat(off.enabled()).isFalse();
+        assertThat(off.deptPages("컴퓨터공학과", "학회", 2)).containsExactly("page:depthome_ce_0103");
+        assertThat(off.deptPages("컴퓨터공학과", "아무말", 2)).isEmpty();
+        assertThat(off.deptPages("없는학과", "학회", 2)).isEmpty();
+    }
+
+    @Test
     void 반정밀도_변환과_2글자_자르기() {
         assertThat(AskRetriever.halfToFloat((short) 0x3c00)).isEqualTo(1.0f);
         assertThat(AskRetriever.halfToFloat((short) 0xb800)).isEqualTo(-0.5f);
