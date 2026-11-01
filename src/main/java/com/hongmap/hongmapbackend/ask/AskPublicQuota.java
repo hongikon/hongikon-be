@@ -95,11 +95,16 @@ public class AskPublicQuota {
     }
 
     /** 앱 화면용 남은 횟수. userId 가 없으면(게스트) 계정 한도 대신 0. */
-    public synchronized Status status(Long userId) {
+    public Status status(Long userId) {
+        return status(userId, enabled);
+    }
+
+    /** open: 이 사용자에게 탭이 열려 있는지(스위치가 꺼져도 운영진 미리보기면 true). */
+    public synchronized Status status(Long userId, boolean open) {
         rollDay();
         int dailyLeft = Math.max(0, dailyLimit - used);
         int userLeft = userId == null ? 0 : Math.max(0, userDailyLimit - usedByUser.getOrDefault(userId, 0));
-        return new Status(enabled, userId != null, userDailyLimit, Math.min(userLeft, dailyLeft), dailyLeft == 0);
+        return new Status(open, userId != null, userDailyLimit, Math.min(userLeft, dailyLeft), dailyLeft == 0);
     }
 
     private void rollDay() {

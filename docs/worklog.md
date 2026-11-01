@@ -1515,3 +1515,4 @@
 - 설정: `ASK_PUBLIC_ENABLED`, `ASK_PUBLIC_USER_DAILY_LIMIT`, `ASK_PUBLIC_DAILY_LIMIT`, `ASK_PUBLIC_BURST_MAX`, `ASK_PUBLIC_BURST_MINUTES`. 전체 상한은 환경변수만 바꿔 재기동하면 늘릴 수 있다.
 - 운영에서 켜기 전: 개인정보처리방침(프론트 legalText, 11-09 적용) 반영·공지, `docs/ask-prod-runbook.md` 절차(임베딩 터널·키·로그 테이블).
 - 테스트: `AskPublicQuotaTest` 6(계정·전체 한도, 날짜 바뀜, 되돌리기, 몰아치기, 게스트 상태), `AskPublicRouteIntegrationTest` 3(로그인 질문·한도 429·상태, 게스트 403·LLM 안 부름, 암호키 경로 유지). 전체 740 통과.
+- (같은 날) 운영진 미리보기: `ask.public.admin-preview`(기본 true) — 스위치(`ask.public.enabled`)가 꺼져 있어도 운영진(users.role = ADMIN, `AdminAccessChecker.isAdmin(Long)`)은 앱 탭 경로로 묻고 `/ask/status` 가 enabled=true. 일반 회원·게스트는 스위치가 꺼져 있으면 예전처럼 막힌다(암호키 없음 403). 공개 전 테스트 앱 확인용. 테스트 `AskAdminPreviewIntegrationTest` 2.

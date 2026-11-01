@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.ask;
 
 import com.hongmap.hongmapbackend.ask.dto.AskRouteFeedbackRequest;
+import com.hongmap.hongmapbackend.auth.config.AdminAccessChecker;
 import com.hongmap.hongmapbackend.ask.dto.AskRouteRequest;
 import com.hongmap.hongmapbackend.ask.dto.AskRouteResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,6 +41,7 @@ import java.util.List;
  *
  * 앱 탭: ask.public.enabled 가 켜져 있고 로그인 토큰이 있으면 암호키 없이 받는다. 계정·전체 하루 한도를 넘으면 429,
  * 게스트(토큰 없음)는 403(로그인 안내). 계정 번호는 한도 계산에만 쓰고 대화 기록에는 남기지 않는다.
+ * 스위치가 꺼져 있어도 운영진(users.role = ADMIN)은 ask.public.admin-preview 로 같은 경로를 쓴다 — 공개 전 테스트 앱 확인용.
  *
  * 로그인 대신 /dev 페이지 암호키로 막는다. 앱은 게이트(DevPathGate)에 입력한 암호키를 X-Ask-Dev-Key 로 보내고,
  * 서버는 그 SHA-256 이 ask.dev-key-sha256 과 같은지 본다 — 게이트 확인은 브라우저 안에서만 하므로 서버가 따로 확인해야 하고,
@@ -64,6 +66,8 @@ public class AskRouteController {
     private final AskCatalog askCatalog;
     private final AskConversationRecorder recorder;
     private final AskPublicQuota publicQuota;
+    private final AdminAccessChecker adminAccessChecker;
+    private final boolean adminPreview;
     private final byte[] devKeySha256;
     private final ExecutorService streams = Executors.newFixedThreadPool(STREAM_THREADS, new ThreadFactory() {
         private final AtomicInteger count = new AtomicInteger();
@@ -78,8 +82,12 @@ public class AskRouteController {
 
     public AskRouteController(AskRouteService askRouteService, AskRateLimiter askRateLimiter, AskTranscript askTranscript,
                               AskCatalog askCatalog, AskConversationRecorder recorder, AskPublicQuota publicQuota,
+                              AdminAccessChecker adminAccessChecker,
+                              @Value("${ask.public.admin-preview:true}") boolean adminPreview,
                               @Value("${ask.dev-key-sha256:}") String devKeySha256) {
         this.publicQuota = publicQuota;
+        this.adminAccessChecker = adminAccessChecker;
+        this.adminPreview = adminPreview;
         this.askCatalog = askCatalog;
         this.recorder = recorder;
         this.askRouteService = askRouteService;
@@ -120,7 +128,7 @@ public class AskRouteController {
     public void feedback(@RequestHeader(value = DEV_KEY_HEADER, required = false) String key,
                          @AuthenticationPrincipal Long userId,
                          @Valid @RequestBody AskRouteFeedbackRequest request) {
-        if (key != null || userId == null || !publicQuota.enabled()) {
+        if (key != null || !appOpen(userId)) {
             checkKey(key);
         }
         if (!recorder.resolve(request.logId(), request.conversationId(), request.resolved())) {
@@ -197,7 +205,15 @@ public class AskRouteController {
     @Operation(summary = "물어보기 탭 상태(BETA)", description = "켜짐 여부, 로그인 여부, 계정 하루 한도와 오늘 남은 수, 전체 하루 상한이 찼는지. 로그인 선택.")
     @GetMapping("/ask/status")
     public AskPublicQuota.Status status(@AuthenticationPrincipal Long userId) {
-        return publicQuota.status(userId);
+        return publicQuota.status(userId, appOpen(userId));
+    }
+
+    /** 앱 탭 경로가 이 사용자에게 열려 있는지 — 스위치가 켜졌거나, 꺼져 있어도 운영진 미리보기. 게스트는 스위치만 본다. */
+    private boolean appOpen(Long userId) {
+        if (publicQuota.enabled()) {
+            return true;
+        }
+        return adminPreview && userId != null && adminAccessChecker.isAdmin(userId);
     }
 
     /**
@@ -205,7 +221,7 @@ public class AskRouteController {
      * @return 앱 탭 한도를 깎은 계정 번호(실패하면 되돌린다). 운영진 경로면 null.
      */
     private Long authorize(String key, Long userId, HttpServletRequest httpRequest) {
-        if (key == null && publicQuota.enabled()) {
+        if (key == null && appOpen(userId)) {
             if (userId == null) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, AskPublicQuota.LOGIN_REQUIRED_MESSAGE);
             }
