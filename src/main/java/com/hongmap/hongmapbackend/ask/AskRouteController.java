@@ -229,6 +229,12 @@ public class AskRouteController {
         }
 
         @Override
+        public void retrieved(List<String> ids) {
+            // 후보 제목은 보이지 않는다 — 뜻만 가까운 엉뚱한 안내가 섞여 있어 '이걸 읽나?' 오해를 준다. 고르기 전 진행만 알린다.
+            send(emitter, closed, "retrieved", Map.of("count", ids.size()));
+        }
+
+        @Override
         public void picked(List<String> ids) {
             send(emitter, closed, "picked", Map.of("titles", ids.stream().map(AskRouteController.this::title).toList()));
         }
