@@ -6,6 +6,8 @@
 -- 2) user_notification_settings.partner_ad_consent_at: 제휴 혜택 알림(광고성 정보) 수신 동의 시각(UTC). NULL = 미동의.
 --    정보통신망법 제50조 동의 기록·2년 재확인 안내용. UserNotificationSetting.partnerAdConsentAt 과 맞춤.
 --    회원탈퇴 시 행째 지워진다(UserService + FK ON DELETE CASCADE).
+-- 3) user_notification_settings.partner_ad_night_consent_at(11-01): 야간(21~8시) 수신 별도 동의 시각(UTC). NULL = 미동의.
+--    정보통신망법 제50조 제3항. 수신 동의를 철회하면 함께 지운다. UserNotificationSetting.partnerAdNightConsentAt 과 맞춤.
 --
 -- ddl-auto=validate 환경이므로 배포 전 이 DDL을 실제 RDS에 직접 실행해야 함 (빠뜨리면 새 서버가 기동하지 않음).
 -- 컬럼만 더하므로 먼저 실행해도 지금 서버에는 영향이 없다. 다시 실행해도 안전(이미 있으면 건너뛴다).
@@ -24,6 +26,13 @@ SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
 SET @ddl := IF(@has_col = 0,
   'ALTER TABLE `user_notification_settings` ADD COLUMN `partner_ad_consent_at` datetime(6) NULL AFTER `new_report_last_sent_at`',
   'SELECT ''user_notification_settings.partner_ad_consent_at 컬럼 이미 있음'' AS info');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_notification_settings' AND COLUMN_NAME = 'partner_ad_night_consent_at');
+SET @ddl := IF(@has_col = 0,
+  'ALTER TABLE `user_notification_settings` ADD COLUMN `partner_ad_night_consent_at` datetime(6) NULL AFTER `partner_ad_consent_at`',
+  'SELECT ''user_notification_settings.partner_ad_night_consent_at 컬럼 이미 있음'' AS info');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 확인용

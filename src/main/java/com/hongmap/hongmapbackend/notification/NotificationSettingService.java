@@ -66,6 +66,12 @@ public class NotificationSettingService {
         if (request.partnerAdConsent() != null) {
             setting.changePartnerAdConsent(request.partnerAdConsent(), LocalDateTime.now(clock));
         }
+        if (request.partnerAdNightConsent() != null) {
+            if (request.partnerAdNightConsent() && setting.getPartnerAdConsentAt() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "야간 수신 동의는 제휴 혜택 알림 수신 동의 뒤에만 할 수 있습니다.");
+            }
+            setting.changePartnerAdNightConsent(request.partnerAdNightConsent(), LocalDateTime.now(clock));
+        }
         if (!campusBefore && setting.receivesCampusNewReports()) {
             setting.resetNewReportLastSent();
         }

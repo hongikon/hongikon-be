@@ -377,18 +377,18 @@ class NewReportDigestTest {
     @Test
     void 캠퍼스_새_제보_알림을_새로_켜면_마지막_발송_시각을_비운다() {
         User user = user();
-        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(null, true, "KEYWORDS", null, null));
+        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(null, true, "KEYWORDS", null, null, null));
         jdbcTemplate.update("UPDATE user_notification_settings SET new_report_last_sent_at = ? WHERE user_id = ?",
                 LocalDateTime.now().minusHours(3), user.getId());
 
-        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(null, null, "CAMPUS", null, null));
+        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(null, null, "CAMPUS", null, null, null));
         assertThat(settingRepository.findById(user.getId()).orElseThrow().getNewReportLastSentAt()).isNull();
 
         // 이미 캠퍼스 알림을 받는 중이면(다른 설정만 바꿈) 그대로 둔다.
         LocalDateTime sentAt = LocalDateTime.of(2026, 10, 6, 1, 2, 3);
         jdbcTemplate.update("UPDATE user_notification_settings SET new_report_last_sent_at = ? WHERE user_id = ?",
                 sentAt, user.getId());
-        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(false, null, null, null, null));
+        notificationSettingService.update(user.getId(), new NotificationSettingsUpdateRequest(false, null, null, null, null, null));
         assertThat(settingRepository.findById(user.getId()).orElseThrow().getNewReportLastSentAt()).isEqualTo(sentAt);
     }
 

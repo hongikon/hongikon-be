@@ -1548,3 +1548,9 @@
 - 문서: `ask-setup.md` 4-3(맥미니는 127.0.0.1 + `tailscale serve` TCP 8090, 사용자 공간 모드 tailscaled), 4-4(색인 version 이 다르면 RAG 가 소리 없이 꺼짐), `ask-architecture.md` 현재 상태(앱 탭 BETA)·설정 표·3-7절.
 - 테스트: `AskRetrievedContextTest` 4(새), `AskLlmClientTimingTest` effort 파싱 1. ask 패키지 146 통과.
 - (같은 날) 질문을 밖으로 보내기 전에도 가림: `AskRouteService.route` 가 입구 차단(`AskScope.preCheck`) 다음부터 `AskPrivacy.mask(AskRouteRequest)` 로 가린 질문·직전 대화만 쓴다 — Anthropic(고르기·답 쓰기)·맥미니 임베딩 서버에 학번·휴대전화·이메일·주민번호 형태·8자리 이상 숫자열이 나가지 않는다(전에는 기록에 넣을 때만 가렸다). 안내 id(hint·nodeId)·대화 id 는 그대로. 처리방침(FE legalText, 11-09 적용)의 Anthropic 이전 항목에 '가려서 보낸다'를 맞춰 적는다. 테스트 `AskPrivacyTest` 1(새), ask 패키지 147 통과.
+
+## 2026-11-01 근처 제휴 알림 — 야간 수신 별도 동의(사용자 결정)
+- 정보통신망법 제50조 제3항(21시~다음 날 8시 광고성 정보는 별도 동의): 앱은 이 시간에 기본으로 보내지 않고, 사용자가 "밤에도 받기"를 켜면 별도 동의로 기록한다.
+- `user_notification_settings.partner_ad_night_consent_at`(UTC, NULL=미동의). GET 응답 `partnerAdNightConsentAt`(KST ISO-8601), PATCH `partnerAdNightConsent`.
+  수신 동의(`partnerAdConsentAt`) 없이 true 면 400, 수신 동의를 철회하면 함께 지운다. 켤 때 이미 있으면 처음 시각 유지.
+- SQL: 아직 운영에 실행하지 않은 `db/alter_partners_nearby_alert_2026_10_26.sql` 에 컬럼 추가(재실행 안전). 로컬 테스트 670/670.

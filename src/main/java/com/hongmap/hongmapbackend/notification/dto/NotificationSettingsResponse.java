@@ -16,13 +16,15 @@ import java.time.temporal.ChronoUnit;
  * @param adminAlerts     관리자 알림(새 제보 승인 대기·새 문의·신고 자동 숨김). 관리자에게만 의미가 있다(기본 켜짐)
  * @param partnerAdConsentAt 제휴 혜택 알림(광고성 정보) 수신 동의 시각 — ISO-8601 KST(예: 2026-10-26T14:03:00+09:00).
  *                           동의하지 않았으면 null
+ * @param partnerAdNightConsentAt 야간(21시~다음 날 8시) 수신 동의 시각 — 같은 형식, 동의하지 않았으면 null
  */
 public record NotificationSettingsResponse(
         boolean reportStatus,
         boolean newReports,
         NewReportScope newReportsScope,
         boolean adminAlerts,
-        String partnerAdConsentAt
+        String partnerAdConsentAt,
+        String partnerAdNightConsentAt
 ) {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -32,13 +34,15 @@ public record NotificationSettingsResponse(
                 UserNotificationSetting.DEFAULT_NEW_REPORTS_ENABLED,
                 NewReportScope.CAMPUS,
                 UserNotificationSetting.DEFAULT_ADMIN_ALERTS_ENABLED,
+                null,
                 null);
     }
 
     public static NotificationSettingsResponse from(UserNotificationSetting setting) {
         return new NotificationSettingsResponse(
                 setting.isReportStatusEnabled(), setting.isNewReportsEnabled(), setting.getNewReportsScope(),
-                setting.isAdminAlertsEnabled(), kst(setting.getPartnerAdConsentAt()));
+                setting.isAdminAlertsEnabled(), kst(setting.getPartnerAdConsentAt()),
+                kst(setting.getPartnerAdNightConsentAt()));
     }
 
     /** DB 의 UTC 시각 → KST 오프셋 ISO-8601 문자열. */

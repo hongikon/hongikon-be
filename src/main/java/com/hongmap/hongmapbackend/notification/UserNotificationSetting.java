@@ -75,6 +75,14 @@ public class UserNotificationSetting {
     @Column(name = "partner_ad_consent_at")
     private LocalDateTime partnerAdConsentAt;
 
+    /**
+     * 제휴 혜택 알림의 야간(21시~다음 날 8시) 수신 동의 시각(UTC). null = 동의하지 않음(앱이 그 시간엔 보내지 않는다).
+     * 정보통신망법 제50조 제3항의 별도 동의. 수신 동의(partnerAdConsentAt)를 철회하면 함께 지운다.
+     * db/alter_partners_nearby_alert_2026_10_26.sql
+     */
+    @Column(name = "partner_ad_night_consent_at")
+    private LocalDateTime partnerAdNightConsentAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -111,8 +119,23 @@ public class UserNotificationSetting {
     public void changePartnerAdConsent(boolean consent, LocalDateTime nowUtc) {
         if (!consent) {
             this.partnerAdConsentAt = null;
+            this.partnerAdNightConsentAt = null;
         } else if (this.partnerAdConsentAt == null) {
             this.partnerAdConsentAt = nowUtc.truncatedTo(ChronoUnit.SECONDS);
+        }
+    }
+
+    /**
+     * 야간 수신 동의 켜기/끄기. 켤 때 이미 동의해 있으면 처음 시각을 그대로 둔다. 끄면 기록을 지운다.
+     * 수신 동의가 있는지는 서비스에서 먼저 확인한다.
+     *
+     * @param nowUtc 지금(UTC)
+     */
+    public void changePartnerAdNightConsent(boolean consent, LocalDateTime nowUtc) {
+        if (!consent) {
+            this.partnerAdNightConsentAt = null;
+        } else if (this.partnerAdNightConsentAt == null) {
+            this.partnerAdNightConsentAt = nowUtc.truncatedTo(ChronoUnit.SECONDS);
         }
     }
 

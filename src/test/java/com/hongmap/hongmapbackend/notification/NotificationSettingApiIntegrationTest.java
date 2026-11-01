@@ -137,6 +137,38 @@ class NotificationSettingApiIntegrationTest {
     }
 
     @Test
+    void 야간_수신_동의는_수신_동의가_있어야_하고_수신_동의를_철회하면_함께_지운다() throws Exception {
+        // 수신 동의 없이 야간 동의 → 400, 아무것도 남지 않는다
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdNightConsent\":true}"))
+                .andExpect(status().isBadRequest());
+        assertThat(settingRepository.findById(user.getId())).isEmpty();
+
+        // 수신 동의와 야간 동의를 한 번에 → 둘 다 기록
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdConsent\":true,\"partnerAdNightConsent\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerAdConsentAt").isString())
+                .andExpect(jsonPath("$.partnerAdNightConsentAt").isString());
+
+        // 야간만 철회 → 수신 동의는 그대로
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdNightConsent\":false}"))
+                .andExpect(jsonPath("$.partnerAdConsentAt").isString())
+                .andExpect(jsonPath("$.partnerAdNightConsentAt").value(org.hamcrest.Matchers.nullValue()));
+
+        // 다시 야간 동의 뒤 수신 동의 철회 → 둘 다 지운다
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdNightConsent\":true}"))
+                .andExpect(jsonPath("$.partnerAdNightConsentAt").isString());
+        mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"partnerAdConsent\":false}"))
+                .andExpect(jsonPath("$.partnerAdConsentAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.partnerAdNightConsentAt").value(org.hamcrest.Matchers.nullValue()));
+        assertThat(settingRepository.findById(user.getId()).orElseThrow().getPartnerAdNightConsentAt()).isNull();
+    }
+
+    @Test
     void PATCH는_보낸_필드만_바꾼다() throws Exception {
         mockMvc.perform(patch(BASE).header("Authorization", bearer(user))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"newReports\":true}"))
