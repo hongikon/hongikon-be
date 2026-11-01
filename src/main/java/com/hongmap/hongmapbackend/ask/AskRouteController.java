@@ -12,6 +12,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -34,7 +36,10 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * 물어보기 LLM 분류. 개발 중이라 웹 /dev/ask 에서만 쓴다 — 운영 앱 화면에는 붙이지 않는다.
+ * 물어보기 LLM 분류. 웹 /dev/ask(운영진 암호키)와 앱 '물어보기' 탭(BETA, 로그인 사용자 — {@link AskPublicQuota})이 쓴다.
+ *
+ * 앱 탭: ask.public.enabled 가 켜져 있고 로그인 토큰이 있으면 암호키 없이 받는다. 계정·전체 하루 한도를 넘으면 429,
+ * 게스트(토큰 없음)는 403(로그인 안내). 계정 번호는 한도 계산에만 쓰고 대화 기록에는 남기지 않는다.
  *
  * 로그인 대신 /dev 페이지 암호키로 막는다. 앱은 게이트(DevPathGate)에 입력한 암호키를 X-Ask-Dev-Key 로 보내고,
  * 서버는 그 SHA-256 이 ask.dev-key-sha256 과 같은지 본다 — 게이트 확인은 브라우저 안에서만 하므로 서버가 따로 확인해야 하고,
@@ -58,6 +63,7 @@ public class AskRouteController {
     private final AskTranscript askTranscript;
     private final AskCatalog askCatalog;
     private final AskConversationRecorder recorder;
+    private final AskPublicQuota publicQuota;
     private final byte[] devKeySha256;
     private final ExecutorService streams = Executors.newFixedThreadPool(STREAM_THREADS, new ThreadFactory() {
         private final AtomicInteger count = new AtomicInteger();
@@ -71,8 +77,9 @@ public class AskRouteController {
     });
 
     public AskRouteController(AskRouteService askRouteService, AskRateLimiter askRateLimiter, AskTranscript askTranscript,
-                              AskCatalog askCatalog, AskConversationRecorder recorder,
+                              AskCatalog askCatalog, AskConversationRecorder recorder, AskPublicQuota publicQuota,
                               @Value("${ask.dev-key-sha256:}") String devKeySha256) {
+        this.publicQuota = publicQuota;
         this.askCatalog = askCatalog;
         this.recorder = recorder;
         this.askRouteService = askRouteService;
@@ -87,9 +94,10 @@ public class AskRouteController {
             + "LLM 이 꺼졌거나 실패하면 503 — 앱은 낱말 찾기로 돌아간다.")
     @PostMapping("/ask/route")
     public AskRouteResponse route(@RequestHeader(value = DEV_KEY_HEADER, required = false) String key,
+                                  @AuthenticationPrincipal Long userId,
                                   @Valid @RequestBody AskRouteRequest request,
                                   HttpServletRequest httpRequest) {
-        authorize(key, httpRequest);
+        Long charged = authorize(key, userId, httpRequest);
         long startedAt = System.nanoTime();
         AskTrace trace = new AskTrace(AskProgress.NONE);
         try {
@@ -98,6 +106,7 @@ public class AskRouteController {
             long latency = elapsed(startedAt);
             return response.withLogId(recorder.record(request, response, outcome(response, trace), trace.steps(latency), trace.usage(), latency));
         } catch (AskUnavailableException e) {
+            refund(charged);
             askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
             long latency = elapsed(startedAt);
             recorder.record(request, null, AskConversationLog.Outcome.FAILED, trace.steps(latency), trace.usage(), latency);
@@ -109,8 +118,11 @@ public class AskRouteController {
             + "같은 대화(conversationId)의 기록만 바꾼다. X-Ask-Dev-Key 필요(질문 한도는 쓰지 않는다). 없는 기록이면 404.")
     @PostMapping("/ask/route/feedback")
     public void feedback(@RequestHeader(value = DEV_KEY_HEADER, required = false) String key,
+                         @AuthenticationPrincipal Long userId,
                          @Valid @RequestBody AskRouteFeedbackRequest request) {
-        checkKey(key);
+        if (key != null || userId == null || !publicQuota.enabled()) {
+            checkKey(key);
+        }
         if (!recorder.resolve(request.logId(), request.conversationId(), request.resolved())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
@@ -135,9 +147,10 @@ public class AskRouteController {
             + "writing · delta{text}(답 글자) · reset(지금까지 글자 지우기) · 마지막에 done(/ask/route 응답과 같은 모양) 또는 error{message}.")
     @PostMapping(value = "/ask/route/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestHeader(value = DEV_KEY_HEADER, required = false) String key,
+                             @AuthenticationPrincipal Long userId,
                              @Valid @RequestBody AskRouteRequest request,
                              HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        authorize(key, httpRequest);
+        Long charged = authorize(key, userId, httpRequest);
         // nginx 가 SSE 를 모아 두지 않고 바로 흘려보내게(운영 배포 시 deploy/nginx 설정과 함께).
         httpResponse.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
@@ -157,12 +170,14 @@ public class AskRouteController {
                 Long logId = recorder.record(request, response, outcome, trace.steps(latency), trace.usage(), latency);
                 send(emitter, closed, "done", response.withLogId(logId));
             } catch (AskUnavailableException e) {
+                refund(charged);
                 askTranscript.record(request, "실패(503 " + e.getMessage() + ")");
                 long latency = elapsed(startedAt);
                 recorder.record(request, null, closed.get() ? AskConversationLog.Outcome.STOPPED : AskConversationLog.Outcome.FAILED,
                         trace.steps(latency), trace.usage(), latency);
                 send(emitter, closed, "error", Map.of("message", UNAVAILABLE_MESSAGE));
             } catch (RuntimeException e) {
+                refund(charged);
                 log.warn("물어보기 흘려보내기 실패: {}", e.toString());
                 send(emitter, closed, "error", Map.of("message", UNAVAILABLE_MESSAGE));
             } finally {
@@ -179,9 +194,34 @@ public class AskRouteController {
         streams.shutdownNow();
     }
 
-    private void authorize(String key, HttpServletRequest httpRequest) {
+    @Operation(summary = "물어보기 탭 상태(BETA)", description = "켜짐 여부, 로그인 여부, 계정 하루 한도와 오늘 남은 수, 전체 하루 상한이 찼는지. 로그인 선택.")
+    @GetMapping("/ask/status")
+    public AskPublicQuota.Status status(@AuthenticationPrincipal Long userId) {
+        return publicQuota.status(userId);
+    }
+
+    /**
+     * 암호키가 오면 운영진 경로(키 확인 + IP 한도), 아니면 앱 탭 경로(로그인 + 계정·전체 하루 한도).
+     * @return 앱 탭 한도를 깎은 계정 번호(실패하면 되돌린다). 운영진 경로면 null.
+     */
+    private Long authorize(String key, Long userId, HttpServletRequest httpRequest) {
+        if (key == null && publicQuota.enabled()) {
+            if (userId == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, AskPublicQuota.LOGIN_REQUIRED_MESSAGE);
+            }
+            // 학교 와이파이처럼 여럿이 한 IP 를 쓰므로 IP 한도는 걸지 않는다(계정 한도·몰아치기 제한으로 막는다).
+            publicQuota.acquire(userId);
+            return userId;
+        }
         checkKey(key);
         askRateLimiter.acquire(httpRequest.getRemoteAddr());
+        return null;
+    }
+
+    private void refund(Long charged) {
+        if (charged != null) {
+            publicQuota.refund(charged);
+        }
     }
 
     private void checkKey(String key) {

@@ -1501,3 +1501,17 @@
 - 실측(로컬, Haiku, '휴학 중에 군대 가면 어떻게 돼?'): retrieved 3.0초 → picked 5.3초 → thinking 5.6초 → 첫 글자 15.6초 → 끝 16.9초.
 - 테스트: `AskLlmClientTimingTest` 갱신(답 쓰기 호출 전 thinking 알림). 물어보기 테스트 130 통과.
 - (11-01, 사용자 요청) 문과대학 제휴(학생회 Link 게시글, 2026-09-01~12-31) 12곳: `db/sync_partners_2026_11_01_liberal_arts.sql` — 새 업체 2곳(샤브로21 상수, 눈내리는숲 설래임 홍대본점, 업체 종료일 12-31) + 기존 10곳에 문과대학 소속·전용 혜택(소속 종료일 12-31), 소코아·찜이로닭은 혜택만 갱신, 타오마라탕 홍대점·마라이장원·겐로쿠우동 주소를 도로명으로(좌표 5m 안 같은 건물), 제제집 지1층. 로컬 MySQL 트랜잭션에서 실행·두 번 실행 확인 후 되돌림. 코드 변경 없음. 운영 DB 에 실행 필요(앱·서버 배포 불필요, 캐시 5분).
+
+## 2026-11-01 — 물어보기 앱 탭(BETA): 로그인 사용자 질문 + 하루 한도
+
+- 배경: 앱 하단 3번째 탭에 물어보기를 BETA 로 연다(프론트 `docs/ask-tab-plan.md`). 탭은 모두에게, 질문은 로그인한 사용자만. 공식 전환 때 학교 인증을 붙인다.
+- `AskPublicQuota`(새): `ask.public.enabled`(기본 false)가 켜져 있으면 로그인 토큰으로 암호키 없이 `/ask/route`·`/ask/route/stream`·`/ask/route/feedback` 을 쓴다.
+  - 하루(한국 날짜) 계정마다 `user-daily-limit`(기본 100), 전체 `daily-limit`(기본 150, 예산 천장 — Haiku 질문당 약 7원이면 하루 약 1,050원), 몰아치기 `burst-max/burst-minutes`(10분 20건). 넘으면 429 와 문구(계정 한도 / 전체 상한 / 몰아치기).
+  - 서버·LLM 실패(503·흘려받기 오류)는 한도를 되돌린다.
+  - 계정 번호는 메모리 안에서 세는 데만 쓰고 대화 기록에는 남기지 않는다. 서버 1대 메모리라 재시작하면 그날 센 값이 0.
+  - 학교 와이파이처럼 여럿이 한 IP 를 쓰므로 탭 경로에는 IP 한도(60분 30건)를 걸지 않는다. 암호키 경로(웹 /dev/ask)는 그대로 키 + IP 한도.
+- 게스트(토큰 없음)는 403 "로그인하면 물어볼 수 있어요"(401 은 앱이 토큰 재발급으로 읽어 쓰지 않는다).
+- `GET /ask/status`(permitAll, 로그인 선택): `{enabled, loggedIn, limit, remaining, soldOut}` — 앱이 "오늘 N번 더 물어볼 수 있어요"를 보인다.
+- 설정: `ASK_PUBLIC_ENABLED`, `ASK_PUBLIC_USER_DAILY_LIMIT`, `ASK_PUBLIC_DAILY_LIMIT`, `ASK_PUBLIC_BURST_MAX`, `ASK_PUBLIC_BURST_MINUTES`. 전체 상한은 환경변수만 바꿔 재기동하면 늘릴 수 있다.
+- 운영에서 켜기 전: 개인정보처리방침(프론트 legalText, 11-09 적용) 반영·공지, `docs/ask-prod-runbook.md` 절차(임베딩 터널·키·로그 테이블).
+- 테스트: `AskPublicQuotaTest` 6(계정·전체 한도, 날짜 바뀜, 되돌리기, 몰아치기, 게스트 상태), `AskPublicRouteIntegrationTest` 3(로그인 질문·한도 429·상태, 게스트 403·LLM 안 부름, 암호키 경로 유지). 전체 740 통과.
