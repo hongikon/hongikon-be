@@ -21,6 +21,14 @@ public class AdminAccessChecker {
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             return false;
         }
+        return isAdmin(userId);
+    }
+
+    /** 이미 꺼낸 회원 번호로 판정(물어보기 탭 운영진 미리보기). */
+    public boolean isAdmin(Long userId) {
+        if (userId == null) {
+            return false;
+        }
         return userRepository.findRoleById(userId)
                 .map(role -> role == UserRole.ADMIN)
                 .orElse(false);

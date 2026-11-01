@@ -46,6 +46,7 @@ class AskRouteIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired AskCatalog catalog;
     @MockitoBean AskLlmClient llmClient;
+    @MockitoBean AskRetriever retriever;
     @Autowired AskConversationLogRepository logRepository;
     @Autowired AskConversationRecorder recorder;
 
@@ -253,6 +254,32 @@ class AskRouteIntegrationTest {
                 .contains("\"answer\":\"일반휴학은 돌려받지 않아요.\"")
                 .doesNotContain("event:error");
         assertThat(body.indexOf("event:picked")).isLessThan(body.indexOf("event:done"));
+    }
+
+    @Test
+    void 흘려받기는_검색_후보를_찾으면_고르기_전에_개수만_알린다() throws Exception {
+        when(retriever.enabled()).thenReturn(true);
+        when(retriever.search(anyString(), any(Integer.class), any(Integer.class)))
+                .thenReturn(new AskRetriever.Found(List.of(ANSWER_NODE, QUESTION_NODE), List.of()));
+        when(llmClient.classify(anyString(), any())).thenReturn(school(ANSWER_NODE));
+        when(llmClient.answer(anyList(), anyString(), any()))
+                .thenReturn(new AskLlmClient.Answer("일반휴학은 돌려받지 않아요.", true, List.of(ANSWER_NODE)));
+        MvcResult result = mockMvc.perform(post("/ask/route/stream").contentType(MediaType.APPLICATION_JSON)
+                        .header(AskRouteController.DEV_KEY_HEADER, KEY)
+                        .content("{\"question\":\"휴학하면 등록금 돌려받아?\"}")
+                        .with(request -> {
+                            request.setRemoteAddr(randomIp());
+                            return request;
+                        }))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String body = "";
+        for (int i = 0; i < 100 && !body.contains("event:done"); i++) {
+            Thread.sleep(50);
+            body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        }
+        assertThat(body).contains("event:retrieved\ndata:{\"count\":2}");
+        assertThat(body.indexOf("event:retrieved")).isLessThan(body.indexOf("event:picked"));
     }
 
     @Test
