@@ -270,6 +270,11 @@ public class AskRouteController {
         }
 
         @Override
+        public void thinking(boolean afterTools) {
+            send(emitter, closed, "thinking", Map.of("afterTools", afterTools));
+        }
+
+        @Override
         public void writing() {
             send(emitter, closed, "writing", Map.of());
         }

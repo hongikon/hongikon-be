@@ -147,6 +147,11 @@ final class AskTrace implements AskProgress {
     }
 
     @Override
+    public void thinking(boolean afterTools) {
+        next.thinking(afterTools);
+    }
+
+    @Override
     public void delta(String text) {
         next.delta(text);
     }

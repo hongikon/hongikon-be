@@ -528,6 +528,9 @@ public class AskLlmClient {
                 wrote[0] = true;
                 progress.delta(text);
             };
+            if (!writing) {
+                progress.thinking(round > 0);
+            }
             long callStartedAt = System.nanoTime();
             Message message = stream(params.build(), "답", progress, chunk -> {
                 if (clock.firstTextAt < 0 && !chunk.isEmpty()) {

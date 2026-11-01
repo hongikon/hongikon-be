@@ -1493,3 +1493,10 @@
 - 수정: `AskRouteController.StreamProgress.retrieved` — RAG 검색이 끝나면 SSE `retrieved` 이벤트(`{"count": N}`)를 보낸다. 후보 제목은 보내지 않는다(뜻만 가까운 엉뚱한 안내가 섞여 있다). 앱은 "맞는 안내를 고르고 있어요" · 단계 "안내 후보 N개 찾음"으로 보인다. 모르는 이벤트는 예전 앱이 무시한다.
 - 실측(로컬, Haiku, 질문 1개): retrieved 3.2초 → picked 5.4초 → 첫 글자(writing) 14.1초 → 끝 15.9초. 가장 긴 기다림은 답 쓰기의 첫 글자 전 생각(약 9초, effort medium). 맥미니 임베딩 서버는 한동안 쉬면 첫 요청이 약 3.4초(이어지면 0.2~0.4초).
 - 테스트: `AskRouteIntegrationTest` 1(retrieved 가 picked 보다 먼저, 개수만). 물어보기 통합 테스트 24 통과.
+
+## 2026-11-01 — 물어보기 흘려받기: 답 쓰기 시작 알림(thinking)
+
+- 문제: 안내를 고른 뒤 첫 글자까지 약 9~10초(답 쓰기 모델이 원문을 따지는 시간, effort medium) 동안 앱이 "관련 문서를 읽고 있어요"에 멈춰 보였다. effort 를 낮추면 '결과·조건 누락'이 늘 수 있어 품질은 그대로 두고 표시만 고친다.
+- 수정: `AskProgress.thinking(afterTools)` — 답 쓰기 호출을 보낼 때마다(글자가 아직 안 나왔으면) 알린다. 흘려받기는 SSE `thinking`(`{"afterTools": bool}`). 앱은 "원문을 따져 보며 답을 준비하고 있어요" / 도구 뒤에는 "찾은 내용으로 답을 준비하고 있어요"(과정 줄은 늘리지 않음), 그리고 기다린 지 3초가 넘으면 진행 문구 옆에 경과 초를 붙인다.
+- 실측(로컬, Haiku, '휴학 중에 군대 가면 어떻게 돼?'): retrieved 3.0초 → picked 5.3초 → thinking 5.6초 → 첫 글자 15.6초 → 끝 16.9초.
+- 테스트: `AskLlmClientTimingTest` 갱신(답 쓰기 호출 전 thinking 알림). 물어보기 테스트 130 통과.

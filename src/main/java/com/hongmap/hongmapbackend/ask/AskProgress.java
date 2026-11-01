@@ -75,6 +75,13 @@ public interface AskProgress {
     default void usage(long input, long output, long cacheRead, long cacheWrite) {
     }
 
+    /**
+     * 답 쓰기 호출을 보냈다(글자가 나오기 전 — 모델이 원문을 보고 따지는 중). afterTools 는 도구 결과를 붙여 다시 부른 차례.
+     * 첫 글자까지 수 초가 걸려 앱이 그동안 같은 문구에 멈춰 보였다(11-01).
+     */
+    default void thinking(boolean afterTools) {
+    }
+
     /** 답 글자가 나오기 시작했다. */
     default void writing() {
     }
