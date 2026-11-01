@@ -74,7 +74,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, {'model': MODEL_ID, 'vectors': embed([t[:MAX_CHARS] for t in texts])})
 
 
+class Server(ThreadingHTTPServer):
+    # 기본 대기열(5)이면 동시에 6개 넘게 연결이 몰릴 때 나머지를 거부했다(10-31: 동시 20개 중 14개 거부 → 물어보기 503).
+    request_queue_size = 128
+    daemon_threads = True
+
+
 if __name__ == '__main__':
     embed(['준비'])  # 첫 요청이 느리지 않게 미리 한 번 돌린다
     print(f'embed server {MODEL_ID} on {HOST}:{PORT}', flush=True)
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    Server((HOST, PORT), Handler).serve_forever()

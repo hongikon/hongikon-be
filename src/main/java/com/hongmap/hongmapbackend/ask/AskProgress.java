@@ -71,8 +71,8 @@ public interface AskProgress {
     default void answerTimed(int toolRounds, long toolMs, long firstTextMs, long totalMs) {
     }
 
-    /** LLM 호출 한 번의 토큰(기록·비용 확인용). */
-    default void usage(long input, long output, long cacheRead) {
+    /** LLM 호출 한 번의 토큰(기록·비용 확인용). input 은 캐시를 안 쓴 입력, cacheWrite 는 캐시에 새로 쓴 입력. */
+    default void usage(long input, long output, long cacheRead, long cacheWrite) {
     }
 
     /** 답 글자가 나오기 시작했다. */
