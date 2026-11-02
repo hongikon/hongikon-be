@@ -323,13 +323,15 @@ public class AskRetriever {
         try (InputStream in = chunksFile.getInputStream()) {
             file = jsonMapper.readValue(in, ChunksFile.class);
         }
-        if (!catalog.version().equals(file.version())) {
-            log.warn("물어보기 RAG 색인 version {} 이 카탈로그 {} 와 달라 쓰지 않는다 — build_index.py 를 다시 돌린다.", file.version(), catalog.version());
-            return null;
-        }
+        // 홈페이지 쪽(page:)은 카탈로그 안내와 상관없는 학과 홈페이지 원문이다 — 안내를 하나 고쳐 카탈로그 version 이 바뀌어도 그대로 쓴다
+        // (11-02: 안내 추가로 version 이 어긋나 '컴공 학회' 같은 학과 홈페이지 답까지 꺼지는 것을 막는다). version 검사는 전체 RAG 에만.
         if (!full) {
             List<Chunk> pageChunks = file.chunks().stream().filter(chunk -> chunk.id().startsWith(PAGE_PREFIX)).toList();
             return new Index(pageChunks, new float[0][], file.pages());
+        }
+        if (!catalog.version().equals(file.version())) {
+            log.warn("물어보기 RAG 색인 version {} 이 카탈로그 {} 와 달라 쓰지 않는다 — build_index.py 를 다시 돌린다.", file.version(), catalog.version());
+            return null;
         }
         byte[] bytes;
         try (InputStream in = vectorsFile.getInputStream()) {

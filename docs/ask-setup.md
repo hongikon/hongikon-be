@@ -111,7 +111,10 @@ tail -f ~/Library/Logs/hongikon-embed-server.log
 
 1. 맥미니와 EC2 에 Tailscale 을 설치하고 같은 계정(tailnet)에 로그인한다(운영자 계정 작업).
 2. 맥미니 터널 IP 확인: `tailscale ip -4` (예: 100.x.y.z).
-3. 맥미니: `$D/run.sh` 의 `EMBED_SERVER_HOST=127.0.0.1` 을 그 터널 IP 로 바꾸고 다시 띄운다(kickstart). 이제 터널 안에서만 열린다.
+3. 맥미니: 임베딩 서버는 `127.0.0.1:8090` 그대로 두고, Tailscale 이 터널 쪽 8090 을 그 주소로 넘기게 한다(`tailscale serve --bg --tcp 8090 tcp://127.0.0.1:8090`).
+   지금 맥미니 구성(11-02 확인): `tailscaled` 를 사용자 공간 모드(`--tun=userspace-networking`)로 launchd(`com.hongikon.tailscaled`)가 띄우고,
+   소켓은 `~/Library/Application Support/hongikon-tailscale/tailscaled.sock` 이라 `tailscale --socket=<그 소켓> serve status` 로 본다.
+   이 모드에서는 맥미니 자신이 자기 터널 IP 로 접속하지 못한다 — 맥미니 안에서 시험할 때는 `127.0.0.1:8090` 을 쓴다.
 4. EC2 `.env` 에 추가하고 컨테이너를 다시 만든다(2절):
 
 ```
@@ -125,7 +128,10 @@ ASK_EMBED_KEY=<4-1 의 48자, 맥미니와 같은 값>
 
 ### 4-4. 안내 원문이 바뀌었을 때
 
-FE `export-catalog.mjs` 로 `ask/sources.json` 이 바뀌거나 FE `data/rag-*.json`(학과 홈페이지)이 바뀌면 색인을 다시 만들고 백엔드를 다시 배포한다. 서버는 색인 version 이 카탈로그와 다르면 RAG 를 끈다.
+FE `export-catalog.mjs` 로 `ask/sources.json` 이 바뀌거나 FE `data/rag-*.json`(학과 홈페이지)이 바뀌면 색인을 다시 만들고 백엔드를 다시 배포한다. 서버는 색인 version 이 카탈로그와 다르면 RAG 를 끈다 —
+기동 로그 '물어보기 RAG 색인 version … 이 카탈로그 … 와 달라 쓰지 않는다' 가 나오면 꺼진 것이다(11-02: 카탈로그 커밋 뒤 색인을 안 만들어 로컬 dev 에서 RAG 가 소리 없이 꺼져 있었다).
+`launchd` 의 임베딩 서버 폴더(`~/Library/Application Support/hongikon-embed`)에는 저장소가 없으므로, 색인은 저장소가 있는 곳에서 돌리거나
+`sources.json`·`rag-*.json` 을 임시 폴더로 옮겨 `RAG_PAGES_DIR` 와 함께 그 폴더의 venv 로 돌린다(CPU 약 13분, 메모리가 빠듯하면 `nice -n 10`).
 
 ```sh
 cd hongikon-be/tools/embed-server

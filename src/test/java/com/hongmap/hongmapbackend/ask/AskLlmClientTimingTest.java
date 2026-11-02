@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.ask;
 
 import com.anthropic.models.messages.CacheControlEphemeral;
+import com.anthropic.models.messages.OutputConfig;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -39,12 +40,21 @@ class AskLlmClientTimingTest {
     }
 
     @Test
+    void 답_쓰기_effort_는_low_medium_high_만_받는다() {
+        assertThat(AskLlmClient.answerEffort("low")).isEqualTo(OutputConfig.Effort.LOW);
+        assertThat(AskLlmClient.answerEffort(" medium ")).isEqualTo(OutputConfig.Effort.MEDIUM);
+        assertThat(AskLlmClient.answerEffort("high")).isEqualTo(OutputConfig.Effort.HIGH);
+        assertThatThrownBy(() -> AskLlmClient.answerEffort("LOW")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AskLlmClient.answerEffort("")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 호출이_실패해도_고르기와_답_쓰기_시간을_알린다() throws Exception {
         JsonMapper mapper = JsonMapper.builder().build();
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
-        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "5m");
+        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "5m", "low");
         List<String> events = new ArrayList<>();
         AskProgress progress = new AskProgress() {
             @Override
