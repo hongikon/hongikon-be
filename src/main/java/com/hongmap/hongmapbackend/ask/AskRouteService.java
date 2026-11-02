@@ -74,6 +74,8 @@ public class AskRouteService {
         if (blocked.isPresent()) {
             return refuse(blocked.get(), null, progress);
         }
+        // 여기부터는 Anthropic·임베딩 서버로 나가므로 학번·휴대전화·이메일 형태를 가린 질문만 쓴다.
+        request = AskPrivacy.mask(request);
         // ② 찾기(RAG 가 켜져 있으면): 안내 원문 색인에서 뜻·낱말이 가까운 안내 후보. 손으로 적은 낱말(앱 hint) 대신 쓴다(10-28).
         AskRetriever.Found found = retriever.enabled()
                 ? retriever.search(retrievalQuery(request), RETRIEVED_MAX, PAGES_MAX) : new AskRetriever.Found(List.of(), List.of());
