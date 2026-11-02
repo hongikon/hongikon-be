@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.ask;
 
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,6 +19,16 @@ class AskBoardsTest {
         assertThat(AskBoards.find("산데공 학회")).get().extracting(AskBoards.Match::board).isEqualTo("산업데이터공학과");
         assertThat(AskBoards.find("산업·데이터공학과 졸업요건")).get().extracting(AskBoards.Match::board).isEqualTo("산업데이터공학과");
         assertThat(AskBoards.hint("산데공 학회")).contains("'산데공'").contains("홍익대 산업데이터공학과");
+        // 11-02 운영진 요청 줄임말.
+        Map<String, String> shortNames = Map.ofEntries(
+                Map.entry("캠자 전공 배정", "자율전공"), Map.entry("산디 졸업전시", "디자인학부"), Map.entry("시디 과제", "디자인학부"),
+                Map.entry("금조디 실기실", "금속조형디자인과"), Map.entry("목조디 학회", "목조형가구학과"),
+                Map.entry("패디 졸업작품", "섬유미술패션디자인과"), Map.entry("섬패디 공지", "섬유미술패션디자인과"),
+                Map.entry("기시디 전공필수", "기계시스템디자인공학과"), Map.entry("법대 학생회", "법학부"),
+                Map.entry("건환 졸업요건", "건설환경공학과"), Map.entry("국문과 행사", "국어국문학과"),
+                Map.entry("실건 수업", "건축학부"), Map.entry("디예경 학회", "디자인예술경영학부"));
+        shortNames.forEach((question, board) ->
+                assertThat(AskBoards.find(question)).as(question).get().extracting(AskBoards.Match::board).isEqualTo(board));
         assertThat(AskBoards.hint("휴학 신청 기간")).isEmpty();
     }
 
