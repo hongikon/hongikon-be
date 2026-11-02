@@ -1,9 +1,12 @@
 package com.hongmap.hongmapbackend.ask;
 
+import com.hongmap.hongmapbackend.ask.dto.AskRouteRequest;
+
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 물어보기 기록에 넣기 전에 개인정보 형태를 가린다(10-16 운영진 결정: 가려서 저장). 질문 뜻은 남기고 사람을 알아볼 값만 바꾼다.
+ * 물어보기 질문을 밖으로 보내거나 기록에 넣기 전에 개인정보 형태를 가린다(10-16 운영진 결정: 가려서 저장, 11-02: 보낼 때도). 질문 뜻은 남기고 사람을 알아볼 값만 바꾼다.
  * 학교 대표·부서 번호(02-320-…)처럼 공개된 번호는 답에 자주 나와 가리지 않는다 — 휴대전화만 가린다.
  */
 final class AskPrivacy {
@@ -27,5 +30,16 @@ final class AskPrivacy {
         masked = MOBILE.matcher(masked).replaceAll("[전화번호]");
         masked = STUDENT_ID.matcher(masked).replaceAll("[학번]");
         return LONG_NUMBER.matcher(masked).replaceAll("[번호]");
+    }
+
+    /**
+     * 질문과 직전 대화를 Anthropic·임베딩 서버로 보내기 전에 같은 규칙으로 가린다(11-02 — 처리방침 '가려서 보낸다').
+     * 안내 id(hint·nodeId)와 대화 id 는 사람을 알아볼 값이 아니라 그대로 둔다.
+     */
+    static AskRouteRequest mask(AskRouteRequest request) {
+        List<AskRouteRequest.Turn> history = request.history() == null ? null : request.history().stream()
+                .map(turn -> new AskRouteRequest.Turn(mask(turn.question()), turn.nodeId(), mask(turn.answer())))
+                .toList();
+        return new AskRouteRequest(mask(request.question()), request.hint(), history, request.conversationId());
     }
 }
