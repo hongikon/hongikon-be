@@ -1536,3 +1536,4 @@
 - 안내 원문(FE `feat/ask-seasonal-credits`): 계절학기 요약에 '한 계절학기 최대 6학점(별도 강좌 학점 포함, 넘으면 인정 안 됨)' — 학교 페이지에 없어 공지 '2026학년도 동계 계절학기 안내'(10-29, 8. 최대 이수학점)에서 옮김. 기숙사 입사 안내 낱말 순서(#방배정 이 카탈로그 힌트에 오르게). 카탈로그 다시 생성(version 0e341d4beba7), `rule-graph.json` catalogVersion 갱신, RAG 색인 다시 만듦(맥미니, 2,608문단).
 - 문서: `ask-setup.md` 4-3(맥미니는 127.0.0.1 + `tailscale serve` TCP 8090, 사용자 공간 모드 tailscaled), 4-4(색인 version 이 다르면 RAG 가 소리 없이 꺼짐), `ask-architecture.md` 현재 상태(앱 탭 BETA)·설정 표·3-7절.
 - 테스트: `AskRetrievedContextTest` 4(새), `AskLlmClientTimingTest` effort 파싱 1. ask 패키지 146 통과.
+- (같은 날) 질문을 밖으로 보내기 전에도 가림: `AskRouteService.route` 가 입구 차단(`AskScope.preCheck`) 다음부터 `AskPrivacy.mask(AskRouteRequest)` 로 가린 질문·직전 대화만 쓴다 — Anthropic(고르기·답 쓰기)·맥미니 임베딩 서버에 학번·휴대전화·이메일·주민번호 형태·8자리 이상 숫자열이 나가지 않는다(전에는 기록에 넣을 때만 가렸다). 안내 id(hint·nodeId)·대화 id 는 그대로. 처리방침(FE legalText, 11-09 적용)의 Anthropic 이전 항목에 '가려서 보낸다'를 맞춰 적는다. 테스트 `AskPrivacyTest` 1(새), ask 패키지 147 통과.
