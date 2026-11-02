@@ -14,6 +14,11 @@ class AskBoardsTest {
         assertThat(AskBoards.find("화공과 특강 있어?")).get().extracting(AskBoards.Match::board).isEqualTo("화학공학전공");
         assertThat(AskBoards.find("국어교육과 행사")).get().extracting(AskBoards.Match::board).isEqualTo("국어교육과");
         assertThat(AskBoards.find("교육학과 동문회 장학금")).get().extracting(AskBoards.Match::board).isEqualTo("교육학과");
+        // 11-02: '산데공 학회'를 학과로 못 알아봐 학과 게시판·홈페이지를 찾지 않았다.
+        assertThat(AskBoards.find("산데공 학회")).get().extracting(AskBoards.Match::board).isEqualTo("산업데이터공학과");
+        assertThat(AskBoards.find("산업·데이터공학과 졸업요건")).get().extracting(AskBoards.Match::board).isEqualTo("산업데이터공학과");
+        assertThat(AskBoards.hint("산데공 학회")).contains("'산데공'").contains("홍익대 산업데이터공학과");
+        assertThat(AskBoards.hint("휴학 신청 기간")).isEmpty();
     }
 
     @Test

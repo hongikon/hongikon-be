@@ -239,7 +239,8 @@ public class AskRouteService {
         } else if (known(request.hint())) {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
-        return message.append("이번 질문: ").append(oneLine(request.question())).toString();
+        return message.append(AskBoards.hint(request.question()))
+                .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
     /** RAG 검색어 — 이번 질문, 짧은 이어 묻기면 직전 질문을 앞에 붙인다. */
