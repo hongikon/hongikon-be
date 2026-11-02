@@ -1525,3 +1525,14 @@
 - `rule-graph.json` catalogVersion 갱신(validate.py: 선 49개 quote 모두 새 원문에 그대로).
 - 확인(로컬, RAG 끔): 멀티미디어실 '학기 중 평일 09:00~22:00, 방학 중 10:00~20:00', '산데공 학회' 2/2 거절 없이 '확인되지 않아요 + 문의처', 컴공·전전 학회 표 그대로. 백엔드 전체 테스트 통과.
 - 학과 줄임말 더하기(운영진 요청, 단어마다 첫 글자 규칙): 산데·기시디·건환·실건·도공·국문과·산디·금조디·금조·목조디·목가·섬패디·패디·섬미 등. 일반 낱말과 겹치는 것(영문·영영·회화·경영·경제·건축·동화)은 뺐다. 확인: 패디·금조디는 자료가 없으면 '확인되지 않아요', 기시디 전공필수는 표로.
+
+## 2026-11-02 — 물어보기: 답 쓰기 effort low, 규정 그래프 확인분, RAG 후보·앱 후보 함께, 놓친 문항 고침
+
+- 평가(로컬, 같은 시험지: 일반·범위·기준 170문항 + 추론형 44문항, 채점 Opus 5.5)로 정한 변경. 결과·방법은 `docs/ask-architecture.md` 3-7절.
+- 답 쓰기 effort 를 설정으로: `ask.llm.answer-effort`(`ASK_LLM_ANSWER_EFFORT`, 기본 **low**, low·medium·high 외에는 기동 실패). 답 쓰기 시간은 출력 토큰(대부분 내부 추론)으로 정해지고(상관 0.97), low 가 medium 보다 응답 중앙값 7.1→5.0초, 정답·기준·범위는 같거나 낫고 확인된 손해 오류는 같은 수준.
+- 규정 그래프: `feat/rule-graph-reviewed`(선 49개 사람 확인, 4c990e4)를 가져오고 선 1개 추가 — `seasonal-retake-any-grade`(학기재수강 →예외→ 과목재수강: 계절학기는 성적과 상관없이 재수강, 근거 `course-retake/start` 원문 그대로). **확인 전(reviewed 빈칸)이라 서버는 아직 이 선을 쓰지 않는다** — 사람 확인 뒤 reviewed 기입. 그 브랜치에서 실패하던 `AskRuleGraphTest`(저장소 파일에 확인된 선이 없다는 전제)를 지금 상태로 고침. `ASK_GRAPH_ENABLED` 기본은 그대로 false.
+- 용어집(`AskGlossary`): '○학년부터 다시 다니고 싶어'(재학·휴학 중)는 학기재수강, 재입학은 자퇴·제적 학생만 — 추론형 R02 가 재학생 질문을 재입학으로 답하던 것. 운영진 확인 필요(용어집은 운영진이 알려 준 것만 적는 곳인데, 이 항목은 학교 안내 원문 semester-retake·readmission 에서 옮겼다).
+- RAG 를 켰을 때(`AskRouteService`): 앱 낱말 찾기 후보(hint)를 검색 후보와 함께 고르기에 준다(전에는 RAG 후보로 바꿔 버림). 고르지 않은 검색 후보(+hint)를 `[검색 후보 안내]`(id — 한 줄 요약)로 답 쓰기에 넘겨 read_guides 로 읽게 한다. RAG 꺼짐이면 둘 다 지금과 같다.
+- 안내 원문(FE `feat/ask-seasonal-credits`): 계절학기 요약에 '한 계절학기 최대 6학점(별도 강좌 학점 포함, 넘으면 인정 안 됨)' — 학교 페이지에 없어 공지 '2026학년도 동계 계절학기 안내'(10-29, 8. 최대 이수학점)에서 옮김. 기숙사 입사 안내 낱말 순서(#방배정 이 카탈로그 힌트에 오르게). 카탈로그 다시 생성(version 0e341d4beba7), `rule-graph.json` catalogVersion 갱신, RAG 색인 다시 만듦(맥미니, 2,608문단).
+- 문서: `ask-setup.md` 4-3(맥미니는 127.0.0.1 + `tailscale serve` TCP 8090, 사용자 공간 모드 tailscaled), 4-4(색인 version 이 다르면 RAG 가 소리 없이 꺼짐), `ask-architecture.md` 현재 상태(앱 탭 BETA)·설정 표·3-7절.
+- 테스트: `AskRetrievedContextTest` 4(새), `AskLlmClientTimingTest` effort 파싱 1. ask 패키지 146 통과.

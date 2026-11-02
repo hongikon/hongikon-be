@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-31.1",
-  "catalogVersion": "1a944c741824",
+  "version": "2026-11-02.1",
+  "catalogVersion": "0e341d4beba7",
   "nodes": [
     { "id": "semester-retake", "name": "학기재수강",
       "guides": ["semester-retake/start", "semester-retake/faq0", "faq-retake/semester-retake-range", "faq-retake/semester-retake-apply", "faq-retake/semester-retake-after"] },
@@ -124,6 +124,10 @@
       "fact": "졸업유예생은 신규 교과목만 들을 수 있고 과목재수강은 안 된다.",
       "guide": "faq-registration/excess-semester-registration", "quote": "학사학위취득유예(졸업유예)생은 신규 교과목만 들을 수 있고 재수강은 안 돼요.",
       "condition": { "졸업유예": true }, "reviewed": "2026-11-02 세원" },
+    { "id": "seasonal-retake-any-grade", "from": "semester-retake", "to": "course-retake", "type": "예외",
+      "fact": "정규학기 과목재수강은 C+ 이하만 되지만 계절학기에서는 성적과 상관없이 과목재수강을 할 수 있다 — 학기 전체를 지우는 학기재수강 말고도 방법이 있다.",
+      "guide": "course-retake/start", "quote": "C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능)",
+      "condition": null, "reviewed": "" },
     { "id": "retake-delete-timing", "from": "course-retake", "to": "retake-predelete", "type": "기간",
       "fact": "재수강 전 성적은 그 학기 성적이 확정된 뒤 지워지고, 4학년은 선삭제를 신청해 미리 지울 수 있다.",
       "guide": "course-retake/start", "quote": "종강일 이후 재수강 학기의 성적이 확정되는 시점에 삭제됨 (단, 4학년 학생인 경우 선삭제 신청이 가능함)",

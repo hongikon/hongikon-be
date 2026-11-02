@@ -1,7 +1,7 @@
 # 물어보기 — 규정 그래프 검토표
 
-`tools/rule-graph/review_sheet.py` 가 `rule-graph.json`(version 2026-10-31.1)에서 만든다. 손으로 고치지 않는다.
-설계: [`ask-rule-graph-plan.md`](ask-rule-graph-plan.md). 점 24개, 선 49개 — **확인됨 49 / 확인 전 0**.
+`tools/rule-graph/review_sheet.py` 가 `rule-graph.json`(version 2026-11-02.1)에서 만든다. 손으로 고치지 않는다.
+설계: [`ask-rule-graph-plan.md`](ask-rule-graph-plan.md). 점 24개, 선 50개 — **확인됨 49 / 확인 전 1**.
 
 ## 검토하는 법
 
@@ -64,6 +64,7 @@ flowchart LR
   semester_retake -->|"선행조건 · 휴학중 ✅"| return
   semester_retake ==>|"제한 · 졸업유예 ✅"| grad_deferral
   course_retake ==>|"제한 · 졸업유예 ✅"| grad_deferral
+  semester_retake -.->|"예외"| course_retake
   course_retake -.->|"기간 ✅"| retake_predelete
   retake_predelete ==>|"제한 ✅"| leave
   military_leave -->|"선행조건 ✅"| military_grade
@@ -103,6 +104,7 @@ flowchart LR
 | ✅ 2026-11-02 세원 | `retake-counts-residency`<br>학기재수강 → 재학연한 | 결과 |  | 학기재수강으로 지운 학기도 재학연한에 들어간다. | `faq-retake/semester-retake-after`<br>“지운 학기도 재학연한에 들어가요.” |
 | ✅ 2026-11-02 세원 | `retake-after-return`<br>학기재수강 → 복학 | 선행조건 | 휴학중 | 휴학생은 복학 신청이 승인된 뒤 학기재수강을 신청하고, 직전 한 학기만 지우면 복학 신청 때 함께 고른다. | `faq-retake/semester-retake-apply`<br>“복학 예정자는 복학 신청이 승인된 뒤에 신청할 수 있어요.” |
 | ✅ 2026-11-02 세원 | `deferral-no-semester-retake`<br>학기재수강 → 졸업유예(학사학위취득유예) | 제한 | 졸업유예 | 졸업유예(학사학위취득유예) 중에는 학기재수강을 신청할 수 없다. | `faq-retake/semester-retake-apply`<br>“학사학위취득유예자는 학기재수강을 신청할 수 없어요.” |
+| ☐ | `seasonal-retake-any-grade`<br>학기재수강 → 과목재수강 | 예외 |  | 정규학기 과목재수강은 C+ 이하만 되지만 계절학기에서는 성적과 상관없이 과목재수강을 할 수 있다 — 학기 전체를 지우는 학기재수강 말고도 방법이 있다. | `course-retake/start`<br>“C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능)” |
 
 ### 성적경고
 

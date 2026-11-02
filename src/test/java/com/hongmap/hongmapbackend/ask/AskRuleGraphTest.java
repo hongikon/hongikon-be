@@ -167,15 +167,16 @@ class AskRuleGraphTest {
     }
 
     @Test
-    void 파일이_없거나_저장소_기본_파일이_비어_있으면_꺼진다() throws Exception {
+    void 파일이_없으면_꺼지고_저장소_파일은_확인된_선이_있어_스위치를_따른다() throws Exception {
         assertThat(AskRuleGraph.read(MAPPER, "ask/no-such-graph.json")).isNull();
         assertThat(new AskRuleGraph(catalog("test-v1"), (AskRuleGraph.GraphFile) null, true, 8, 2).enabled()).isFalse();
-        // 저장소의 rule-graph.json 은 아직 선이 없다(프론트 검토 뒤에 넣는다) — 켜도 지금 동작 그대로.
+        // 저장소의 rule-graph.json 은 11-02 사람 확인을 거친 선이 있다 — 스위치를 켜면 켜지고, 끄면(운영 기본) 지금 동작 그대로.
         AskCatalog real = new AskCatalog(MAPPER);
         AskRuleGraph.GraphFile shipped = AskRuleGraph.read(MAPPER, AskRuleGraph.RESOURCE);
         assertThat(shipped).isNotNull();
         assertThat(shipped.catalogVersion()).isEqualTo(real.version());
-        assertThat(new AskRuleGraph(real, MAPPER, true, 8, 2).enabled()).isFalse();
+        assertThat(new AskRuleGraph(real, MAPPER, true, 8, 2).enabled()).isTrue();
+        assertThat(new AskRuleGraph(real, MAPPER, false, 8, 2).enabled()).isFalse();
     }
 
     // ---- 답 쓰기 지시 ----
@@ -185,9 +186,9 @@ class AskRuleGraphTest {
         AskCatalog real = new AskCatalog(MAPPER);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskLlmClient off = new AskLlmClient(real, null, retriever, new AskRuleGraph(real, (AskRuleGraph.GraphFile) null, false, 8, 2), MAPPER,
-                "", "claude-haiku-5-5", 20, "5m");
+                "", "claude-haiku-5-5", 20, "5m", "low");
         assertThat(off.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM);
-        AskLlmClient on = new AskLlmClient(real, null, retriever, graph(8, 2), MAPPER, "", "claude-haiku-5-5", 20, "5m");
+        AskLlmClient on = new AskLlmClient(real, null, retriever, graph(8, 2), MAPPER, "", "claude-haiku-5-5", 20, "5m", "low");
         assertThat(on.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM + AskLlmClient.RULE_GRAPH_SYSTEM);
         assertThat(AskLlmClient.RULE_GRAPH_SYSTEM).contains("[함께 볼 규정]은 보조다");
     }
