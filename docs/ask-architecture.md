@@ -3,7 +3,7 @@
 질문 하나가 들어와 답이 나가기까지의 흐름, 단계별 파일과 언어, 바꿀 때 건드리는 곳, 그리고 틀릴 수 있는 지점을 정리한다.
 범위·섞임 규칙의 원본은 [`ask-scope-policy.md`](ask-scope-policy.md)이고, 이 문서는 그 규칙이 어디에서 어떻게 실행되는지를 설명한다.
 
-> 현재 상태: 웹 `/dev/ask`(운영진 시험용, 개발 키)에서만 쓴다. 앱 화면에는 넣지 않는다. 운영 공개 전에 개인정보처리방침 반영이 필요하다([`privacy-ask-conversation-draft.md`](privacy-ask-conversation-draft.md)).
+> 현재 상태: 웹 `/dev/ask`(운영진 시험용, 개발 키)와 앱 '물어보기' 탭(BETA, 로그인 사용자, 11-01)에서 쓴다. 앱 탭은 `ASK_PUBLIC_ENABLED` 가 켜져 있을 때만 일반 사용자에게 열리고(계정·전체 하루 한도), 꺼져 있어도 운영진은 미리 써 볼 수 있다(admin-preview). 공개 범위를 넓히기 전에 개인정보처리방침 반영을 확인한다([`privacy-ask-conversation-draft.md`](privacy-ask-conversation-draft.md)).
 
 관련 문서:
 - [`ask-scope-policy.md`](ask-scope-policy.md): 범위 규칙
@@ -220,6 +220,22 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 학과 홈페이지 | `AskRetriever.deptPages`, `AskRouteService.departmentPages` | RAG 를 꺼도 질문에 학과 이름이 있으면 그 학과 홈페이지 쪽만 BM25 로 최대 2개 찾는다('컴공 학회'에 학회 목록 대신 공지만 답하던 것). 맥미니 필요 없음 |
 | 동아리·목록 | 답 규칙 14·15 | 동아리 모집은 동아리마다 따로라 직접 문의(인스타그램·동아리방)로 안내, '○○ 학회 뭐 있어'는 이름을 표로 실제로 보인다 |
 
+## 3-7. 2026-11-02 변경 — 답 쓰기 effort low, 규정 그래프 확인분, RAG 후보와 앱 후보 함께
+
+평가는 모두 로컬(Haiku 5.5, 같은 시험지)이고 추론형은 Opus 5.5 가 채점했다. 같은 설정도 1~3문항씩 흔들려 추론형은 3회씩 돌렸다.
+
+| 바꾼 것 | 파일 | 근거(평가) |
+|---|---|---|
+| 답 쓰기 effort `low`(설정 `ask.llm.answer-effort`, 기본 low) | `AskLlmClient`, `application.properties` | 답 쓰기 시간은 출력 토큰으로 정해진다(상관 0.97, 대부분 내부 추론). low: 응답 중앙값 7.1→5.0초, 일반 정답 130→136/170, 기준 27→29/32, 범위 21/21 유지, 확인된 손해 오류 같은 수준 |
+| 규정 그래프 선 49개 사람 확인(+선 1개 추가, 확인 전) | `rule-graph.json` | 그래프 켬/끔 3회(effort low): 맞음 20·20·21 → 23·26·21, 손해 오류 R07·R19 고쳐짐, 응답 +0.6초, 답 쓰기 입력 +20%. R25(상치복학 주의점)가 부분으로 내려감 |
+| 용어집: '○학년부터 다시' = 학기재수강 | `AskGlossary` | R02 가 재입학으로 답하던 것 → 3회 모두 학기재수강으로 읽음 |
+| RAG 켬일 때 앱 hint 도 고르기에, 고르지 않은 후보는 답 쓰기에 | `AskRouteService.classifyMessage`·`withHint`·`retrievedContext` | '기숙사 방배정'이 RAG 후보에 정답이 없어 '확인되지 않아요' → 낱말 힌트 보강과 함께 고쳐짐 |
+| 계절학기 최대 6학점, 기숙사 #방배정 | FE `topics/courses.py`·`ext_life.py` | 원문에 없던 사실(공지에서 옮김), 카탈로그 힌트가 6개에서 잘리던 것 |
+
+최종(위 전부 + 그래프 켬 + RAG 켬, 추론형 3회): 맞음 26·29·24, 핵심 사실 76·80·75%, 되묻기 3/3. 그래프만 켠 것보다 R19·R24·R16·R41 이 3회 모두 맞음, R08 대부분 맞음.
+남은 실패: R02·R15·R20·R42 의 '신청 기간이 지났다'는 [오늘] 날짜 기준 답이라 시험지(기간 안을 가정)와 어긋난다(`ask-reasoning-eval.md` 원인 3). R07 은 결론은 맞지만 학기재수강 불가를 빠뜨리거나 한 번 '확인되지 않아요'.
+지난 평가에서 한 번이라도 틀린 일반 28문항을 다시 돌리면 18개가 맞음 — 나머지 PICK_MISS 대부분은 다르지만 맞는 안내(대표번호·24시 열람실·영문과 사무실 등)다.
+
 ## 4. 틀릴 수 있는 지점과 알아채는 법
 
 | 지점 | 어떻게 틀리나 | 알아채는 법 |
@@ -285,6 +301,7 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | `ANTHROPIC_API_KEY` | Claude 호출(고르기·답 쓰기) | 고르기가 꺼져 503, 앱은 낱말 찾기로 |
 | `ASK_DEV_KEY_SHA256` | `/dev/ask` 암호키의 SHA-256 hex(앱 `DevPathGate` 의 `KEY_SHA256` 과 같은 값) | 엔드포인트 404(운영 기본) |
 | `ASK_LLM_MODEL` | 모델(기본 `claude-haiku-5-5`) | 기본값 |
+| `ASK_LLM_ANSWER_EFFORT` | 답 쓰기 effort `low`(기본)·`medium`·`high`. 3-7절 | 기본값. 다른 값이면 기동 실패 |
 | `ASK_RAG_ENABLED` · `ASK_EMBED_URL` · `ASK_EMBED_KEY` | RAG(기본 끔). URL 은 사설 터널 주소만, 키는 임베딩 서버 `EMBED_SERVER_KEY` 와 같은 값 | RAG 꺼짐 |
 | `ASK_GRAPH_ENABLED` | 규정 그래프(기본 끔). 켜도 `reviewed` 가 찬 선만 쓴다 | 그래프 꺼짐 |
 | `ASK_LLM_CACHE_TTL` | 앞부분(고르기 카탈로그·답 쓰기 지시) 캐시 유지 시간 `1h`(기본) 또는 `5m` | 기본값 |

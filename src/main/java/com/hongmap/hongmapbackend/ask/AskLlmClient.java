@@ -226,7 +226,8 @@ public class AskLlmClient {
                         @Value("${anthropic.api-key:}") String apiKey,
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
-                        @Value("${ask.llm.cache-ttl:1h}") String cacheTtl) {
+                        @Value("${ask.llm.cache-ttl:1h}") String cacheTtl,
+                        @Value("${ask.llm.answer-effort:low}") String answerEffort) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
@@ -277,7 +278,7 @@ public class AskLlmClient {
         answerProperties.put("found", Map.of("type", "boolean"));
         answerProperties.put("sourceIds", Map.of("type", "array", "items", Map.of("type", "string")));
         this.answerConfig = OutputConfig.builder()
-                .effort(OutputConfig.Effort.MEDIUM)
+                .effort(answerEffort(answerEffort))
                 .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds")))
                 .build();
         this.answerTools = List.of(
@@ -330,6 +331,20 @@ public class AskLlmClient {
      * 1h 면 캐시가 1시간 산다 — 쓰기 값이 기본 입력의 1.25배에서 2배로 오르는 대신, 5~60분 쉬었다 온 질문도 캐시를 읽는다
      * (읽을 때마다 1시간이 다시 시작된다). 다른 값이면 기동에서 실패시킨다(조용히 5분으로 돌아가지 않게).
      */
+    /**
+     * 답 쓰기 effort(내부 추론 양). 답 쓰기 시간은 출력 토큰 수로 거의 정해지고(상관 0.97) 그 대부분이 추론이다.
+     * 11-02 평가(같은 시험지 170문항 + 추론형 44문항): low 가 medium 보다 응답 중앙값 7.1→5.0초, 정답·핵심 조건·범위 판정은 같거나 낫고
+     * 확인된 손해 오류도 같은 수준이라 기본을 low 로 둔다. 다른 값이면 기동 실패.
+     */
+    static OutputConfig.Effort answerEffort(String effort) {
+        return switch (effort == null ? "" : effort.trim()) {
+            case "low" -> OutputConfig.Effort.LOW;
+            case "medium" -> OutputConfig.Effort.MEDIUM;
+            case "high" -> OutputConfig.Effort.HIGH;
+            default -> throw new IllegalArgumentException("ask.llm.answer-effort 는 low·medium·high 중 하나여야 한다: " + effort);
+        };
+    }
+
     static CacheControlEphemeral cacheControl(String ttl) {
         String value = ttl == null ? "" : ttl.trim();
         if (value.isEmpty() || value.equals("5m")) {

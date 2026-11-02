@@ -21,7 +21,17 @@ final class AskBoards {
             Map.entry("컴공", "컴퓨터공학과"), Map.entry("컴퓨터공학", "컴퓨터공학과"),
             Map.entry("전전", "전자전기공학부"), Map.entry("전자전기", "전자전기공학부"), Map.entry("전자공학", "전자전기공학부"),
             Map.entry("신소재", "신소재공학전공"), Map.entry("화공", "화학공학전공"), Map.entry("화학공학", "화학공학전공"),
-            Map.entry("산공", "산업데이터공학과"), Map.entry("산업데이터", "산업데이터공학과"), Map.entry("데이터사이언스", "산업데이터공학과"),
+            Map.entry("산공", "산업데이터공학과"), Map.entry("산데공", "산업데이터공학과"), Map.entry("산데", "산업데이터공학과"),
+            Map.entry("산업데이터", "산업데이터공학과"), Map.entry("산업·데이터", "산업데이터공학과"), Map.entry("데이터사이언스", "산업데이터공학과"),
+            // 11-02 운영진 요청: 학생들이 쓰는 줄임말(학과 이름 단어마다 첫 글자). 일반 낱말과 겹치는 것(영문·회화·경영·경제·건축·동화)은 넣지 않는다.
+            Map.entry("기시디", "기계시스템디자인공학과"), Map.entry("기계·시스템", "기계시스템디자인공학과"),
+            Map.entry("건환", "건설환경공학과"), Map.entry("실건", "건축학부"), Map.entry("실내건축", "건축학부"), Map.entry("도공", "도시학과"),
+            Map.entry("국문과", "국어국문학과"), Map.entry("영어영문", "영어영문학과"),
+            Map.entry("산디", "디자인학부"), Map.entry("산업디자인", "디자인학부"), Map.entry("시각디자인", "디자인학부"),
+            Map.entry("금조디", "금속조형디자인과"), Map.entry("금조", "금속조형디자인과"),
+            Map.entry("목조디", "목조형가구학과"), Map.entry("목가", "목조형가구학과"), Map.entry("목조형가구", "목조형가구학과"),
+            Map.entry("섬패디", "섬유미술패션디자인과"), Map.entry("패디", "섬유미술패션디자인과"), Map.entry("섬미", "섬유미술패션디자인과"),
+            Map.entry("도예유리", "도예유리과"),
             Map.entry("기디공", "기계시스템디자인공학과"), Map.entry("기계공학", "기계시스템디자인공학과"), Map.entry("기계시스템", "기계시스템디자인공학과"),
             Map.entry("건환공", "건설환경공학과"), Map.entry("건설환경", "건설환경공학과"), Map.entry("토목", "건설환경공학과"),
             Map.entry("건축과", "건축학부"), Map.entry("건축학과", "건축학부"), Map.entry("도시공학", "도시학과"),
@@ -84,6 +94,16 @@ final class AskBoards {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * 고르기 메시지에 넣을 한 줄 — 질문 속 학과 줄임말이 홍익대 학과라는 것. 없으면 "".
+     * 11-02: '산데공 학회'를 고르기가 학교와 무관한 질문(off_topic)으로 거절했다 — '산데공'을 학과로 몰랐다.
+     */
+    static String hint(String question) {
+        return find(question)
+                .map(match -> "질문 속 '" + match.alias() + "'은(는) 홍익대 " + match.board() + "(학과·기관)이다 — 그 학과의 학교생활 질문이다.\n")
+                .orElse("");
     }
 
     record Match(String board, String alias) {

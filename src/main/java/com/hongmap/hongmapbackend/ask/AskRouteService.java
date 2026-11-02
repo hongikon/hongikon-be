@@ -152,7 +152,8 @@ public class AskRouteService {
             progress.ruleGraph(related.edgeIds(), related.guides());
         }
         try {
-            String context = answerContext(request) + missingContext(request, answerIds, progress) + related.block();
+            String context = answerContext(request) + missingContext(request, answerIds, progress)
+                    + retrievedContext(withHint(request, retrieved), answerIds) + related.block();
             AskLlmClient.Answer answer = !menus.isEmpty() ? llmClient.answer(answerIds, pages, context, menus, progress)
                     : pages.isEmpty()
                     ? llmClient.answer(answerIds, context, progress)
@@ -236,10 +237,14 @@ public class AskRouteService {
         if (!retrieved.isEmpty()) {
             message.append("안내 원문 검색 후보(뜻이 가까운 순, 참고용 — 맞지 않으면 고르지 않는다): ")
                     .append(String.join(", ", retrieved.stream().filter(catalog::contains).toList())).append('\n');
-        } else if (known(request.hint())) {
+        }
+        // 검색 후보가 있어도 앱 낱말 찾기 후보를 함께 준다 — RAG 가 놓친 정답을 낱말 찾기가 잡는 경우가 있다
+        // ('기숙사 방배정' → 낱말 찾기 life-dorm-movein, RAG 후보에는 없음 — 11-02 평가).
+        if (known(request.hint())) {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
-        return message.append("이번 질문: ").append(oneLine(request.question())).toString();
+        return message.append(AskBoards.hint(request.question()))
+                .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
     /** RAG 검색어 — 이번 질문, 짧은 이어 묻기면 직전 질문을 앞에 붙인다. */
@@ -282,6 +287,37 @@ public class AskRouteService {
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
+    }
+
+    /** 앱 낱말 찾기 후보(있으면)를 검색 후보 앞에 — 검색 후보가 없으면(RAG 꺼짐) 그대로 빈 목록이라 지금과 같다. */
+    List<String> withHint(AskRouteRequest request, List<String> retrieved) {
+        if (retrieved.isEmpty() || !known(request.hint()) || retrieved.contains(request.hint())) {
+            return retrieved;
+        }
+        List<String> merged = new ArrayList<>(retrieved.size() + 1);
+        merged.add(request.hint());
+        merged.addAll(retrieved);
+        return merged;
+    }
+
+    /**
+     * RAG 검색 후보 중 고르지 않은 안내(id — 한 줄 요약). 고르기가 일반 안내를 고르면 답 쓰기는 다른 후보를 몰라 '확인되지 않아요'로
+     * 답했다('기숙사 방배정 어디서 확인해요' → dorm/start 만 받고, 답이 있는 life-dorm-movein 은 후보에만 있었다 — 11-02 평가).
+     * RAG 가 꺼져 있으면(후보 없음) 빈 문자열이라 지금과 같다.
+     */
+    String retrievedContext(List<String> retrieved, List<String> answerIds) {
+        List<String> others = retrieved.stream()
+                .filter(id -> catalog.contains(id) && !catalog.isQuestion(id) && !answerIds.contains(id))
+                .toList();
+        if (others.isEmpty()) {
+            return "";
+        }
+        StringBuilder message = new StringBuilder("\n\n[검색 후보 안내] 질문과 뜻이 가까운 안내다(고른 안내 말고). ")
+                .append("고른 안내 원문에 답이 없으면 맞는 것을 read_guides 로 읽고 답하고, 맞지 않으면 무시한다.\n");
+        for (String id : others) {
+            message.append(id).append(" — ").append(catalog.line(id)).append('\n');
+        }
+        return message.toString().stripTrailing();
     }
 
     /**
