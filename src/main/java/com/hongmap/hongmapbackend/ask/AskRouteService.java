@@ -10,8 +10,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 물어보기 서버 답. ① 질문(+직전 대화)에 필요한 안내를 고르고(최대 3개) ② 그 안내 원문 안에서만 답을 쓴다.
@@ -83,10 +85,7 @@ public class AskRouteService {
             progress.retrievalTimed(found.embedMs(), found.searchMs());
         }
         List<String> retrieved = found.nodes();
-        List<String> pages = found.pages();
-        if (pages.isEmpty()) {
-            pages = departmentPages(request.question());
-        }
+        List<String> pages = departmentPages(request.question(), found.pages());
         if (!retrieved.isEmpty() || !pages.isEmpty()) {
             List<String> shown = new ArrayList<>(retrieved);
             shown.addAll(pages);
@@ -262,11 +261,62 @@ public class AskRouteService {
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
-    /** 질문에 학과 이름이 있으면 그 학과 홈페이지 쪽을 낱말로 찾는다 — RAG 가 꺼져 있거나 RAG 가 홈페이지 쪽을 못 골랐을 때(10-31 '컴공 학회'). */
-    List<String> departmentPages(String question) {
-        return AskBoards.find(question)
-                .map(match -> retriever.deptPages(match.board(), question.replace(match.alias(), " "), PAGES_MAX))
-                .orElse(List.of());
+    /**
+     * 답 쓰기에 넘길 학과 홈페이지 쪽. RAG 가 고른 쪽(retrieved)에서 출발해 질문 속 학과에 맞춘다.
+     * <ul>
+     *   <li>학과 이름이 없으면 RAG 가 고른 그대로.</li>
+     *   <li>학부 이름('신소재화공 학회')이면 전공마다 낱말로 한 쪽씩 먼저 넣고, 남는 자리(전공 수 × {@link #PAGES_MAX})를 RAG 쪽으로 채운다 —
+     *       한 전공 쪽만 넘어가 '신소재 학회'와 같은 답이 되던 것(11-03).</li>
+     *   <li>한 전공 이름('신소재 학회')이면 같은 학부 다른 전공 쪽은 뺀다. 남는 게 없으면(RAG 꺼짐·못 고름) 그 학과 쪽을 낱말로 찾는다(10-31 '컴공 학회').</li>
+     * </ul>
+     */
+    List<String> departmentPages(String question, List<String> retrieved) {
+        Optional<AskBoards.Match> found = AskBoards.find(question);
+        if (found.isEmpty()) {
+            return retrieved;
+        }
+        AskBoards.Match match = found.get();
+        String rest = match.strip(question);
+        if (match.group()) {
+            Set<String> out = new LinkedHashSet<>();
+            for (String board : match.boards()) {
+                out.addAll(retriever.deptPages(board, rest, 1));
+            }
+            int limit = PAGES_MAX * match.boards().size();
+            for (String id : retrieved) {
+                if (out.size() >= limit) {
+                    break;
+                }
+                out.add(id);
+            }
+            return List.copyOf(out);
+        }
+        List<String> siblings = match.siblings();
+        List<String> kept = retrieved.stream().filter(id -> {
+            AskRetriever.Page page = retriever.page(id);
+            return page == null || !siblings.contains(page.dept());
+        }).toList();
+        return kept.isEmpty() ? retriever.deptPages(match.board(), rest, PAGES_MAX) : kept;
+    }
+
+    /** 질문 속 학과가 1학년 공통 학부이거나 그 학부의 한 전공이면 답 쓰기에 알려 줄 한 줄(아니면 빈 문자열). */
+    static String departmentLine(String question) {
+        Optional<AskBoards.Match> found = AskBoards.find(question);
+        if (found.isEmpty()) {
+            return "";
+        }
+        AskBoards.Match match = found.get();
+        if (match.group()) {
+            return "[질문 속 학부] " + match.name() + " — 1학년은 학부로 함께 다니고 2학년부터 " + String.join("·", match.boards())
+                    + " 중 하나로 나뉜다. 학회·졸업요건·교과과정처럼 전공마다 따로인 것은 전공별로 나눠 보이고, "
+                    + "원문에 학부 전체 것이라고 적힌 것은 그렇다고 밝힌다. 같은 내용을 한 전공 것처럼 답하지 않는다.\n\n";
+        }
+        List<String> siblings = match.siblings();
+        if (siblings.isEmpty()) {
+            return "";
+        }
+        return "[질문 속 전공] " + match.board() + " — 같은 학부의 " + String.join("·", siblings)
+                + " 것은 섞지 않는다(원문에 학부 전체 것이라고 적힌 것만 그렇다고 밝혀 함께 보일 수 있다).\n\n";
     }
 
     String answerContext(AskRouteRequest request) {
@@ -288,6 +338,7 @@ public class AskRouteService {
             message.append('\n');
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
+                .append(departmentLine(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
@@ -339,10 +390,14 @@ public class AskRouteService {
         Optional<AskBoards.Match> board = AskBoards.find(request.question());
         List<AskLiveData.NoticeHit> notices = new ArrayList<>();
         if (board.isPresent()) {
-            List<String> words = AskMissingTerms.words(request.question().replace(board.get().alias(), " "), AskMissingTerms.MAX_TERMS);
-            List<AskLiveData.NoticeHit> boardHits = words.isEmpty() ? List.of() : liveData.searchNotices(String.join(" ", words), board.get().board());
-            boardHits.stream().limit(MISSING_HITS_MAX).forEach(notices::add);
-            progress.boardSearch(board.get().board(), words, boardHits.size());
+            List<String> words = AskMissingTerms.words(board.get().strip(request.question()), AskMissingTerms.MAX_TERMS);
+            // 학부로 물었으면 전공 게시판마다 나눠(합쳐 최대 MISSING_HITS_MAX) — 한 전공 공지로만 채우지 않게.
+            int perBoard = (MISSING_HITS_MAX + board.get().boards().size() - 1) / board.get().boards().size();
+            for (String id : board.get().boards()) {
+                List<AskLiveData.NoticeHit> boardHits = words.isEmpty() ? List.of() : liveData.searchNotices(String.join(" ", words), id);
+                boardHits.stream().limit(Math.min(perBoard, MISSING_HITS_MAX - notices.size())).forEach(notices::add);
+                progress.boardSearch(id, words, boardHits.size());
+            }
         }
         if (terms.isEmpty() && notices.isEmpty()) {
             return "";
@@ -365,7 +420,8 @@ public class AskRouteService {
             return "";
         }
         StringBuilder message = new StringBuilder("\n\n");
-        board.ifPresent(match -> message.append("[질문 속 학과·기관] ").append(match.board())
+        board.ifPresent(match -> message.append("[질문 속 학과·기관] ").append(match.group()
+                        ? match.name() + "(" + String.join("·", match.boards()) + ")" : match.board())
                 .append(" — 그 게시판 공지를 먼저 보고, 학교 전체 안내와 다르면 학과 공지 내용을 그 학과 것으로 밝혀 답한다.\n"));
         if (!terms.isEmpty()) {
             message.append("[고른 안내 원문에 없는 질문 낱말] ").append(String.join(", ", terms)).append('\n');
