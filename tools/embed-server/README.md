@@ -37,9 +37,17 @@ launchctl bootout gui/$(id -u)/com.hongikon.embed-server
 
 FE `node scripts/ask/export-catalog.mjs` 로 `ask/sources.json` 이 바뀌면 반드시 다시 만든다. 서버는 색인 version 이 카탈로그와 다르면 RAG 를 끈다.
 
+FE `scripts/ask/data/rag-*.json`(학과 홈페이지·재학생 팁 등)을 더하거나 고쳤을 때도 다시 만든다. 파일은 `{"pages": [...]}` 또는 `[...]` 꼴.
+
 ```sh
-./venv/bin/python -I build_index.py   # CPU 로 15~30분 → src/main/resources/ask/rag-chunks.json · rag-vectors.bin
+# 기본: 이어 만들기 — 지금 색인에서 글이 똑같은 문단은 벡터를 그대로 쓰고 새·바뀐 문단만 계산(팁 6개 추가 18초)
+RAG_PAGES_DIR=<FE 레포>/scripts/ask/data ./venv/bin/python -I build_index.py
+# 처음부터 전부(문단 자르기 규칙·모델을 바꿨을 때) — CPU 로 15~30분
+RAG_FULL=1 RAG_PAGES_DIR=<FE 레포>/scripts/ask/data ./venv/bin/python -I build_index.py
 ```
+
+→ `src/main/resources/ask/rag-chunks.json` · `rag-vectors.bin`. 로그의 '다시 쓰는 벡터 N · 새로 계산 M 문단'으로 바뀐 양을 본다.
+11-04 확인: 같은 자료로 처음부터 만든 색인과 이어 만든 색인이 문단 2,614개 모두 같은 글·벡터(코사인 1.00000).
 
 ## 운영 서버와 잇기
 
