@@ -56,6 +56,8 @@ public class MapDataService {
     private final TransactionTemplate readOnlyTx;
     private final long ttlNanos;
     private final Clock clock;
+    /** 근처 제휴 알림 긴급 스위치(기본 false). 바꾸려면 설정을 고치고 서버를 다시 띄운다 — version 이 바뀌어 앱이 새로 받는다. */
+    private final boolean nearbyAlertsEnabled;
 
     private final AtomicLong generation = new AtomicLong();
     private final Object buildLock = new Object();
@@ -72,7 +74,8 @@ public class MapDataService {
                           JsonMapper jsonMapper,
                           PlatformTransactionManager transactionManager,
                           Clock clock,
-                          @Value("${map-data.cache-ttl-seconds:300}") long ttlSeconds) {
+                          @Value("${map-data.cache-ttl-seconds:300}") long ttlSeconds,
+                          @Value("${hongikon.nearby-alerts.enabled:false}") boolean nearbyAlertsEnabled) {
         this.buildingRepository = buildingRepository;
         this.facilityRepository = facilityRepository;
         this.partnerRepository = partnerRepository;
@@ -86,6 +89,7 @@ public class MapDataService {
         this.readOnlyTx.setReadOnly(true);
         this.clock = clock;
         this.ttlNanos = Duration.ofSeconds(Math.min(Math.max(ttlSeconds, 0), 300)).toNanos();
+        this.nearbyAlertsEnabled = nearbyAlertsEnabled;
     }
 
     /** 직렬화된 응답 본문과 그 version. */
@@ -145,6 +149,7 @@ public class MapDataService {
         MapDataPayload payload = readOnlyTx.execute(status -> {
             List<Building> buildings = buildingRepository.findAllByOrderBySortOrderAscIdAsc();
             return new MapDataPayload(
+                    nearbyAlertsEnabled,
                     buildings.stream().map(mapper::building).toList(),
                     facilityRepository.findAllForMap().stream().map(mapper::facility).toList(),
                     partnerRepository.findActiveForMap(today).stream()

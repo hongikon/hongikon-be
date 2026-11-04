@@ -14,9 +14,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 /**
- * 유저별 알림 설정(게시판·카테고리·키워드 외의 알림). 제보 관련 두 가지 + 관리자 알림.
+ * 유저별 알림 설정(게시판·카테고리·키워드 외의 알림). 제보 관련 두 가지 + 관리자 알림 + 제휴 혜택 알림(광고성 정보) 수신 동의 시각.
  * 행이 없으면 기본값으로 본다 — 내 제보 결과 알림 켜짐, 캠퍼스 새 제보 알림 꺼짐(스팸 방지). 값을 처음 바꿀 때 행을 만든다.
  *
  * new_report_last_sent_at: 새 제보 푸시 빈도 제한용. 마지막으로 새 제보 푸시를 보낸 시각이며,
@@ -66,6 +67,22 @@ public class UserNotificationSetting {
     @Column(name = "new_report_last_sent_at")
     private LocalDateTime newReportLastSentAt;
 
+    /**
+     * 제휴 혜택 알림(근처 제휴 알림 등 광고성 정보) 수신 동의 시각(UTC). null = 동의하지 않음.
+     * 정보통신망법 제50조 — 동의 기록과 2년마다 재확인 안내에 쓴다. 회원탈퇴 시 행과 함께 지워진다.
+     * db/alter_partners_nearby_alert_2026_10_26.sql
+     */
+    @Column(name = "partner_ad_consent_at")
+    private LocalDateTime partnerAdConsentAt;
+
+    /**
+     * 제휴 혜택 알림의 야간(21시~다음 날 8시) 수신 동의 시각(UTC). null = 동의하지 않음(앱이 그 시간엔 보내지 않는다).
+     * 정보통신망법 제50조 제3항의 별도 동의. 수신 동의(partnerAdConsentAt)를 철회하면 함께 지운다.
+     * db/alter_partners_nearby_alert_2026_10_26.sql
+     */
+    @Column(name = "partner_ad_night_consent_at")
+    private LocalDateTime partnerAdNightConsentAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -92,6 +109,34 @@ public class UserNotificationSetting {
 
     public void changeNewReportsScope(NewReportScope scope) {
         this.newReportsScope = scope;
+    }
+
+    /**
+     * 광고성 정보 수신 동의 켜기/끄기. 켤 때 이미 동의해 있으면 처음 동의한 시각을 그대로 둔다. 끄면 기록을 지운다.
+     *
+     * @param nowUtc 지금(UTC)
+     */
+    public void changePartnerAdConsent(boolean consent, LocalDateTime nowUtc) {
+        if (!consent) {
+            this.partnerAdConsentAt = null;
+            this.partnerAdNightConsentAt = null;
+        } else if (this.partnerAdConsentAt == null) {
+            this.partnerAdConsentAt = nowUtc.truncatedTo(ChronoUnit.SECONDS);
+        }
+    }
+
+    /**
+     * 야간 수신 동의 켜기/끄기. 켤 때 이미 동의해 있으면 처음 시각을 그대로 둔다. 끄면 기록을 지운다.
+     * 수신 동의가 있는지는 서비스에서 먼저 확인한다.
+     *
+     * @param nowUtc 지금(UTC)
+     */
+    public void changePartnerAdNightConsent(boolean consent, LocalDateTime nowUtc) {
+        if (!consent) {
+            this.partnerAdNightConsentAt = null;
+        } else if (this.partnerAdNightConsentAt == null) {
+            this.partnerAdNightConsentAt = nowUtc.truncatedTo(ChronoUnit.SECONDS);
+        }
     }
 
     /** 캠퍼스 새 제보 알림(일반·다이제스트)을 받는 상태인지 — 켬 + 범위 CAMPUS. */

@@ -157,6 +157,7 @@ class MapDataIntegrationTest {
                 .andExpect(jsonPath(p + ".roadAddress").doesNotExist())
                 .andExpect(jsonPath(p + ".mapIcon").doesNotExist())
                 .andExpect(jsonPath(p + ".link").doesNotExist())
+                .andExpect(jsonPath(p + ".nearbyAlert").doesNotExist())
                 .andReturn();
 
         assertThat(result.getResponse().getHeader("Access-Control-Expose-Headers")).contains("ETag");
@@ -164,9 +165,13 @@ class MapDataIntegrationTest {
         String version = body.get("version").asString();
         assertThat(version).matches("^[0-9a-f]{16}$");
         assertThat(result.getResponse().getHeader("ETag")).isEqualTo("\"" + version + "\"");
-        // 앞에서 보는 순서: version, buildings, facilities, partners, exhibitions, paths(맨 끝, 항상). sort_order 가 가장 작으니 이 테스트 행이 맨 앞.
+        // 앞에서 보는 순서: version, nearbyAlertsEnabled, buildings, facilities, partners, exhibitions, paths(맨 끝, 항상).
+        // sort_order 가 가장 작으니 이 테스트 행이 맨 앞.
         assertThat(body.properties().stream().map(e -> e.getKey()).toList())
-                .containsExactly("version", "buildings", "facilities", "partners", "exhibitions", "paths");
+                .containsExactly("version", "nearbyAlertsEnabled", "buildings", "facilities", "partners", "exhibitions", "paths");
+        // 긴급 스위치 기본값은 꺼짐(hongikon.nearby-alerts.enabled 미설정)
+        assertThat(body.get("nearbyAlertsEnabled").isBoolean()).isTrue();
+        assertThat(body.get("nearbyAlertsEnabled").asBoolean()).isFalse();
         assertThat(body.get("exhibitions").isArray()).isTrue();
         assertThat(body.get("paths").get("nodes").isArray()).isTrue();
         assertThat(body.get("paths").get("edges").isArray()).isTrue();
@@ -461,6 +466,60 @@ class MapDataIntegrationTest {
     }
 
     @Test
+    void 근처_알림_대상은_true일_때만_내려가고_PUT_에서_생략하면_그대로_둔다() throws Exception {
+        String auth = bearer(admin);
+        String code = "adm-p-nearby-" + partnerCode.substring(7);
+        String p = "$.partners[?(@.id == '" + code + "')]";
+        String body = partnerJson(code, "근처 알림 카페", "카페", "[\"총학생회\"]", "37.5500000", "126.9250000", null);
+
+        // POST 에서 생략하면 꺼짐 — map/data 와 응답에서 nearbyAlert 가 아예 없다(false 를 내보내지 않는다).
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nearbyAlert").doesNotExist());
+        assertThat(partnerRepository.findWithAffiliationsByCode(code).orElseThrow().isNearbyAlert()).isFalse();
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath(p + ".name").value("근처 알림 카페"))
+                .andExpect(jsonPath(p + ".nearbyAlert").isEmpty());
+
+        // PUT true → 켜짐
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(withNearbyAlert(body, true)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nearbyAlert").value(true));
+        mockMvc.perform(get("/map/data"))
+                .andExpect(jsonPath(p + ".nearbyAlert").value(true))
+                .andExpect(jsonPath("$.partners[?(@.id == '" + partnerCode + "')].nearbyAlert").isEmpty());
+        mockMvc.perform(get("/admin/map/partners").header("Authorization", auth))
+                .andExpect(jsonPath(p + ".nearbyAlert").value(true));
+
+        // PUT 에서 생략 → 지금 값 유지
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nearbyAlert").value(true));
+
+        // PUT false → 꺼짐(생략)
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(withNearbyAlert(body, false)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nearbyAlert").doesNotExist());
+        mockMvc.perform(get("/map/data")).andExpect(jsonPath(p + ".nearbyAlert").isEmpty());
+
+        // POST 에서 true 로 바로 만들 수도 있다
+        String code2 = "adm-p-nearby2-" + partnerCode.substring(7);
+        mockMvc.perform(post("/admin/map/partners").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content(withNearbyAlert(partnerJson(code2, "근처 알림 식당", "음식", "[]", "37.55", "126.92", null), true)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nearbyAlert").value(true));
+
+        // 일반 사용자는 토글할 수 없다
+        mockMvc.perform(put("/admin/map/partners/" + code).header("Authorization", bearer(normal)).contentType(MediaType.APPLICATION_JSON)
+                        .content(withNearbyAlert(body, true)))
+                .andExpect(status().isForbidden());
+        assertThat(partnerRepository.findWithAffiliationsByCode(code).orElseThrow().isNearbyAlert()).isFalse();
+    }
+
+    @Test
     void If_None_Match_파싱() {
         assertThat(MapDataController.matches(null, "abc")).isFalse();
         assertThat(MapDataController.matches("\"abc\"", "abc")).isTrue();
@@ -472,6 +531,10 @@ class MapDataIntegrationTest {
 
     private String bearer(User user) {
         return "Bearer " + jwtTokenProvider.generateAccessToken(user.getId());
+    }
+
+    private static String withNearbyAlert(String partnerJson, boolean nearbyAlert) {
+        return partnerJson.substring(0, partnerJson.length() - 1) + ",\"nearbyAlert\":" + nearbyAlert + "}";
     }
 
     private static String withEndsOn(String partnerJson, String endsOn) {
