@@ -42,7 +42,7 @@ def pages():
             continue
         for p in json.load(open(os.path.join(PAGES_DIR, name), encoding='utf-8'))['pages']:
             pid = 'page:' + p['key']
-            label = f"{p['dept']} 홈페이지 · {p['title']}"
+            label = f"{p['dept']} · {p['title']}" if p['key'].startswith('tip-') else f"{p['dept']} 홈페이지 · {p['title']}"
             texts[pid] = label + '\n' + p['text']
             meta[pid] = {'title': label, 'dept': p['dept'], 'url': p['url'], 'text': p['text'][:PAGE_TEXT_MAX]}
     return texts, meta
