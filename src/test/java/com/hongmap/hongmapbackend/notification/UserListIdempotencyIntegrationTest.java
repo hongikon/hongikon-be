@@ -163,9 +163,9 @@ class UserListIdempotencyIntegrationTest {
             User me = newUser();
             runConcurrently(
                     () -> notificationSettingService.update(me.getId(),
-                            new NotificationSettingsUpdateRequest(null, true, null, null)),
+                            new NotificationSettingsUpdateRequest(null, true, null, null, null, null)),
                     () -> notificationSettingService.update(me.getId(),
-                            new NotificationSettingsUpdateRequest(false, null, null, null)));
+                            new NotificationSettingsUpdateRequest(false, null, null, null, null, null)));
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM user_notification_settings WHERE user_id = ?", Long.class, me.getId()))
                     .isEqualTo(1L);

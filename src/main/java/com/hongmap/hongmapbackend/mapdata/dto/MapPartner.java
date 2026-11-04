@@ -28,6 +28,8 @@ public record MapPartner(
         /** 소속별 제휴 종료일(기한 있는 소속만). 그 날이 지나면 그 소속만 빠진다. 없으면 생략. */
         List<MapAffiliationEnd> affiliationEnds,
         /** 이 업체만의 이용 방법(" / " 로 단계 구분). 없으면 생략 — 앱이 소속별 기본 안내를 쓴다. */
-        String usageNote
+        String usageNote,
+        /** 근처 제휴 알림 대상이면 true, 아니면 생략(false 를 내보내지 않는다). 위치 판단은 앱 안에서만. */
+        Boolean nearbyAlert
 ) {
 }
