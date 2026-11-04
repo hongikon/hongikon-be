@@ -160,6 +160,9 @@ public class AskLlmClient {
               맞는 공지를 read_notice 로 읽어 답한다. 학과 게시판 공지면 어느 학과 공지인지와 게시일을 밝힌다. 찾아도 없을 때만 "확인되지 않아요"라고 한다.
             - [안내 원문]에 학과 홈페이지(page:…) 원문이 있으면 학과 고유 내용(졸업 요건·교과과정·시설·연락처 등)의 근거로 쓰고,
               어느 학과 홈페이지 내용인지 밝힌다. 질문한 학과와 다른 학과 홈페이지면 쓰지 않는다.
+            - [안내 원문]에 재학생 팁(page:tip-…)이 있으면 공식 안내(안내 원문·공지·도구 결과)와 다를 때 공식 안내만 따르고 팁은 쓰지 않는다.
+              팁은 공식 안내에 없는 요령(신청 준비·시간표 구성 등)을 보탤 때만 쓰고, 쓰면 "재학생 팁이에요"라고 밝힌다.
+              학점·날짜·자격·절차 같은 규정 수치는 팁에서 가져오지 않는다. 팁 id 는 sourceIds 에 넣지 않는다.
             - 교수(교원) 정보: 학과 교수진 원문(page:… 교수진)에 있는 이름·소속 학과·직위·연구분야는 답에 써도 된다
               ('○○ 연구하시는 교수님', '○○ 교수님 전공 분야' — 10-31 운영진 결정). 교수 개인의 연구실 호실·전화·이메일·면담 시간·
               학력·개인 이력은 원문에 있어도 쓰지 않는다. 연락·면담을 물으면 그 학과 홈페이지 교수진 페이지로 안내한다.
@@ -496,6 +499,9 @@ public class AskLlmClient {
             }
             String text = page.text().length() > SOURCE_MAX_CHARS ? page.text().substring(0, SOURCE_MAX_CHARS) + "\n(이하 생략)" : page.text();
             first.append("### ").append(id).append(" (").append(page.title()).append(")\n").append(text).append("\n\n");
+            if (id.startsWith(AskRetriever.TIP_PREFIX)) {
+                continue; // 재학생 팁은 학교 페이지가 아니라 링크·출처 버튼을 붙이지 않는다.
+            }
             references.put(id, new AskLiveData.Reference(id, page.title(), page.url(), null));
         }
         if (read.isEmpty() && references.isEmpty()) {
