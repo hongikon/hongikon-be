@@ -57,6 +57,8 @@ public class SecurityConfig {
                     }
                     auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/status").permitAll();
+                    // 홍보 링크(방문 수 +1 후 앱 받기 안내로 302). PromoVisitController.
+                    auth.requestMatchers(HttpMethod.GET, "/promo/*", "/promo/*/seen").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/reports").permitAll();
                     // 제보 댓글 목록은 게스트도 본다(쓰기·삭제·신고는 아래 authenticated).
                     auth.requestMatchers(HttpMethod.GET, "/reports/*/comments", "/reports/*/comments/*/replies").permitAll();
