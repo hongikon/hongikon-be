@@ -1554,3 +1554,10 @@
 - `user_notification_settings.partner_ad_night_consent_at`(UTC, NULL=미동의). GET 응답 `partnerAdNightConsentAt`(KST ISO-8601), PATCH `partnerAdNightConsent`.
   수신 동의(`partnerAdConsentAt`) 없이 true 면 400, 수신 동의를 철회하면 함께 지운다. 켤 때 이미 있으면 처음 시각 유지.
 - SQL: 아직 운영에 실행하지 않은 `db/alter_partners_nearby_alert_2026_10_26.sql` 에 컬럼 추가(재실행 안전). 로컬 테스트 670/670.
+
+## 2026-11-04 — 물어보기: 학부 이름과 전공 이름 구분(신소재·화공시스템공학부)
+
+- 문제(11-03): '신소재화공 학회'와 '신소재 학회'의 답이 같았다 — 1학년은 학부로 함께 다니고 2학년에 전공을 나누는데, 학부 이름이 한 전공 게시판에만 묶여 있었다.
+- 고침: `AskBoards.GROUPS`(학부 → 전공 게시판들), 학부 이름 꼴(`신소재화공`·`신소재화학공학`)은 전공 줄임말보다 먼저 맞춤. 이름 맞출 때 공백·가운뎃점 무시. `Match(name, boards, alias)` — 학부로 물으면 두 전공 게시판을 함께, 한 전공으로 물으면 그 전공만 찾고 같은 학부 다른 전공 홈페이지는 근거에서 뺌(`AskRouteService`). 고르기 힌트(`hint`)는 학부면 학부 이름으로.
+- 개인정보·권한: 질문 문자열 매칭만 바뀜. 저장·전송 항목 변화 없음.
+- 확인: `./gradlew test` (AskBoardsTest 새 1개 포함).

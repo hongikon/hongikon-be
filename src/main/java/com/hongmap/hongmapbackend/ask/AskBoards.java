@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * 질문 속 학과·기관 이름 → 공지 게시판(news.source_id). '컴공 동문장학금', '화공과 특강'처럼 학과를 말하면 그 게시판 공지를 먼저 찾는다
@@ -50,14 +51,29 @@ final class AskBoards {
             Map.entry("취업진로", "취업진로공지"), Map.entry("취업지원", "취업진로공지"), Map.entry("채용", "채용정보"),
             Map.entry("글로벌역량", "글로벌역량지원사업"));
 
-    /** 공백 없앤 이름 → 게시판. 긴 이름부터 맞춘다('디자인학부'가 '디자인'보다 먼저). */
+    /**
+     * 1학년은 학부로 함께 다니고 2학년에 전공을 나누는 학부 → 그 전공 게시판들. 학회·졸업요건처럼 전공마다 따로인 것은
+     * 학부 이름으로 물으면 두 전공 것을 함께, 한 전공 이름으로 물으면 그 전공 것만 보인다(11-03 '신소재화공 학회'와 '신소재 학회' 답이 같던 것).
+     */
+    static final Map<String, List<String>> GROUPS = Map.of(
+            "신소재·화공시스템공학부", List.of("신소재공학전공", "화학공학전공"));
+
+    /** 학부 이름 꼴 → 학부. 전공 줄임말('신소재'·'화학공학')보다 길어 먼저 맞는다. */
+    private static final Map<String, String> GROUP_ALIASES = Map.of(
+            "신소재화공", "신소재·화공시스템공학부",
+            "신소재화학공학", "신소재·화공시스템공학부");
+
+    /** 공백·가운뎃점 없앤 이름 → 게시판(또는 {@link #GROUPS} 학부). 긴 이름부터 맞춘다('디자인학부'가 '디자인'보다 먼저). */
     static final Map<String, String> ALIASES = build();
+
+    /** 이름을 맞출 때 무시하는 글자('신소재 화공', '신소재·화공'). */
+    private static final String SEPARATORS = "[\\s·ㆍ・]";
 
     private AskBoards() {
     }
 
     private static Map<String, String> build() {
-        Map<String, String> aliases = new LinkedHashMap<>();
+        Map<String, String> aliases = new LinkedHashMap<>(GROUP_ALIASES);
         for (BoardConfig board : CrawlerBoards.DEPARTMENT_BOARDS) {
             String id = board.sourceId();
             aliases.put(id, id);
@@ -82,7 +98,7 @@ final class AskBoards {
         if (question == null) {
             return Optional.empty();
         }
-        String squashed = question.replaceAll("\\s+", "");
+        String squashed = question.replaceAll(SEPARATORS + "+", "");
         for (Map.Entry<String, String> alias : ALIASES.entrySet()) {
             for (int at = squashed.indexOf(alias.getKey()); at >= 0; at = squashed.indexOf(alias.getKey(), at + 1)) {
                 int after = at + alias.getKey().length();
@@ -90,7 +106,8 @@ final class AskBoards {
                 if (alias.getKey().endsWith("과") && after < squashed.length() && "정목제".indexOf(squashed.charAt(after)) >= 0) {
                     continue;
                 }
-                return Optional.of(new Match(alias.getValue(), alias.getKey()));
+                String name = alias.getValue();
+                return Optional.of(new Match(name, GROUPS.getOrDefault(name, List.of(name)), alias.getKey()));
             }
         }
         return Optional.empty();
@@ -102,10 +119,43 @@ final class AskBoards {
      */
     static String hint(String question) {
         return find(question)
-                .map(match -> "질문 속 '" + match.alias() + "'은(는) 홍익대 " + match.board() + "(학과·기관)이다 — 그 학과의 학교생활 질문이다.\n")
+                .map(match -> "질문 속 '" + match.alias() + "'은(는) 홍익대 " + match.name() + "(학과·기관)이다 — 그 학과의 학교생활 질문이다.\n")
                 .orElse("");
     }
 
-    record Match(String board, String alias) {
+
+    /** name: 학과·기관(또는 학부) 이름, boards: 찾을 게시판(학부면 전공 여럿), alias: 질문에서 맞은 이름(공백·가운뎃점 뺀 꼴). */
+    record Match(String name, List<String> boards, String alias) {
+
+        /** 첫 게시판(학과 하나면 그 게시판). */
+        String board() {
+            return boards.get(0);
+        }
+
+        /** 학부 이름으로 물었다(전공이 여럿). */
+        boolean group() {
+            return boards.size() > 1;
+        }
+
+        /** 한 전공을 물었을 때 같은 학부의 다른 전공 — 그쪽 홈페이지 쪽은 답 근거에서 뺀다. 학부로 물었거나 학부가 없으면 빈 목록. */
+        List<String> siblings() {
+            if (group()) {
+                return List.of();
+            }
+            return GROUPS.values().stream().filter(members -> members.contains(board()))
+                    .flatMap(List::stream).filter(member -> !member.equals(board())).toList();
+        }
+
+        /** 질문에서 맞은 이름을 지운 나머지(이름 사이 공백·가운뎃점도 함께) — 그 학과 안에서 찾을 낱말. */
+        String strip(String question) {
+            StringBuilder regex = new StringBuilder();
+            alias.codePoints().forEach(c -> {
+                if (!regex.isEmpty()) {
+                    regex.append(SEPARATORS).append('*');
+                }
+                regex.append(Pattern.quote(new String(Character.toChars(c))));
+            });
+            return question.replaceAll(regex.toString(), " ");
+        }
     }
 }

@@ -42,6 +42,8 @@ public class AskRetriever {
     static final int PAGE_WINDOW = 10;
     /** 홈페이지 등 원문 그대로 넣은 자료의 문단 id 앞붙이. */
     public static final String PAGE_PREFIX = "page:";
+    /** 재학생 팁(비공식) 문단 id 앞붙이 — page: 의 한 갈래. 링크·출처 버튼을 붙이지 않는다. */
+    public static final String TIP_PREFIX = PAGE_PREFIX + "tip-";
 
     private final List<Chunk> chunks;
     private final Map<String, Page> pages;
