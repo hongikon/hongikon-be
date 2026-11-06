@@ -43,7 +43,11 @@ public class FeedbackService {
             // 제보 사진과 같은 검사: 서버 발급 키·실제 업로드·크기·형식 확인, 메타데이터(GPS 등) 제거 후 새 키로 저장.
             imageKeys = reportImageService.validateForAttach(request.imageKeys());
         }
-        Feedback saved = feedbackRepository.save(new Feedback(user, request.content().trim(), contact, imageKeys));
+        Feedback feedback = new Feedback(user, request.content().trim(), contact, imageKeys);
+        if (request.askRef() != null && !request.askRef().isBlank()) {
+            feedback.linkAsk(request.askRef().strip());
+        }
+        Feedback saved = feedbackRepository.save(feedback);
         // 관리자 "새 문의" 알림 — 내용·연락처는 푸시에 싣지 않는다(AdminAlertDispatcher).
         eventPublisher.publishEvent(AdminAlertEvent.feedback(saved.getId(), user == null ? null : user.getId()));
     }

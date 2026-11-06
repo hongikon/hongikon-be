@@ -100,8 +100,31 @@ public class AskConversationLog {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** '해결 안 됨'의 이유(앱에서 한 번 누름, 11-06). 해결됐거나 아직 고르지 않았으면 null. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason", length = 20)
+    private AskFeedbackReason reason;
+
+    /** 운영진이 관리자 '물어보기 피드백'에서 확인한 시각(아직이면 null). */
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
     public void resolve(boolean resolved) {
+        resolve(resolved, null);
+    }
+
+    /** 해결됐으면 이유를 지운다. 해결 안 됨인데 이유가 null 이면(먼저 '아니요'만 누름) 이미 고른 이유를 지우지 않는다. */
+    public void resolve(boolean resolved, AskFeedbackReason reason) {
         this.resolved = resolved;
+        if (resolved) {
+            this.reason = null;
+        } else if (reason != null) {
+            this.reason = reason;
+        }
+    }
+
+    public void markReviewed(LocalDateTime at) {
+        this.reviewedAt = at;
     }
 
     public enum Outcome {

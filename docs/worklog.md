@@ -1580,3 +1580,15 @@
 - 색인 이어 만들기: 144쪽, 2,752문단(다시 쓰는 벡터 2,611 · 새로 계산 141), 54초. 검색 확인: '전과 몇 학점'→학사내규 7장 1위, '결석 몇 번 F'→12장 1위, '복수전공 졸업 학점'→8장 1위, 휴학·조기졸업은 안내와 함께 2위.
 - 확인: `./gradlew test` 전체 통과, FE 경로 정답표 2,755/2,755.
 - 개인정보: 규정 원문은 조문·개정일만(개인 정보 없음). 저장·전송 항목 변화 없음.
+## 2026-11-06 — 물어보기 피드백: 해결 안 됨 이유 + 관리자 '물어보기 피드백' + 문의 연결
+
+- 학생 쪽: '해결 안 됨'을 누르면 이유 버튼(틀린 정보·지난 정보·물어본 것과 다름·부족함)을 한 번 누른다. `AskFeedbackReason`.
+  - 서버 답: `POST /ask/route/feedback` 에 `reason`(선택). '아니요'만 다시 와도 이미 고른 이유는 지우지 않고, '해결됨'이면 지운다.
+  - 앱 안내 흐름 답: `POST /ask/feedback` 에 `clientId`(응답마다 만든 임의 값)·`reason`. 같은 clientId 면 새 행 대신 그 행을 고친다. 옛 앱 본문은 그대로 받는다.
+  - '운영진에게 물어보기' 문의: `POST /feedback` 에 `askRef`('route:{id}' / 'flow:{clientId}', 형식 검사). 사진은 기존 문의 사진 규칙 그대로(로그인·최대 3장·메타데이터 제거·처리 완료 시 삭제).
+- 관리자: `GET /admin/ask/feedback?status=OPEN|REVIEWED|ALL&days=`(기본 30, 최대 365) — 두 기록의 '해결 안 됨'을 최신순 최대 200건, 이유별 개수, 같은 답의 문의(남긴 말·연락처·사진 보기 URL)를 붙인다. `PATCH /admin/ask/feedback/{ROUTE|FLOW}/{id}` `{reviewed}`.
+- DB: `db/alter_ask_feedback_reason_2026_11_06.sql`(배포 전 RDS 실행, 다시 실행해도 안전) — ask_conversation_logs.reason·reviewed_at, ask_feedback_logs.client_id·reason·reviewed_at, feedback.ask_ref.
+- 보관: ask_feedback_logs 도 1년 뒤 자동 삭제(`AskFeedbackLogPurger`, 서버 답 기록과 같은 시각). 그전에는 지우는 작업이 없었다 — 처리방침 '물어보기 기록 1년'과 맞춤.
+- 개인정보: 새로 남기는 값은 이유(4가지 중 하나)와 응답 구분용 임의 값뿐, 사람·기기와 잇지 않는다. 관리자 목록은 관리자만(/admin/**), 질문·답은 이미 가린 글. FE 처리방침에 '해결되지 않은 이유(선택)', '문의 참고 사진(선택, 처리 완료 시 삭제)'을 더했다.
+- 확인: `./gradlew test` 전체 통과(새 `AskFeedbackAdminIntegrationTest` 3개: 이유 유지·되돌리기, 두 기록 합치기·문의 붙이기·확인 표시, 관리자 아님 403·잘못된 askRef 400).
+- PDF 첨부는 다음 네이티브 빌드(문서 선택 모듈이 필요해 OTA 불가) — 서버 쪽은 아직 안 함.
