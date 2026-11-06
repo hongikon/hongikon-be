@@ -23,4 +23,8 @@ public interface AskConversationLogRepository extends JpaRepository<AskConversat
             ORDER BY l.createdAt DESC
             """)
     List<AskConversationLog> findUnresolved(@Param("since") LocalDateTime since, @Param("reviewed") Boolean reviewed, Pageable pageable);
+
+    long countByCreatedAtGreaterThanEqual(LocalDateTime since);
+
+    long countByResolvedAndCreatedAtGreaterThanEqual(Boolean resolved, LocalDateTime since);
 }

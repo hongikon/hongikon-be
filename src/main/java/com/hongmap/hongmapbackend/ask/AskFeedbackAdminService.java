@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.ask;
 
 import com.hongmap.hongmapbackend.ask.dto.AskFeedbackAdminResponse;
+import com.hongmap.hongmapbackend.ask.dto.AskFeedbackReportResponse;
 import com.hongmap.hongmapbackend.ask.dto.AskFeedbackAdminResponse.Handoff;
 import com.hongmap.hongmapbackend.ask.dto.AskFeedbackAdminResponse.Item;
 import com.hongmap.hongmapbackend.feedback.Feedback;
@@ -42,6 +43,93 @@ public class AskFeedbackAdminService {
     private final AskFeedbackLogRepository feedbackLogs;
     private final FeedbackRepository feedbackRepository;
     private final ReportImageService reportImageService;
+    private final AskCatalog catalog;
+
+    static final int REPORT_GROUPS = 30;
+    static final int REPORT_ROWS = 2000;
+    /** 안내를 못 고른 질문끼리 같은 묶음으로 칠 2글자 겹침(Jaccard). */
+    static final double SIMILAR_MIN = 0.3;
+
+    /**
+     * 주간 요약: since 뒤 '해결 안 됨'을 같은 안내(서버 답의 첫 안내 · 앱 흐름 답의 흐름/단계)끼리, 안내를 못 고른 질문은
+     * 2글자 겹침이 큰 것끼리 묶어 많은 순으로. 이유별 개수와 예시 질문을 붙인다.
+     */
+    @Transactional(readOnly = true)
+    public AskFeedbackReportResponse report(Integer days) {
+        int window = days == null ? 7 : Math.max(1, Math.min(MAX_DAYS, days));
+        LocalDateTime since = LocalDateTime.now().minusDays(window);
+        PageRequest page = PageRequest.of(0, REPORT_ROWS);
+        record Row(String guide, String question, String reason, boolean open) {
+        }
+        List<Row> rows = new ArrayList<>();
+        for (AskConversationLog row : conversationLogs.findUnresolved(since, null, page)) {
+            List<String> ids = split(row.getNodeIds());
+            rows.add(new Row(ids.isEmpty() ? null : ids.get(0), row.getQuestion(),
+                    row.getReason() == null ? "NONE" : row.getReason().name(), row.getReviewedAt() == null));
+        }
+        for (AskFeedbackLog row : feedbackLogs.findUnresolved(since, null, page)) {
+            String guide = row.getFlowId() == null ? null : row.getFlowId() + (row.getNodeId() == null ? "" : "/" + row.getNodeId());
+            rows.add(new Row(guide, row.getQuestion(), row.getReason() == null ? "NONE" : row.getReason().name(),
+                    row.getReviewedAt() == null));
+        }
+
+        Map<String, List<Row>> byGuide = new LinkedHashMap<>();
+        List<List<Row>> unmatched = new ArrayList<>();
+        List<java.util.Set<String>> unmatchedGrams = new ArrayList<>();
+        for (Row row : rows) {
+            if (row.guide() != null) {
+                byGuide.computeIfAbsent(row.guide(), k -> new ArrayList<>()).add(row);
+                continue;
+            }
+            java.util.Set<String> grams = AskOperatorNotes.grams(row.question());
+            int found = -1;
+            for (int i = 0; i < unmatched.size(); i++) {
+                if (AskOperatorNotes.jaccard(grams, unmatchedGrams.get(i)) >= SIMILAR_MIN) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found < 0) {
+                unmatched.add(new ArrayList<>(List.of(row)));
+                unmatchedGrams.add(grams);
+            } else {
+                unmatched.get(found).add(row);
+            }
+        }
+
+        java.util.function.Function<List<Row>, Map<String, Long>> reasonsOf = list -> {
+            Map<String, Long> out = new LinkedHashMap<>();
+            list.forEach(r -> out.merge(r.reason(), 1L, Long::sum));
+            return out;
+        };
+        java.util.function.Function<List<Row>, List<String>> samples = list ->
+                list.stream().map(Row::question).distinct().limit(5).toList();
+        List<AskFeedbackReportResponse.Group> groups = new ArrayList<>();
+        byGuide.forEach((id, list) -> {
+            String line = catalog.line(id);
+            groups.add(new AskFeedbackReportResponse.Group("GUIDE", id, line == null || line.isBlank() ? id : line, list.size(),
+                    list.stream().filter(Row::open).count(), reasonsOf.apply(list), samples.apply(list)));
+        });
+        for (List<Row> list : unmatched) {
+            String head = list.get(0).question();
+            groups.add(new AskFeedbackReportResponse.Group("UNMATCHED", head, head, list.size(),
+                    list.stream().filter(Row::open).count(), reasonsOf.apply(list), samples.apply(list)));
+        }
+        groups.sort(Comparator.comparingLong(AskFeedbackReportResponse.Group::count).reversed());
+
+        Map<String, Long> reasons = new LinkedHashMap<>();
+        for (AskFeedbackReason reason : AskFeedbackReason.values()) {
+            reasons.put(reason.name(), 0L);
+        }
+        reasons.put("NONE", 0L);
+        rows.forEach(r -> reasons.merge(r.reason(), 1L, Long::sum));
+        long yes = conversationLogs.countByResolvedAndCreatedAtGreaterThanEqual(true, since)
+                + feedbackLogs.countByResolvedAndCreatedAtGreaterThanEqual(true, since);
+        long no = conversationLogs.countByResolvedAndCreatedAtGreaterThanEqual(false, since)
+                + feedbackLogs.countByResolvedAndCreatedAtGreaterThanEqual(false, since);
+        return new AskFeedbackReportResponse(window, conversationLogs.countByCreatedAtGreaterThanEqual(since), yes, no, reasons,
+                List.copyOf(groups.subList(0, Math.min(REPORT_GROUPS, groups.size()))));
+    }
 
     /**
      * @param status OPEN(기본, 아직 확인 안 함) / REVIEWED / ALL

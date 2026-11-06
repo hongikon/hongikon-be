@@ -32,6 +32,13 @@ public class AskFeedbackAdminController {
         return service.list(status, days);
     }
 
+    @Operation(summary = "물어보기 주간 요약(관리자)", description = "days(기본 7, 최대 365) 동안 '해결 안 됨'을 같은 안내끼리, "
+            + "안내를 못 고른 질문은 비슷한 것끼리 묶어 많은 순 최대 30개. 서버 안에서만 센다.")
+    @GetMapping("/admin/ask/feedback/report")
+    public com.hongmap.hongmapbackend.ask.dto.AskFeedbackReportResponse report(@RequestParam(required = false) Integer days) {
+        return service.report(days);
+    }
+
     public record ReviewRequest(@NotNull Boolean reviewed) {
     }
 

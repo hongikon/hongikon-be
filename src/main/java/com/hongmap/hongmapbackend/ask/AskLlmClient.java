@@ -163,6 +163,9 @@ public class AskLlmClient {
             - [안내 원문]에 재학생 팁(page:tip-…)이 있으면 공식 안내(안내 원문·공지·도구 결과)와 다를 때 공식 안내만 따르고 팁은 쓰지 않는다.
               팁은 공식 안내에 없는 요령(신청 준비·시간표 구성 등)을 보탤 때만 쓰고, 쓰면 "재학생 팁이에요"라고 밝힌다.
               학점·날짜·자격·절차 같은 규정 수치는 팁에서 가져오지 않는다. 팁 id 는 sourceIds 에 넣지 않는다.
+            - [안내 원문]에 운영진 확인 안내(page:note-…)가 있으면 홍익온 운영진이 직접 확인해 적은 답이라 근거로 쓴다.
+              질문과 같은 내용일 때만 쓰고, 제목의 날짜가 오래됐거나 학교 안내·공지와 다르면 최신 학교 안내·공지를 따른다.
+              링크가 없으니 sourceIds 에는 넣지 않는다.
             - [안내 원문]에 규정집 원문(page:reg-… 홍익대학교 학칙·학사내규)이 있으면 학교 전체 규정이라 학과와 상관없이 근거로 쓴다.
               조건·학점·횟수를 말할 때 "학사내규 제41조"처럼 규정 이름과 조를 밝힌다. 신청 기간·방법·창구처럼 매 학기 바뀌는 것은
               학교 안내·공지를 따르고, 안내·공지와 규정 문장이 다르면 최신 안내·공지를 따르며 다르다는 점을 짧게 알린다.
@@ -503,7 +506,7 @@ public class AskLlmClient {
             }
             String text = page.text().length() > SOURCE_MAX_CHARS ? page.text().substring(0, SOURCE_MAX_CHARS) + "\n(이하 생략)" : page.text();
             first.append("### ").append(id).append(" (").append(page.title()).append(")\n").append(text).append("\n\n");
-            if (id.startsWith(AskRetriever.TIP_PREFIX)) {
+            if (id.startsWith(AskRetriever.TIP_PREFIX) || id.startsWith(AskOperatorNotes.PREFIX)) {
                 continue; // 재학생 팁은 학교 페이지가 아니라 링크·출처 버튼을 붙이지 않는다.
             }
             references.put(id, new AskLiveData.Reference(id, page.title(), page.url(), null));

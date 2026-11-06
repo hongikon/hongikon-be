@@ -26,4 +26,8 @@ public interface AskFeedbackLogRepository extends JpaRepository<AskFeedbackLog, 
     @Modifying
     @Query("DELETE FROM AskFeedbackLog l WHERE l.createdAt < :before")
     int deleteCreatedBefore(@Param("before") LocalDateTime before);
+
+    long countByCreatedAtGreaterThanEqual(LocalDateTime since);
+
+    long countByResolvedAndCreatedAtGreaterThanEqual(Boolean resolved, LocalDateTime since);
 }

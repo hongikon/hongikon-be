@@ -21,6 +21,26 @@ final class AskPrivacy {
     private static final Pattern STUDENT_ID = Pattern.compile("(?<![A-Za-z0-9])[A-Za-z]\\d{6,7}(?![A-Za-z0-9])");
     private static final Pattern LONG_NUMBER = Pattern.compile("(?<!\\d)\\d{8,}(?!\\d)");
 
+    /**
+     * 학생 개인 정보로 보이는 것(휴대전화·주민등록번호·학번)이 있으면 그 이름, 없으면 null. 운영진 확인 안내를 저장하기 전에 본다.
+     * 학교 부서 전화(02-…)와 학교 메일은 안내에 쓰는 정보라 막지 않는다.
+     */
+    public static String personalKind(String text) {
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+        if (RESIDENT_NO.matcher(text).find()) {
+            return "주민등록번호";
+        }
+        if (MOBILE.matcher(text).find()) {
+            return "휴대전화 번호";
+        }
+        if (STUDENT_ID.matcher(text).find()) {
+            return "학번";
+        }
+        return null;
+    }
+
     static String mask(String text) {
         if (text == null || text.isEmpty()) {
             return text;
