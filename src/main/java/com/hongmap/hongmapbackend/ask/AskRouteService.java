@@ -50,6 +50,31 @@ public class AskRouteService {
     private final AskRuleGraph ruleGraph;
     private final Clock clock;
 
+    /** 운영진 확인 안내 최대 개수(질문마다). */
+    static final int NOTES_MAX = 2;
+
+    /** 운영진 확인 안내(page:note-…). 스프링이 넣는다 — 테스트처럼 직접 만든 서비스에는 없다. */
+    private AskOperatorNotes operatorNotes;
+
+    @Autowired(required = false)
+    void setOperatorNotes(AskOperatorNotes operatorNotes) {
+        this.operatorNotes = operatorNotes;
+    }
+
+    /** 질문에 맞는 운영진 확인 안내를 원문 쪽 맨 앞에 더한다(없으면 그대로). */
+    List<String> withOperatorNotes(List<String> pages, String question, float[] queryVector) {
+        if (operatorNotes == null) {
+            return pages;
+        }
+        List<String> notes = operatorNotes.match(question, queryVector, NOTES_MAX);
+        if (notes.isEmpty()) {
+            return pages;
+        }
+        List<String> merged = new ArrayList<>(notes);
+        pages.stream().filter(id -> !merged.contains(id)).forEach(merged::add);
+        return List.copyOf(merged);
+    }
+
     @Autowired
     public AskRouteService(AskCatalog catalog, AskLlmClient llmClient, AskLiveData liveData, AskRetriever retriever,
                            AskRuleGraph ruleGraph) {
@@ -85,7 +110,7 @@ public class AskRouteService {
             progress.retrievalTimed(found.embedMs(), found.searchMs());
         }
         List<String> retrieved = found.nodes();
-        List<String> pages = departmentPages(request.question(), found.pages());
+        List<String> pages = withOperatorNotes(departmentPages(request.question(), found.pages()), request.question(), found.query());
         if (!retrieved.isEmpty() || !pages.isEmpty()) {
             List<String> shown = new ArrayList<>(retrieved);
             shown.addAll(pages);

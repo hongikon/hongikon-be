@@ -62,6 +62,14 @@ public class AskRetriever {
     /** 고른 안내 하나당 뜻이 가까운 이웃 후보 수. */
     static final int NEIGHBOR_SIMILAR_MAX = 4;
 
+    /** 운영진 확인 안내(page:note-…). 스프링이 넣는다 — 테스트처럼 직접 만든 검색기에는 없다. */
+    private AskOperatorNotes operatorNotes;
+
+    @Autowired(required = false)
+    void setOperatorNotes(AskOperatorNotes operatorNotes) {
+        this.operatorNotes = operatorNotes;
+    }
+
     @Autowired
     public AskRetriever(AskCatalog catalog, AskEmbedClient embedClient, JsonMapper jsonMapper,
                         @Value("${ask.rag.enabled:false}") boolean wanted) throws IOException {
@@ -230,6 +238,9 @@ public class AskRetriever {
 
     /** 홈페이지 쪽 정보(제목·학과·주소·원문). 없으면 null. */
     public Page page(String id) {
+        if (operatorNotes != null && id != null && id.startsWith(AskOperatorNotes.PREFIX)) {
+            return operatorNotes.page(id);
+        }
         return pages.get(id);
     }
 
