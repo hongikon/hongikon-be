@@ -65,6 +65,13 @@ public class Feedback {
     @Column(name = "image_keys", length = 600)
     private String imageKeys;
 
+    /**
+     * 물어보기 '운영진에게 물어보기'로 들어온 문의면 그 답 기록(11-06): 'route:{ask_conversation_logs.id}' 또는
+     * 'flow:{ask_feedback_logs.client_id}'. 관리자 '물어보기 피드백'이 이 문의(남긴 말·사진)를 그 답 옆에 보여 준다. 그 밖의 문의는 null.
+     */
+    @Column(name = "ask_ref", length = 80)
+    private String askRef;
+
     public Feedback(User user, String content, String contact) {
         this.user = user;
         this.content = content;
@@ -74,6 +81,10 @@ public class Feedback {
     public Feedback(User user, String content, String contact, List<String> imageKeys) {
         this(user, content, contact);
         this.imageKeys = imageKeys == null || imageKeys.isEmpty() ? null : String.join(",", imageKeys);
+    }
+
+    public void linkAsk(String askRef) {
+        this.askRef = askRef;
     }
 
     /** 붙은 사진 키들(없으면 빈 목록). */

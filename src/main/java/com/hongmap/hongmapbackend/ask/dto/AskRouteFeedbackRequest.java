@@ -3,6 +3,7 @@ package com.hongmap.hongmapbackend.ask.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * POST /ask/route/feedback — 서버 답 기록에 '궁금한 점이 해결됐나요?' 응답을 붙인다.
@@ -13,6 +14,8 @@ import jakarta.validation.constraints.Pattern;
 public record AskRouteFeedbackRequest(
         @NotNull Long logId,
         @NotBlank @Pattern(regexp = "[A-Za-z0-9-]{8,64}") String conversationId,
-        @NotNull Boolean resolved
+        @NotNull Boolean resolved,
+        /** '해결 안 됨'의 이유(선택, 11-06): WRONG·OUTDATED·OFF_TOPIC·NOT_ENOUGH. 모르는 값은 버린다. */
+        @Size(max = 20) String reason
 ) {
 }

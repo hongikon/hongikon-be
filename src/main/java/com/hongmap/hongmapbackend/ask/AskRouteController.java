@@ -131,7 +131,7 @@ public class AskRouteController {
         if (key != null || !appOpen(userId)) {
             checkKey(key);
         }
-        if (!recorder.resolve(request.logId(), request.conversationId(), request.resolved())) {
+        if (!recorder.resolve(request.logId(), request.conversationId(), request.resolved(), AskFeedbackReason.parse(request.reason()))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
     }
