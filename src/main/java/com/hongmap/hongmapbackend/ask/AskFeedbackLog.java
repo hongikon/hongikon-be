@@ -31,7 +31,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "ask_feedback_logs", indexes = {
         @Index(name = "idx_ask_feedback_logs_created_at", columnList = "created_at"),
-        @Index(name = "idx_ask_feedback_logs_outcome", columnList = "outcome")
+        @Index(name = "idx_ask_feedback_logs_outcome", columnList = "outcome"),
+        @Index(name = "idx_ask_feedback_logs_client", columnList = "client_id")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -67,4 +68,36 @@ public class AskFeedbackLog {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * 앱이 '해결됐나요' 한 번마다 만든 임의 값(11-06). 같은 값으로 다시 보내면 새 행 대신 이 행을 고친다
+     * ('아니요' 뒤에 이유를 고를 때). 사람·기기를 가리키지 않는다. 옛 앱은 보내지 않는다(null).
+     */
+    @Column(name = "client_id", length = 64)
+    private String clientId;
+
+    /** '해결 안 됨'의 이유(앱에서 한 번 누름). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason", length = 20)
+    private AskFeedbackReason reason;
+
+    /** 운영진이 관리자 '물어보기 피드백'에서 확인한 시각(아직이면 null). */
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    /** 같은 clientId 로 다시 온 응답. 해결됐으면 이유를 지우고, 이유가 null 이면 이미 고른 이유를 둔다. */
+    public void update(Boolean resolved, AskFeedbackReason reason) {
+        if (resolved != null) {
+            this.resolved = resolved;
+        }
+        if (Boolean.TRUE.equals(this.resolved)) {
+            this.reason = null;
+        } else if (reason != null) {
+            this.reason = reason;
+        }
+    }
+
+    public void markReviewed(LocalDateTime at) {
+        this.reviewedAt = at;
+    }
 }
