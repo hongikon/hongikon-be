@@ -79,7 +79,7 @@ public class SecurityConfig {
                     // 물어보기 LLM 분류(개발 중, 웹 /dev/ask). 로그인 대신 컨트롤러가 X-Ask-Dev-Key 로 막는다(키 미설정이면 404).
                     // 앱 '물어보기' 탭(BETA)은 로그인 토큰이 있으면 그 계정으로 받는다 — 게스트·한도는 컨트롤러(AskPublicQuota)가 막는다.
                     auth.requestMatchers(HttpMethod.POST, "/ask/route", "/ask/route/stream", "/ask/route/feedback").permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/ask/status").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/ask/status", "/ask/popular").permitAll();
                     // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
                     auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
                             new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));

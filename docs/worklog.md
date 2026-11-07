@@ -1617,3 +1617,11 @@
 - `AskRouteResponse.actions`(새 필드, 옛 앱은 무시): `Action(type, target, label, summary)`. 지금은 `map` 하나 — 답이 실제로 쓴 근거(sourceIds 순서) 중 처음 나온 `building:`·`facility:`·`partner:`, 없으면 근거 안내의 위치(facilityId). id 는 도구 결과·카탈로그에 있는 것만(모델이 좌표·id 를 만들지 않음). label 은 건물·제휴 이름(시설은 설명 줄이라 null → 앱이 지도 데이터 이름), summary 는 답 첫 문장 90자.
 - 확인: 새 `AskMapActionsTest` 3개, `*Ask*` 153개 통과.
 - 개인정보: 새로 모으는 정보 없음(지도 데이터의 공개 장소 id 만).
+
+## 2026-11-07 — 물어보기: 인사에 '요즘 많이 찾는 안내'
+
+- 운영진 요청(11-07): 하이·ㅎㅇ 같은 인사에 요즘 많이 찾는 안내를 먼저 보여 줘 더 물어보게. 건수·질문은 보이지 않고 안내만.
+- `GET /ask/popular`(로그인 필요 없음) → `{ ids }`: 최근 7일 `ask_conversation_logs` 중 답·되묻기(ANSWERED·QUESTION, '해결 안 됨' 뺌)에 쓴 안내 id 를 서로 다른 대화 수로 세어 5개 대화 이상만, 많은 순 6개(`AskPopularGuides`). 카탈로그에 없는 id·none 은 뺌. 한 시간마다 다시 셈(메모리), 실패하면 지난 값.
+- 인사 알아듣기와 칩은 앱이 한다(LLM·한도 안 씀). 칩은 앱 안 안내를 바로 연다.
+- 확인: 새 `AskPopularGuidesTest` 2개, `*Ask*` 155개 통과.
+- 개인정보: 안내 id 만 내보냄(질문·건수·대화 id 없음). 대화 5개 미만에서만 쓴 안내는 빼서 개인이 무엇을 물었는지 드러나지 않게. 새로 모으는 정보 없음.
