@@ -16,32 +16,48 @@ import java.util.List;
  *                       버튼은 서버가 정해 보낸다 — 링크 순서·전화를 바꿀 때 앱 배포 없이 서버만 고치면 된다.
  * @param sections       답 아래 소제목별 목록·표(서버가 구조로 준다 — 앱이 글을 잘라 추측하지 않게). 없으면 빈 목록.
  * @param logId          이 답의 기록 id(ask_conversation_logs). 앱이 '해결됐나요' 응답을 붙일 때 쓴다. 기록이 꺼졌으면 null.
+ * @param actions        답 아래 앱 조작 버튼(11-07 — 물어보기로 앱 움직이기). 지금은 'map'(지도에서 보기) 하나. 옛 앱은 모르는 필드라 무시한다.
  */
 public record AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
                                List<Link> references, List<Link> pages, List<Phone> phones, String facilityId, Long logId,
-                               List<Section> sections) {
+                               List<Section> sections, List<Action> actions) {
 
     public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion) {
-        this(nodeId, nodeIds, answer, found, catalogVersion, List.of(), List.of(), List.of(), null, null, List.of());
+        this(nodeId, nodeIds, answer, found, catalogVersion, List.of(), List.of(), List.of(), null, null, List.of(), List.of());
     }
 
     public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
                             List<Link> references) {
-        this(nodeId, nodeIds, answer, found, catalogVersion, references, List.of(), List.of(), null, null, List.of());
+        this(nodeId, nodeIds, answer, found, catalogVersion, references, List.of(), List.of(), null, null, List.of(), List.of());
     }
 
     public AskRouteResponse(String nodeId, List<String> nodeIds, String answer, Boolean found, String catalogVersion,
                             List<Link> references, List<Link> pages, List<Phone> phones, String facilityId) {
-        this(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, null, List.of());
+        this(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, null, List.of(), List.of());
     }
 
     public AskRouteResponse withLogId(Long id) {
-        return new AskRouteResponse(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, id, sections);
+        return new AskRouteResponse(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, id, sections, actions);
     }
 
     public AskRouteResponse withSections(List<Section> value) {
         return new AskRouteResponse(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, logId,
+                value == null ? List.of() : value, actions);
+    }
+
+    public AskRouteResponse withActions(List<Action> value) {
+        return new AskRouteResponse(nodeId, nodeIds, answer, found, catalogVersion, references, pages, phones, facilityId, logId, sections,
                 value == null ? List.of() : value);
+    }
+
+    /**
+     * 앱 조작 버튼 하나. 앱은 모르는 type 은 그리지 않는다(새 종류를 서버에 먼저 더해도 옛 앱이 깨지지 않게).
+     * @param type    'map' — 지도 탭으로 옮겨 그 곳에 핀을 찍고 위에 summary 카드를 띄운다
+     * @param target  'building:{건물 code}' | 'facility:{편의시설 id}' | 'partner:{제휴 id}' — 앱 지도 데이터에 있는 id 만(좌표를 만들지 않는다)
+     * @param label   버튼·카드 제목(장소 이름). 서버가 모르면 null — 앱이 지도 데이터 이름을 쓴다
+     * @param summary 지도 위 카드의 짧은 설명(답 첫 문장, 최대 90자). 없으면 null
+     */
+    public record Action(String type, String target, String label, String summary) {
     }
 
     public record Phone(String label, String phone) {
