@@ -1,5 +1,5 @@
 {
- "version": "86302cd1b5f5",
+ "version": "ee427b4ed5cb",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -1736,6 +1736,26 @@
    "id": "school-logo/start",
    "kind": "answer",
    "line": "홍익대학교 로고타이프와 심벌마크는 학교 홈페이지 대학소개 › 상징 › UI에서 AI·PNG 파일로 내려받을 수 있어요. 로고타이프는 글자의 꼴·… #로고 #심벌 #학교 #홍익"
+  },
+  {
+   "id": "school-about/more",
+   "kind": "answer",
+   "line": "학교 홈페이지 '비전' 안내예요."
+  },
+  {
+   "id": "school-about/more1",
+   "kind": "answer",
+   "line": "학교 홈페이지 '역사' 안내예요."
+  },
+  {
+   "id": "school-about/start",
+   "kind": "answer",
+   "line": "홍익대학교는 1946년 4월 25일 재단법인 홍문대학관으로 세워져 그해 6월 27일 서울 용산구 원효로 흥국사에서 문을 열었어요. 1949년 4… #교훈 #건학이념 #홍익대 #홍대 #설립 #창립"
+  },
+  {
+   "id": "school-org/start",
+   "kind": "answer",
+   "line": "서울캠퍼스 조직도예요. 총장 아래 교수회·교무위원회가 있고, 학사담당·관리담당·세종캠퍼스 부총장을 둬요. 행정은 기획처·교무처·학생처·사무처·국… #조직도 #조직표"
   },
   {
    "id": "campus-software/start",
