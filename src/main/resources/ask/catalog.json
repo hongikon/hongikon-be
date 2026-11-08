@@ -1,5 +1,5 @@
 {
- "version": "21639f08e676",
+ "version": "c6a03530d59f",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -1381,6 +1381,11 @@
    "id": "phone-search/start",
    "kind": "answer",
    "line": "학교 홈페이지 '전화번호 검색'에서 소속이나 전화번호로 교내 전화번호를 찾을 수 있어요. 교직원 전화번호는 '교직원 검색'에서 소속·이름·담당업… #교내전화 #전화번호검색"
+  },
+  {
+   "id": "room-number/start",
+   "kind": "answer",
+   "line": "강의실 번호는 「건물 글자 + 층 + 호수」예요. C803은 C동 8층 03호, L0201은 L동 2층 01호처럼 호수 두 자리 앞이 층이에요.… #강의실번호 #강의실호수 #강의실 #호실 #읽는법 #보는법"
   },
   {
    "id": "academic-calendar/start",
