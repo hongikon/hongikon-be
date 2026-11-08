@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.user.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -112,6 +113,15 @@ public class Report {
     @Column(name = "ends_at", nullable = false)
     private LocalDateTime endsAt;
 
+    /**
+     * 여러 날 제보의 날짜별 운영 시간(한국 시간, 날마다 다를 수 있음). null 이면 한 번짜리 제보(11-08).
+     * 지도 노출은 그대로 startsAt~endsAt(첫날 시작 ~ 마지막 날 끝)이고, 앱이 이 목록으로 "오늘 14:00 시작"·"운영 중"·
+     * "곧 종료"를 보여 준다. db/alter_reports_schedule_days_2026_11_08.sql
+     */
+    @Convert(converter = ReportDaysConverter.class)
+    @Column(name = "schedule_days", length = 255)
+    private List<ReportDay> days;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
@@ -184,9 +194,10 @@ public class Report {
     }
 
     /** 시작·종료 시각을 고친다(공식 계정 작성자, ReportService.updateSchedule 이 규칙을 본 뒤). */
-    public void changeSchedule(LocalDateTime startsAt, LocalDateTime endsAt) {
+    public void changeSchedule(LocalDateTime startsAt, LocalDateTime endsAt, List<ReportDay> days) {
         this.startsAt = startsAt;
         this.endsAt = endsAt;
+        this.days = days;
     }
 
     /** 관리자 검토 결과 반영. note 는 비우면 기존 메모를 지운다. */

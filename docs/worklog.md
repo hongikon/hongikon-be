@@ -1602,3 +1602,12 @@
 - **'멀미실'**: FE ce-multimedia-room 에 줄임말·위치 질문 추가, 답에 "줄여서 '멀미실'". 카탈로그 version `0da84956e253` → `86302cd1b5f5`, rule-graph catalogVersion 맞춤(validate 통과), 색인 이어 만들기(새로 계산 1문단, 13초).
 - 확인: `./gradlew test` 전체 통과(새 `AskOperatorNotesIntegrationTest` 3개: 고르기·끄기, 개인 정보 거절, 주간 요약 묶기).
 - 개인정보: 운영진 안내는 운영진이 쓴 글(학생 정보 거절). 주간 요약은 이미 동의받아 보관 중인 기록을 서버 안에서 센 것(처리방침 '답변 품질 개선과 오류 분석' 목적 안). 새로 모으는 항목 없음.
+## 2026-11-08 — 제보: 여러 날 제보의 날짜별 운영 시간
+
+- 문제: 제보는 시작·종료 시각 한 쌍뿐이라 "11/14~11/17 14:00~18:00" 부스를 올리면 밤에도 진행 중처럼 보였다. 날마다 여는 시간이 다른 행사도 있다.
+- 사용자 결정(11-08): 지도에는 기간(starts_at~ends_at) 내내 올려 두고, 앱이 핀·시트에 "오늘 14:00 시작 / 운영 중 · 18:00까지 / 곧 종료 · 18:00"(끝나기 30분 전부터, 한 번짜리 제보도)을 보여 준다. 날마다 시간을 따로 고칠 수 있게. 근처·새 제보 알림은 지금처럼 처음 지도에 올라갈 때 한 번만(매일 보내지 않음) — 바꿀 것 없음.
+- `reports.schedule_days`(varchar 255, NULL=한 번짜리) — "2026-11-14 14:00-18:00,2026-11-15 13:00-17:00"(한국 시간, 쉬는 날은 없음, 최대 8일). `ReportDay`, `ReportDaysConverter`. SQL `db/alter_reports_schedule_days_2026_11_08.sql` — **배포 전 운영 DB 에서 먼저 실행**(ddl-auto=validate).
+- 요청: `POST /reports`, `PUT /reports/{id}/schedule` 에 선택 필드 `days: [{date, start, end}]`. 규칙(`ReportService.validateDays`): 이틀 이상, 날짜 순서대로·겹침 없음, 날마다 같은 날 안에서 끝남(자정 넘김 아직 안 받음), startsAt=첫날 start·endsAt=마지막 날 end(한국 시간). 시간 수정에서 생략하면 한 번짜리로 바뀐다(시간 수정은 공식 계정만이라 구버전 앱 영향 작음).
+- 응답: `ReportSummaryResponse`·`ReportResponse`·`MyReportResponse`·`AdminReportResponse` 에 `days`. 구버전 앱은 모르는 필드라 무시하고 기간 전체를 한 번짜리로 보여 준다.
+- 개인정보·권한: 새로 모으는 개인정보 없음(행사 운영 시간만). 처리방침 변경 없음.
+- 확인: `ReportDaysTest` 8(새), 전체 762 통과.
