@@ -1,5 +1,5 @@
 {
- "version": "dfefaf634b28",
+ "version": "6f5c1a0ff07f",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -621,7 +621,7 @@
   {
    "id": "course-retake/start",
    "kind": "answer",
-   "line": "C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능). 학기당 1과목까지(F 과목은 개수에서… #재수강 #재수 #계절"
+   "line": "C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능). 재수강은 과목당 한 번만 되지만, 재… #재수강 #재수 #계절"
   },
   {
    "id": "course-change/start",
@@ -1147,6 +1147,11 @@
    "id": "isic/start",
    "kind": "answer",
    "line": "ISIC 국제학생증은 학부·대학원 재학생과 휴학생이 ISIC 홈페이지에서 신청해요(졸업생은 신청할 수 없어요). #국제학생증 #isic #발급 #신청"
+  },
+  {
+   "id": "freshman-events/start",
+   "kind": "answer",
+   "line": "예비대학(예대)·새내기배움터(새터)·신입생 오리엔테이션(오티)은 학교 본부가 아니라 단과대학·학과 학생회가 여는 행사이고, 대부분 2월에 해요.… #예대 #예비대학"
   },
   {
    "id": "council/start",
