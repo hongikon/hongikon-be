@@ -1,5 +1,5 @@
 {
- "version": "ee427b4ed5cb",
+ "version": "1179d1917da2",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -637,6 +637,11 @@
    "id": "course-cancelled/start",
    "kind": "answer",
    "line": "폐강 공고는 수강철회 기간이 끝난 뒤 대학공지·학생 클래스넷 공지에 올라오고, 학생이 직접 확인해야 해요. 폐강된 과목은 공고일부터 하루 동안 … #폐강"
+  },
+  {
+   "id": "course-table/start",
+   "kind": "answer",
+   "line": "수강신청 화면(강의시간표)에서 제한인원은 학년 차례마다 늘어나는 누적 정원이고, 사전선택인원은 학년별로 미리 담아 둔 학생 수예요. 둘을 맞대 … #제한인원 #수강제한인원 #강의시간표 #수강신청화면 #보는법 #읽는법"
   },
   {
    "id": "classes/faq0",
