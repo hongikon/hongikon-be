@@ -1561,6 +1561,16 @@
 - 고침: `AskBoards.GROUPS`(학부 → 전공 게시판들), 학부 이름 꼴(`신소재화공`·`신소재화학공학`)은 전공 줄임말보다 먼저 맞춤. 이름 맞출 때 공백·가운뎃점 무시. `Match(name, boards, alias)` — 학부로 물으면 두 전공 게시판을 함께, 한 전공으로 물으면 그 전공만 찾고 같은 학부 다른 전공 홈페이지는 근거에서 뺌(`AskRouteService`). 고르기 힌트(`hint`)는 학부면 학부 이름으로.
 - 개인정보·권한: 질문 문자열 매칭만 바뀜. 저장·전송 항목 변화 없음.
 - 확인: `./gradlew test` (AskBoardsTest 새 1개 포함).
+## 2026-10-29 — 홍보 링크 방문 수(hongikon.com/app/club) (dev)
+
+- 운영진 요청: 동아리 단톡방 홍보 글의 링크로 몇 명이 들어왔는지만 보고 싶다. 들어오면 바로 앱 받기 안내(hongikon.com/app)로.
+- 흐름: FE `netlify.toml` 이 `/app/club` 을 `https://api.hongikon.com/promo/club` 으로 프록시 → 새 `PromoVisitController` `GET /promo/{source}`(permitAll)가 방문 수 +1 후 `https://hongikon.com/app` 으로 302(no-store).
+- `PromoVisitService`: 경로·날짜(KST)별 숫자 하나만 올린다(`INSERT … ON DUPLICATE KEY UPDATE`). IP·User-Agent·사용자는 저장하지 않음 — 처리방침 변경 불필요. 설정 `promo.sources`(기본 `club`)에 있는 경로만 센다. 링크 미리보기 봇(kakaotalk-scrap 등)·User-Agent 없는 요청은 세지 않는다. 기록 실패(테이블 없음 등)는 경고만 남기고 이동은 그대로.
+- 조회: `GET /admin/promo-visits`(ADMIN, 기존 /admin/** 규칙) — 경로·날짜·방문 수.
+- **DB 변경 — 운영에 실행**: `db/create_promo_visits_table.sql`. 엔티티가 없어 validate 와 무관(빠뜨려도 서버는 뜨고 숫자만 안 쌓인다).
+- 테스트 `PromoVisitIntegrationTest` 4(사람 방문 2회 → 2, 봇·UA 없음·모르는 경로는 0, 테이블 없어도 302, 관리자 조회 401).
+- (11-05, 사용자 요청 "QR 로 hongikon.com/app 에 몇 명 들어왔나") 앱 받기 안내 페이지 자체 방문 수: `GET /promo/app/seen`(permitAll, 204 no-store) — FE `/app` 정적 페이지의 보이지 않는 이미지가 부른다(자바스크립트 없이 동작, 미리보기 봇은 보통 이미지를 안 받는다). `source=app` 은 QR·직접 입력·홍보 링크 경유를 합친 페이지 방문이고, `/promo/app` 이동으로는 세지 않아 홍보 링크와 겹치지 않는다. 포스터 QR 은 `/app` 고정이라 QR 만 따로는 못 센다(다음 인쇄 때 `/app/qr` 같은 경로로). 테스트 3 추가(7), 전체 761 통과.
+
 
 ## 2026-11-04 — 물어보기 RAG 색인: 재학생 팁 6쪽 넣기 + 색인 이어 만들기
 
