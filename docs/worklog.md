@@ -1671,3 +1671,13 @@
 - 개인정보·권한: 이미 승인돼 공개될 제보를 더 일찍 보여 줄 뿐, 새로 모으는 정보 없음. 처리방침 변경 없음.
 - 확인: `ReportScheduleIntegrationTest` 의 예정 목록 테스트를 '나흘 뒤·13일 뒤도 붙는다'로 바꿈.
 
+
+## 2026-11-09 — 앱 공지사항을 관리자 페이지에서 쓰고 게시 시각 예약
+
+- 사용자 요청(11-09): 공지사항을 백엔드에 쓰면 정한 시점부터 앱에 띄우기("제대로 된 방법" — 서버 API + 관리자 화면). 전에는 공지가 앱 코드(FE `constants/appNotices.ts`)에 적혀 있어 공지마다 OTA 가 필요했고, 팝업은 끝 날짜만 있고 시작 시점이 없었다.
+- 테이블 `app_notices`(title 100, body 5000, publish_at, popup_until NULL, popup_text 300, UTC). SQL `db/create_app_notices_table_2026_11_09.sql` — **배포 전 운영 DB 에서 먼저 실행**(ddl-auto=validate).
+- `GET /notices`(게스트 허용): 게시 시각이 지난 공지 최근 50개, 최근 게시 순. `popup{text, until}` 은 publish_at ≤ 지금 < popup_until 일 때만 붙는다.
+- `GET/POST/PUT/DELETE /admin/notices`(ADMIN, /admin/** 규칙·감사 로그): 예약 포함 전부, status SCHEDULED·PUBLISHED. 규칙(`AppNoticeService`): 팝업은 문구 필수·게시보다 뒤·게시 후 31일까지, 예약은 1년 안. 팝업을 끄면 popup_text 를 버린다.
+- 앱: 켤 때 `/notices` 를 한 번 받아(4초 제한) 앱에 적힌 공지와 섞는다. 못 받으면 앱에 적힌 공지만. 관리자 웹에 '앱 공지' 화면(FE).
+- 개인정보·권한: 공지 본문은 운영진이 쓰는 공개 글. 앱은 로그인·기기 정보 없이 받는다. 새로 모으는 정보 없음, 처리방침 변경 없음. 쓰기는 ADMIN 만(테스트로 일반 회원·게스트 403/401 확인).
+- 확인: `AppNoticeIntegrationTest` 5(새), 전체 778 통과. 처음엔 시계를 바꿔 끼운 테스트 컨텍스트가 하나 늘어 다른 테스트가 메모리 부족(OOM)으로 깨져서, 지금 시각 기준으로 바꿔 공용 컨텍스트를 쓰게 했다.
