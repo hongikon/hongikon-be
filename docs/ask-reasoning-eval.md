@@ -190,3 +190,35 @@
 2. FE `scripts/ask/reason-eval/`: `ASK_DEV_KEY=… node run.mjs <label> http://localhost:<port>` → `node judge.mjs <label>…`
    (judge 는 `@anthropic-ai/sdk`·`zod` 가 필요하다 — FE 의존성에 없으니 따로 설치한 폴더에서 돌린다).
 3. 4개 설정 1회 실행 + 채점 비용은 약 $16(답 쓰기 Opus ≈ $8.4, Sonnet ≈ $6.6, Haiku ≈ $0.5, 채점 ≈ $1, 추정).
+
+## 8. 성능 개선 하네스와 규정 그래프 — 어디서 무엇을(11-09)
+
+운영진: "성능 개선을 위한 하네싱·그래프를 어느 부분에서 어떻게 만들어야 하는지 파악하고 진행하자."
+
+### 8-1. 구조 — 재는 곳 · 바꾸는 곳 · 스위치
+
+| 할 일 | 어디 | 무엇 |
+|---|---|---|
+| 시험지 | FE `scripts/ask/cases-reason/` | `reason.json`(추론 44, 10-28) · `place.json`(장소·지도·가는 길·지금 시각·건물 무리·교수진 전부 11, 11-09) |
+| 묻기 | FE `scripts/ask/reason-eval/run.mjs` | 로컬 서버 `/ask/route` 에 보내 답·`actions`·`facilityId`·표 행 수를 남김. `--cases`·`--runs 3`(흔들림) |
+| 무료 채점 | `check.mjs` | `must` 묶음 포함률·`mustNot` 위반·구조(지도/가는 길 버튼 유무, 표 행 수). 매번 먼저 돌린다 |
+| 유료 채점 | `judge.mjs` | Opus 가 공식 결론과 비교(`reason.json` 만). 결론이 갈리면 사람이 본다 |
+| 규정 그래프 데이터 | BE `src/main/resources/ask/rule-graph.json` | 점 24 · 선 50(확인됨 49). 검사 `tools/rule-graph/validate.py`, 검토표 `review_sheet.py` |
+| 그래프 코드 | BE `AskRuleGraph` · `AskRouteService`(이웃 규정 블록·근거 안내 덧붙이기) | 확인된 선만 쓴다 |
+| 스위치(설정) | `application.properties` | `ASK_GRAPH_ENABLED`(기본 false) · `ASK_GRAPH_MAX_EDGES`(4) · `ASK_GRAPH_MAX_GUIDES`(1) · `ASK_LLM_MODEL` · `ASK_LLM_ANSWER_EFFORT`(low) |
+| 계산 도구(11-09) | BE `AskLlmClient` 도구 · `AskLiveData` | `nearest_places`(좌표 거리), `[오늘]` 요일·시각, `mapTarget/mapMode` — 모델이 세지 않고 서버가 계산 |
+
+### 8-2. 순서
+
+1. **기준 재기(무료 채점 먼저)** — 같은 서버를 스위치만 바꿔 두 번:
+   - `haiku-base`: `ASK_GRAPH_ENABLED=false`
+   - `haiku-graph`: `ASK_GRAPH_ENABLED=true`
+   - 각각 `node run.mjs <label> http://localhost:8081 --cases reason --runs 3`, `--cases place --runs 3` → `node check.mjs reason answers-<label>-r*.json`.
+   - 비용: 답 쓰기 Haiku 약 $0.5 × 3회 × 2설정 + place ≈ $4. 그다음 `judge.mjs`(reason, 약 $1/회).
+2. **켤지 판단** — 계획서(`ask-rule-graph-plan.md`) 7절 기준: 결과 누락이 기준의 절반 이하·핵심 사실 +10%p·손해 오류 0·범위 밖 유지.
+   켜면 EC2 `.env` 에 `ASK_GRAPH_ENABLED=true`(운영진).
+3. **그래프 2차 범위** — 1차에서 뺀 복수·부전공, 수강정정, 계절학기 + 이번에 넣은 최대학점·특성화교양·재수강 F 규칙. 초안 선은 `reviewed: ""`로 넣고(서버는 안 씀) 운영진 검토 뒤 켠다.
+4. **계산 도구 늘리기** — 모델이 세면 틀리는 것: 최대 수강학점(입학년도·직전 평점·P/F), 지금 열려 있는지(학사일정 학기 중/방학 + 운영시간), 교양 영역 충족.
+   도구를 하나 더할 때마다 `place.json` 처럼 시험 문항을 같이 넣는다.
+5. **실제 질문으로 시험지 늘리기** — `ask_conversation_logs` 에서 '해결 안 됨' 피드백·되묻기·`found=false` 질문을 뽑아(가림 처리된 질문만) 공식 정답을 붙여 문항으로.
+   학생이 실제로 막히는 질문이 시험지가 된다.
