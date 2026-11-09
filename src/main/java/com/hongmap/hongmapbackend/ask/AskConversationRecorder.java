@@ -71,9 +71,15 @@ public class AskConversationRecorder {
     /** '해결됐나요' 응답을 붙인다. 같은 대화(conversation_id)의 기록일 때만 — 남의 기록을 바꾸지 못하게. */
     @Transactional
     public boolean resolve(long logId, String conversationId, boolean resolved) {
+        return resolve(logId, conversationId, resolved, null);
+    }
+
+    /** reason: '해결 안 됨'의 이유(없으면 null — 이미 고른 이유는 그대로). 같은 대화 id 가 아니면 false. */
+    @Transactional
+    public boolean resolve(long logId, String conversationId, boolean resolved, AskFeedbackReason reason) {
         Optional<AskConversationLog> found = repository.findById(logId)
                 .filter(row -> row.getConversationId() != null && row.getConversationId().equals(conversationId));
-        found.ifPresent(row -> row.resolve(resolved));
+        found.ifPresent(row -> row.resolve(resolved, reason));
         return found.isPresent();
     }
 

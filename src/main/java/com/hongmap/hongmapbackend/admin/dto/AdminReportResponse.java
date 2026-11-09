@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.admin.dto;
 
 import com.hongmap.hongmapbackend.report.Report;
+import com.hongmap.hongmapbackend.report.ReportDay;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,7 +46,9 @@ public record AdminReportResponse(
         /** 작성자 공개 회원 번호(K7Q2M9XA4D). 회원 조회(q=)에 그대로 넣어 찾는다. */
         String authorMemberCode,
         /** 장소 설명(작성자가 고칠 수 있음). 없으면 null */
-        String placeLabel
+        String placeLabel,
+        /** 여러 날 제보의 날짜별 운영 시간(한국 시간). 한 번짜리 제보면 null(ReportSummaryResponse 와 같음). */
+        List<ReportDay> days
 ) {
     public static AdminReportResponse of(Report report, long flagCount, List<String> imageUrls) {
         return new AdminReportResponse(
@@ -72,6 +75,7 @@ public record AdminReportResponse(
                 report.getReviewedAt(),
                 report.getUser().getDisplayName(),
                 report.getUser().getMemberCode(),
-                report.getPlaceLabel());
+                report.getPlaceLabel(),
+                report.getDays());
     }
 }
