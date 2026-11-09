@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.report.dto;
 
 import com.hongmap.hongmapbackend.report.Report;
+import com.hongmap.hongmapbackend.report.ReportDay;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
@@ -71,7 +72,14 @@ public record ReportCreateRequest(
 
         /** 장소 설명(선택, 60자). 앱이 핀 근처 건물로 채워 주고 작성자가 고칠 수 있다. */
         @Size(max = 60, message = "장소 설명은 60자 이내로 적어 주세요.")
-        String placeLabel
+        String placeLabel,
+
+        /**
+         * 여러 날 제보의 날짜별 운영 시간(한국 시간, 날짜 순, 쉬는 날은 빼고, 최대 8일). 한 번짜리면 생략.
+         * 보내면 startsAt 은 첫날 start, endsAt 은 마지막 날 end 여야 한다(ReportService.validateDays).
+         */
+        @Size(max = 8, message = "운영 날짜는 8일까지 정할 수 있어요.")
+        List<ReportDay> days
 ) {
     /** 붙일 사진 키(순서대로). imageKeys 가 있으면 그것, 없으면 imageKey 1장, 둘 다 없으면 빈 목록. */
     public List<String> requestedImageKeys() {

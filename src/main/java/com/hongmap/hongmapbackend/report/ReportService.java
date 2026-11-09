@@ -27,7 +27,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +42,7 @@ import java.util.List;
  * 진행 기간 상한(일)은 report.maxDurationDays 설정값으로 관리.
  *
  * 예정 제보: startsAt 을 미래로 잡아 미리 올릴 수 있다(예: 내일 11:00~15:00 붕어빵 트럭).
- * 지도(GET /reports)에는 시작 시각이 된 뒤에야 뜨고, include=upcoming 이면 3일(72시간) 안에 시작할 제보를 따로 붙여 준다.
+ * 지도(GET /reports)에는 시작 시각이 된 뒤에야 뜨고, include=upcoming 이면 승인된 예정 제보를 시작 전까지 내내 따로 붙여 준다(11-09).
  * 등록 남용 제한(report.create.*)·건물과의 거리 상한(report.building-max-distance-meters)도 여기서 본다.
  */
 @Service
@@ -71,9 +76,14 @@ public class ReportService {
 
     /** 시작 시각을 "지금"으로 보낸 앱과 서버 시계가 조금 어긋나도 받아 주는 여유. */
     static final Duration STARTS_AT_PAST_GRACE = Duration.ofMinutes(10);
-    /** include=upcoming 으로 함께 내려주는 예정 제보 범위(지금부터). */
-    /** 예정 행사를 3일(72시간) 앞부터 미리 알린다(10-05 요청 — 24시간 → 48시간 → 72시간). */
-    static final Duration UPCOMING_WINDOW = Duration.ofHours(72);
+    private static final ZoneId KST_ZONE = ZoneId.of("Asia/Seoul");
+    /**
+     * include=upcoming 으로 함께 내려주는 예정 제보 범위(지금부터). 10-05 에 24 → 48 → 72시간으로 늘렸고,
+     * 11-09 요청으로 승인된 예정 제보는 시작 전까지 내내 보인다 — 시작은 최대 startsAtMaxDays 뒤라 그 기간 + 하루면 모두 들어온다.
+     */
+    Duration upcomingWindow() {
+        return Duration.ofDays(startsAtMaxDays + 1);
+    }
 
     @Value("${report.startsAt.maxDays}")
     private long startsAtMaxDays;
@@ -139,6 +149,7 @@ public class ReportService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "customCategoryLabel은 ETC 카테고리에서만 사용할 수 있습니다.");
         }
         validateSchedule(request.startsAt(), request.endsAt(), LocalDateTime.now());
+        List<ReportDay> days = validateDays(request.startsAt(), request.endsAt(), request.days());
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 사용자입니다."));
@@ -182,6 +193,7 @@ public class ReportService {
                 .content(request.content())
                 .startsAt(request.startsAt())
                 .endsAt(request.endsAt())
+                .days(days)
                 .status(ReportStatus.PENDING)
                 .build();
         report.addImages(imageKeys);
@@ -212,6 +224,54 @@ public class ReportService {
         validateEnd(startsAt, endsAt);
     }
 
+    /**
+     * 날짜별 운영 시간 규칙(11-08). 없으면 한 번짜리 제보라 볼 것이 없다.
+     * <ul>
+     *   <li>이틀 이상(하루짜리는 한 번짜리 제보와 같다), 날짜는 겹치지 않고 순서대로(쉬는 날은 빠져도 된다).</li>
+     *   <li>날마다 같은 날 안에서 끝난다(자정을 넘는 시간은 아직 받지 않는다).</li>
+     *   <li>startsAt 은 첫날 start, endsAt 은 마지막 날 end 다(한국 시간, 분 단위).</li>
+     * </ul>
+     * 받은 목록을 분 단위로 맞춘 사본을 돌려준다.
+     */
+    static List<ReportDay> validateDays(LocalDateTime startsAt, LocalDateTime endsAt, List<ReportDay> days) {
+        if (days == null || days.isEmpty()) {
+            return null;
+        }
+        if (days.size() < 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "하루만 하는 제보는 '한 번'으로 올려 주세요.");
+        }
+        List<ReportDay> normalized = new ArrayList<>();
+        LocalDate previous = null;
+        for (ReportDay day : days) {
+            if (day == null || day.date() == null || day.start() == null || day.end() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운영 날짜와 시간을 모두 골라 주세요.");
+            }
+            LocalTime start = day.start().truncatedTo(ChronoUnit.MINUTES);
+            LocalTime end = day.end().truncatedTo(ChronoUnit.MINUTES);
+            if (!end.isAfter(start)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운영 시간은 같은 날 안에서 끝나야 해요.");
+            }
+            if (previous != null && !day.date().isAfter(previous)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운영 날짜가 겹치거나 순서가 맞지 않아요.");
+            }
+            previous = day.date();
+            normalized.add(new ReportDay(day.date(), start, end));
+        }
+        ReportDay first = normalized.get(0);
+        ReportDay last = normalized.get(normalized.size() - 1);
+        LocalDateTime firstKst = toKst(startsAt).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime lastKst = toKst(endsAt).truncatedTo(ChronoUnit.MINUTES);
+        if (!firstKst.equals(first.date().atTime(first.start())) || !lastKst.equals(last.date().atTime(last.end()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "기간과 운영 시간이 맞지 않아요. 시간을 다시 골라 주세요.");
+        }
+        return List.copyOf(normalized);
+    }
+
+    /** 서버에 저장된 UTC 시각 → 한국 시간. */
+    private static LocalDateTime toKst(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(KST_ZONE).toLocalDateTime();
+    }
+
     /** 종료 시각 규칙: 시작보다 뒤, 시작 + maxDurationDays일 이내. (지났는지는 요청 DTO 의 @Future 가 본다) */
     private void validateEnd(LocalDateTime startsAt, LocalDateTime endsAt) {
         if (!endsAt.isAfter(startsAt)) {
@@ -225,7 +285,7 @@ public class ReportService {
 
     /**
      * 지도용 목록. 기본은 지금 진행 중(startsAt ≤ now ≤ endsAt)인 ACTIVE 제보만.
-     * includeUpcoming 이면 3일(72시간) 안에 시작할 ACTIVE 제보를 시작 시각 순으로 뒤에 붙인다(앱의 "예정" 표시용 —
+     * includeUpcoming 이면 아직 시작 전인 ACTIVE 제보를 모두(시작 전까지 내내) 시작 시각 순으로 뒤에 붙인다(앱의 "예정" 표시용 —
      * 항목의 startsAt 이 지금보다 뒤면 예정이다). 시작 전 제보는 기본 목록에 절대 섞이지 않는다.
      */
     @Transactional(readOnly = true)
@@ -235,7 +295,7 @@ public class ReportService {
                 PageRequest.of(0, LIVE_LIST_LIMIT)));
         if (includeUpcoming) {
             reports.addAll(reportRepository.findUpcomingReports(
-                    ReportStatus.ACTIVE, now, now.plus(UPCOMING_WINDOW), buildingId));
+                    ReportStatus.ACTIVE, now, now.plus(upcomingWindow()), buildingId));
         }
         List<ReportSummaryResponse> body = reports.stream()
                 .map(r -> ReportSummaryResponse.of(r, requesterId, reportImageService.viewUrls(r.getImageKeys())))
@@ -270,7 +330,7 @@ public class ReportService {
         } else {
             validateSchedule(startsAt, endsAt, now);
         }
-        report.changeSchedule(startsAt, endsAt);
+        report.changeSchedule(startsAt, endsAt, validateDays(startsAt, endsAt, request.days()));
         return ReportResponse.of(report, userId, reportImageService.viewUrls(report.getImageKeys()));
     }
 
