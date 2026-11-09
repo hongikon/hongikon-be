@@ -42,6 +42,8 @@ public record ReportSummaryResponse(
          */
         List<ReportDay> days,
         LocalDateTime createdAt,
+        /** 작성자가 마지막으로 내용을 고친 시각(UTC). 고친 적 없으면 null — 앱이 '수정됨'을 보여 준다(11-09). */
+        LocalDateTime editedAt,
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
         String authorDisplayName,
         /** 운영진이 인증한 공식 계정(학생회 등)이 올린 제보면 true — 앱이 공식 배지를 붙인다 */
@@ -84,6 +86,7 @@ public record ReportSummaryResponse(
                 .endsAt(report.getEndsAt())
                 .days(report.getDays())
                 .createdAt(report.getCreatedAt())
+                .editedAt(report.getEditedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
                 .authorOfficial(report.getUser().isOfficial())
                 .build();
