@@ -63,6 +63,8 @@ final class WalkRouter {
     /** 층이 있는 출입구 정점들(계단 방향 어림용). */
     private final List<EntrancePoint> entrancePoints = new ArrayList<>();
     private final Function<String, CampusBuilding> resolveBuilding;
+    /** 서버 건물 code → 건물. */
+    private final Map<String, CampusBuilding> byCode = new HashMap<>();
     private final Graph base;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
@@ -152,6 +154,11 @@ final class WalkRouter {
                 entrancePoints.add(new EntrancePoint(v.lat(), v.lng(), v.code(), v.floor()));
             }
         }
+        for (CampusBuilding building : this.buildings) {
+            if (building.code() != null) {
+                byCode.putIfAbsent(building.code(), building);
+            }
+        }
         this.resolveBuilding = v3BuildingResolver();
         this.base = buildBaseGraph();
     }
@@ -160,8 +167,41 @@ final class WalkRouter {
 
     /** 건물(층)에서 건물(층)까지 후보들. 경로망이 못 덮으면 직선 어림 하나. */
     List<WalkRoute> routes(CampusBuilding from, Double fromFloor, CampusBuilding to, Double toFloor) {
-        List<WalkRoute> found = findRoutes(from, fromFloor, to, toFloor, MAX_ALTERNATIVES);
-        return found.isEmpty() ? List.of(straightLineFallback(from, fromFloor, to, toFloor)) : found;
+        Level start = sameLevel(from, fromFloor);
+        Level end = sameLevel(to, toFloor);
+        List<WalkRoute> found = findRoutes(start.building(), start.floor(), end.building(), end.floor(), MAX_ALTERNATIVES);
+        if (found.isEmpty()) {
+            return List.of(straightLineFallback(start.building(), start.floor(), end.building(), end.floor()));
+        }
+        List<WalkRoute> out = new ArrayList<>();
+        for (WalkRoute route : found) {
+            out.add(withLevelNotes(route, new Level(from, fromFloor), start, new Level(to, toFloor), end));
+        }
+        return out;
+    }
+
+    /** 고른 건물·층을 이어진 건물의 같은 층으로 바꿨으면 안내에 적는다: 'B동 3층(A동 5층)'까지, 메모 'A동 5층 = B동 3층'. */
+    private WalkRoute withLevelNotes(WalkRoute route, Level chosenStart, Level start, Level chosenEnd, Level end) {
+        List<String> steps = new ArrayList<>(route.steps());
+        List<String> notes = new ArrayList<>();
+        if (start.building() != chosenStart.building()) {
+            notes.add(levelText(chosenStart) + " = " + levelText(start));
+        }
+        if (end.building() != chosenEnd.building()) {
+            notes.add(levelText(chosenEnd) + " = " + levelText(end));
+            steps.add(levelText(end) + "(" + levelText(chosenEnd) + ")");
+        }
+        if (notes.isEmpty()) {
+            return route;
+        }
+        notes.addAll(route.notes());
+        return new WalkRoute(route.points(), route.distanceMeters(), route.totalSeconds(), route.minutes(), route.hasIndoorTransit(),
+                route.hasStairs(), route.hasLinkSegment(), route.isEstimate(), route.usesElevator(), route.indoorMeters(),
+                route.viaBuildings(), List.copyOf(notes), List.copyOf(steps), route.indoorSegments());
+    }
+
+    private static String levelText(Level level) {
+        return shortBuildingName(level.building().name()) + " " + floorText(level.floor());
     }
 
     /** 실측 경로망을 따라 계산한 후보들. 어느 한쪽 건물이 경로망에 없으면 빈 목록. */
@@ -185,7 +225,11 @@ final class WalkRouter {
      * 최대 3개 — 건물 → 건물과 같은 규칙)를 한 번에 낸다. 앱은 내 위치에서 가까운 길 점(150m 안 3곳) 중 걷는 시간 + 가장 빠른 길이
      * 가장 작은 점을 골라 그 점의 후보를 보여 준다(가장 빠른 길은 예전 앱 계산과 같다). 경로망이 도착 건물을 못 덮으면 빈 결과.
      */
-    Approach approach(CampusBuilding to, Double toFloor) {
+    Approach approach(CampusBuilding chosenTo, Double chosenToFloor) {
+        Level end = sameLevel(chosenTo, chosenToFloor);
+        Level chosenEnd = new Level(chosenTo, chosenToFloor);
+        CampusBuilding to = end.building();
+        Double toFloor = end.floor();
         Graph graph = base.copy();
         String targetId = attachFloorNode(graph, to, toFloor);
         if (!graph.nodes.containsKey(targetId)) {
@@ -212,7 +256,8 @@ final class WalkRouter {
                 for (String nodeId : path.nodeIds()) {
                     indices.add(indexOf.apply(nodeId));
                 }
-                routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(nameVia(toRoute(graph, path), exclude))));
+                WalkRoute route = withLevelNotes(nameVia(toRoute(graph, path), exclude), chosenEnd, chosenEnd, chosenEnd, end);
+                routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(route)));
             }
             if (!routes.isEmpty()) {
                 starts.add(new ApproachStart(indexOf.apply(id), List.copyOf(routes)));
@@ -253,6 +298,32 @@ final class WalkRouter {
                 + Floors.entranceTransitSeconds(toBuilding, toFloor);
         return new WalkRoute(List.of(fromPoint, toPoint), Math.round(meters), totalSeconds, Math.max(1, Math.round(totalSeconds / 60)),
                 fromFloor != null || toFloor != null, false, false, true, null, null, null, null, null, null);
+    }
+
+    // ---- 이어 붙은 건물의 같은 층 ----
+
+    record Level(CampusBuilding building, Double floor) {
+    }
+
+    /**
+     * 인문사회관 A동과 B동은 한 건물처럼 이어져 있다 — A동 n층 = B동 (n-2)층(B동 지하2층 = A동 1층, 지하1층 = A동 2층, 11-10 사용자 확인).
+     * A동 3층 이상을 고르면 B동 그 층으로, B동 지하층을 고르면 A동 그 층으로 안내한다(경로망 조사의 A·B tie 와 같은 짝).
+     */
+    private static final String HUMANITIES_A = "hongik_a";
+    private static final String HUMANITIES_B = "hongik_b";
+    private static final int A_TO_B_OFFSET = 2;
+
+    Level sameLevel(CampusBuilding building, Double floor) {
+        if (floor == null || building.code() == null) {
+            return new Level(building, floor);
+        }
+        if (building.code().equals(HUMANITIES_A) && floor >= 3 && byCode.containsKey(HUMANITIES_B)) {
+            return new Level(byCode.get(HUMANITIES_B), floor - A_TO_B_OFFSET);
+        }
+        if (building.code().equals(HUMANITIES_B) && floor < 0 && byCode.containsKey(HUMANITIES_A)) {
+            return new Level(byCode.get(HUMANITIES_A), floor + A_TO_B_OFFSET + 1);
+        }
+        return new Level(building, floor);
     }
 
     // ---- 이름표·메모 ----

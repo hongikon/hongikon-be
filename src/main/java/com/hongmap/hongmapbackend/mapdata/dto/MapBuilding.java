@@ -19,6 +19,7 @@ public record MapBuilding(
         String type,
         Integer floors,
         Integer basementFloors,
+        JsonNode floorLevels,
         String hours,
         String description,
         JsonNode facilities,

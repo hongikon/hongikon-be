@@ -19,11 +19,15 @@ final class Floors {
     }
 
     /**
-     * 고를 수 있는 층(앱 buildFloorOptions — 층 다이얼과 같은 값). floors 가 있으면 지하 최하층~지상 최상층, 없으면 출입구가 걸친
-     * 층(1.5 같은 중간층 포함), 둘 다 없으면 빈 목록(층을 고를 수 없는 건물).
+     * 고를 수 있는 층(앱 buildFloorOptions — 층 다이얼과 같은 값). floorLevels(층 목록)가 있으면 그대로, 없으면 floors 로 지하 최하층~
+     * 지상 최상층, 그것도 없으면 출입구가 걸친 층(1.5 같은 중간층 포함), 다 없으면 빈 목록(층을 고를 수 없는 건물).
      */
     static java.util.SortedSet<Double> floorOptions(CampusBuilding building) {
         java.util.SortedSet<Double> values = new java.util.TreeSet<>();
+        if (!building.floorLevels().isEmpty()) {
+            values.addAll(building.floorLevels());
+            return values;
+        }
         double lowest;
         double highest;
         if (building.floors() != null && building.floors() > 0) {

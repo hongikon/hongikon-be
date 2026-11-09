@@ -10,7 +10,7 @@ import java.util.List;
  * name 은 표시 이름, entrances 는 층별 출입구(없으면 빈 목록).
  */
 record CampusBuilding(Long id, String code, String name, double lat, double lng, Integer floors, Integer basementFloors,
-                      List<Entrance> entrances) {
+                      List<Double> floorLevels, List<Entrance> entrances) {
 
     record Entrance(String label, double lat, double lng, double minFloor, double maxFloor) {
     }
@@ -40,13 +40,22 @@ record CampusBuilding(Long id, String code, String name, double lat, double lng,
         JsonNode code = node.get("code");
         JsonNode floors = node.get("floors");
         JsonNode basementFloors = node.get("basementFloors");
+        List<Double> floorLevels = new ArrayList<>();
+        JsonNode levels = node.get("floorLevels");
+        if (levels != null && levels.isArray()) {
+            for (JsonNode level : levels) {
+                if (isFinite(level)) {
+                    floorLevels.add(level.asDouble());
+                }
+            }
+        }
         return new CampusBuilding(
                 id != null && id.isNumber() ? id.asLong() : null,
                 code != null && code.isString() ? code.asString() : null,
                 name.asString(), lat.asDouble(), lng.asDouble(),
                 floors != null && floors.isNumber() ? floors.asInt() : null,
                 basementFloors != null && basementFloors.isNumber() ? basementFloors.asInt() : null,
-                List.copyOf(entrances));
+                List.copyOf(floorLevels), List.copyOf(entrances));
     }
 
     private static boolean isFinite(JsonNode n) {
