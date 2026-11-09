@@ -496,7 +496,51 @@ public class AskRouteService {
                     .map(ref -> ref.substring("facility:".length())).findFirst().orElse(null);
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
-                response.catalogVersion(), response.references(), pages, phones, facilityId);
+                response.catalogVersion(), response.references(), pages, phones, facilityId)
+                .withActions(mapActions(references, facilityId, response.answer()));
+    }
+
+    /** 지도 대상이 되는 근거(답이 실제로 쓴 순서) — 건물·편의시설·제휴. */
+    private static final List<String> PLACE_PREFIXES = List.of("building:", "facility:", "partner:");
+    static final int ACTION_SUMMARY_MAX = 90;
+
+    /**
+     * '지도에서 보기' 버튼(11-07). 답이 쓴 근거 중 처음 나온 건물·시설·제휴, 없으면 근거 안내의 위치(facilityId).
+     * 대상 id 는 지도 데이터에 있는 것만(도구 결과·카탈로그) — 모델이 좌표나 id 를 만들지 않는다. 버튼은 하나만.
+     */
+    static List<AskRouteResponse.Action> mapActions(List<AskLiveData.Reference> references, String facilityId, String answer) {
+        String summary = summaryOf(answer);
+        for (AskLiveData.Reference reference : references) {
+            String ref = reference.ref();
+            if (PLACE_PREFIXES.stream().anyMatch(prefix -> ref.startsWith(prefix) && ref.length() > prefix.length())) {
+                // 시설 참조 제목은 설명 한 줄(이름·층·시간…)이라 앱이 지도 데이터 이름을 쓴다. 건물·제휴는 이름 그대로.
+                String label = ref.startsWith("facility:") || reference.title() == null || reference.title().isBlank()
+                        ? null : reference.title();
+                return List.of(new AskRouteResponse.Action("map", ref, label, summary));
+            }
+        }
+        if (facilityId != null && !facilityId.isBlank()) {
+            return List.of(new AskRouteResponse.Action("map", "facility:" + facilityId, null, summary));
+        }
+        return List.of();
+    }
+
+    /** 답의 첫 문장(마크다운 굵게 표시는 뗀다), 최대 ACTION_SUMMARY_MAX 자. */
+    static String summaryOf(String answer) {
+        if (answer == null || answer.isBlank()) {
+            return null;
+        }
+        String text = answer.replace("**", "").strip();
+        int end = -1;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || ((c == '.' || c == '?' || c == '!') && (i + 1 == text.length() || Character.isWhitespace(text.charAt(i + 1))))) {
+                end = c == '\n' ? i : i + 1;
+                break;
+            }
+        }
+        String first = (end > 0 ? text.substring(0, end) : text).strip();
+        return first.length() > ACTION_SUMMARY_MAX ? first.substring(0, ACTION_SUMMARY_MAX - 1).stripTrailing() + "…" : first;
     }
 
     /** 고른 안내가 걸리는 주제의 고정 근거(카탈로그에 있는 것만). */

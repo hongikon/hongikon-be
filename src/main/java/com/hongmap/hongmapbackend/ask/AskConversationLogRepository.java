@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface AskConversationLogRepository extends JpaRepository<AskConversationLog, Long> {
@@ -23,6 +24,13 @@ public interface AskConversationLogRepository extends JpaRepository<AskConversat
             ORDER BY l.createdAt DESC
             """)
     List<AskConversationLog> findUnresolved(@Param("since") LocalDateTime since, @Param("reviewed") Boolean reviewed, Pageable pageable);
+
+    /** '요즘 많이 찾는 안내'(AskPopularGuides): since 뒤 기록의 (대화 id, 안내 id들). '해결 안 됨'은 뺀다. */
+    @Query("""
+            SELECT l.conversationId, l.nodeIds FROM AskConversationLog l
+            WHERE l.createdAt >= :since AND l.outcome IN :outcomes AND (l.resolved IS NULL OR l.resolved = true)
+            """)
+    List<Object[]> findGuideUses(@Param("since") LocalDateTime since, @Param("outcomes") Collection<AskConversationLog.Outcome> outcomes);
 
     long countByCreatedAtGreaterThanEqual(LocalDateTime since);
 
