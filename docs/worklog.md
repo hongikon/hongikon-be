@@ -1708,3 +1708,10 @@
   새 안내 `club-types`(동아리 종류·포교 주의 — 특정 단체 이름은 쓰지 않음), `student-perks`(무료로 쓰는 곳·학생 혜택 — Office365·Adobe·PC실 프린트는 기존 공식 안내로 잇는다),
   기존 `syllabus`(교수님·분반마다 다른 수업·강의평·강의요원), `classes`(시간표 짤 때), `loan`(생활비 대출 — 한도 금액은 해마다 바뀌어 적지 않음)에 '재학생 팁 · 홍익온 정리' 섹션.
 - 교수 이름(이니셜)·욕설·한 학과만의 정보는 넣지 않았다. 개인정보 없음.
+
+## 2026-11-09 — 물어보기: 답 쓰기 출력 한도·추가 지시를 설정으로(평가용)
+
+- `ask.llm.answer-max-tokens`(`ASK_LLM_ANSWER_MAX_TOKENS`, 기본 6000) — effort 를 high 로 올리면 함께 올린다(10-28 평가: 6000 에서 답 실패 3건).
+- `ask.llm.answer-extra-file`(`ASK_LLM_ANSWER_EXTRA_FILE`, 기본 없음) — 답 쓰기 지시 뒤에 붙일 추가 지시 파일. 파일을 못 읽으면 시작을 멈춘다(설정 오타로 조용히 빠지지 않게).
+- 기본값이면 지금과 같다. 평가: FE `scripts/ask/reason-eval/matrix.sh`(설정 5개 — haiku-base / haiku-graph / haiku-graph-medium / haiku-graph-reason / sonnet-graph-reason).
+- 확인: `AskLlmClientSchemaTest.추가_답_지시_파일은_…`, `*Ask*` 162개 통과. 로컬 키 없이 배관만 확인(서버 시작·개발 키 인증·답 모으기).

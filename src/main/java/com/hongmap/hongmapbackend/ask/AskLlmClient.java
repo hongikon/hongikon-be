@@ -86,7 +86,9 @@ public class AskLlmClient {
      * 답 한 차례의 출력 한도. 내부 추론(thinking)도 여기서 쓰므로 넉넉히 둔다 — 1,500 이었을 때 원문이 긴 안내(졸업요건·학교 메일)에서
      * 추론에 한도를 다 써 JSON 이 잘리고 답 쓰기가 실패했다(10-15). 답 자체는 2~6문장이라 실제 비용은 거의 그대로다.
      */
-    private static final long ANSWER_MAX_TOKENS = 6_000;
+    /** 답 쓰기 출력 한도 기본값. effort 를 high 로 올리면 내부 추론이 한도를 다 써 답이 실패한다(10-28 평가 원인 8) — 그때 ask.llm.answer-max-tokens 를 함께 올린다. */
+    static final long ANSWER_MAX_TOKENS = 6_000;
+    private final long answerMaxTokens;
 
     static final String ANSWER_SYSTEM = """
             너는 홍익대학교 학생 안내 앱 '홍익온'의 안내 도우미다. 학생의 이번 질문에 [안내 원문]만 근거로 답한다.
@@ -253,14 +255,19 @@ public class AskLlmClient {
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
                         @Value("${ask.llm.cache-ttl:1h}") String cacheTtl,
-                        @Value("${ask.llm.answer-effort:low}") String answerEffort) {
+                        @Value("${ask.llm.answer-effort:low}") String answerEffort,
+                        @Value("${ask.llm.answer-max-tokens:6000}") long answerMaxTokens,
+                        @Value("${ask.llm.answer-extra-file:}") String answerExtraFile) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
         this.jsonMapper = jsonMapper;
         this.model = model;
         this.longCache = cacheControl(cacheTtl).ttl().isPresent();
-        this.answerSystem = ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM;
+        this.answerMaxTokens = answerMaxTokens > 0 ? answerMaxTokens : ANSWER_MAX_TOKENS;
+        // 추가 답 지시(평가로 고른 추론 지시 등, docs/ask-reasoning-eval.md 8절). 파일이 없으면 시작을 멈춘다 — 설정 오타로 조용히 빠지지 않게.
+        String extra = readExtra(answerExtraFile);
+        this.answerSystem = (ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM) + extra;
         this.answerSystemBlocks = List.of(TextBlockParam.builder()
                 .text(answerSystem)
                 .cacheControl(cacheControl(cacheTtl))
@@ -350,6 +357,18 @@ public class AskLlmClient {
     }
 
     /** 답 쓰기 시스템 프롬프트(규정 그래프가 켜져 있으면 지시 세 줄이 붙는다). */
+    static String readExtra(String file) {
+        if (file == null || file.isBlank()) {
+            return "";
+        }
+        try {
+            String text = java.nio.file.Files.readString(java.nio.file.Path.of(file.strip())).strip();
+            return text.isEmpty() ? "" : "\n" + text + "\n";
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("ask.llm.answer-extra-file 을 읽지 못했다: " + file, e);
+        }
+    }
+
     String answerSystem() {
         return answerSystem;
     }
@@ -543,7 +562,7 @@ public class AskLlmClient {
 
         MessageCreateParams.Builder params = MessageCreateParams.builder()
                 .model(model)
-                .maxTokens(ANSWER_MAX_TOKENS)
+                .maxTokens(answerMaxTokens)
                 .systemOfTextBlockParams(answerSystemBlocks)
                 .outputConfig(answerConfig)
                 .addUserMessage(first.toString());

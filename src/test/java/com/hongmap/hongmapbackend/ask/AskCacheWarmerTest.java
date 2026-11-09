@@ -18,7 +18,7 @@ class AskCacheWarmerTest {
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
-        return new AskLlmClient(catalog, null, retriever, graphOff, mapper, apiKey, "claude-haiku-5-5", 20, ttl, "low");
+        return new AskLlmClient(catalog, null, retriever, graphOff, mapper, apiKey, "claude-haiku-5-5", 20, ttl, "low", 6000, "");
     }
 
     @Test
