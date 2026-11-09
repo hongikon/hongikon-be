@@ -1,6 +1,6 @@
 {
   "version": "2026-11-02.1",
-  "catalogVersion": "6f5c1a0ff07f",
+  "catalogVersion": "38027104f834",
   "nodes": [
     { "id": "semester-retake", "name": "학기재수강",
       "guides": ["semester-retake/start", "semester-retake/faq0", "faq-retake/semester-retake-range", "faq-retake/semester-retake-apply", "faq-retake/semester-retake-after"] },
