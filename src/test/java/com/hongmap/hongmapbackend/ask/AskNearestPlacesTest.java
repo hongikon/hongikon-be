@@ -60,4 +60,24 @@ class AskNearestPlacesTest {
         assertThat(liveData().nearestPlaces("정문", "편의점", unknown)).isEmpty();
         assertThat(unknown.toString()).contains("찾지 못했어요");
     }
+
+    /** 11-09 운영진: '공학관 정보'에 제1공학관만 왔다 — 이름이 같은 건물 무리(제1~4공학관)는 모두 준다. */
+    @Test
+    void 이름이_같은_건물_무리는_셋이_넘어도_모두_준다() {
+        String data = """
+                {"buildings":[
+                  {"code":"k","name":"제1공학관 K동","lat":1,"lng":1},{"code":"p","name":"제2공학관 P동","lat":1,"lng":1},
+                  {"code":"j","name":"제3공학관 J동","lat":1,"lng":1},{"code":"t","name":"제4공학관 T동","lat":1,"lng":1},
+                  {"code":"r","name":"홍문관 R동","lat":1,"lng":1}],"facilities":[],"partners":[],"exhibitions":[]}
+                """;
+        MapDataService map = mock(MapDataService.class);
+        when(map.current()).thenReturn(new MapDataService.Snapshot("v", data.getBytes(StandardCharsets.UTF_8)));
+        CafeteriaMenuService cafeteria = mock(CafeteriaMenuService.class);
+        when(cafeteria.today()).thenReturn(LocalDate.of(2026, 11, 9));
+        AskLiveData live = new AskLiveData(null, cafeteria, map, JsonMapper.builder().build());
+        assertThat(live.searchBuildings("공학관", new StringBuilder())).extracting(AskLiveData.Reference::ref)
+                .containsExactlyInAnyOrder("building:k", "building:p", "building:j", "building:t");
+        assertThat(live.searchBuildings("제4공학관", new StringBuilder())).extracting(AskLiveData.Reference::ref)
+                .startsWith("building:t");
+    }
 }

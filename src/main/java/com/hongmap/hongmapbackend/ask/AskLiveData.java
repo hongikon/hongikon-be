@@ -82,6 +82,9 @@ public class AskLiveData {
     }
 
     static final int BUILDING_SEARCH_LIMIT = 3;
+    /** '공학관'처럼 이름이 같은 건물 무리(제1~4공학관)는 다 준다 — 대신 건물마다 시설 줄을 줄인다(11-09, 4곳 중 제1공학관만 답하던 것). */
+    static final int BUILDING_FAMILY_LIMIT = 6;
+    static final int BUILDING_FAMILY_FACILITY_LINES = 12;
     /** 건물 하나에 붙일 시설 줄 수 상한(홍문관처럼 연구소·사무실이 40곳 넘는 건물도 있다). */
     static final int BUILDING_FACILITY_LINES = 60;
     static final int PARTNER_SEARCH_LIMIT = 8;
@@ -110,9 +113,13 @@ public class AskLiveData {
             }
         }
         hits.sort((a, b) -> b.score() - a.score());
+        // 질문 낱말이 모두 이름에 든 건물이 셋보다 많으면(공학관·인문사회관·강의동) 그 무리를 모두 — 건물마다 시설 줄은 줄인다.
+        long family = hits.stream().filter(hit -> score(hit.node().path("name").asString(""), words) == words.size()).count();
+        int limit = family > BUILDING_SEARCH_LIMIT ? (int) Math.min(family, BUILDING_FAMILY_LIMIT) : BUILDING_SEARCH_LIMIT;
+        int facilityLines = limit > BUILDING_SEARCH_LIMIT ? BUILDING_FAMILY_FACILITY_LINES : BUILDING_FACILITY_LINES;
         LocalDate today = cafeteriaMenuService.today();
         List<Reference> references = new ArrayList<>();
-        for (Hit hit : hits.subList(0, Math.min(BUILDING_SEARCH_LIMIT, hits.size()))) {
+        for (Hit hit : hits.subList(0, Math.min(limit, hits.size()))) {
             JsonNode building = hit.node();
             String name = building.path("name").asString("");
             String ref = "building:" + building.path("code").asString("");
@@ -134,7 +141,7 @@ public class AskLiveData {
                 if (lines++ == 0) {
                     text.append("- 층별 시설:\n");
                 }
-                if (lines > BUILDING_FACILITY_LINES) {
+                if (lines > facilityLines) {
                     text.append("  (시설이 더 있어요 — search_facilities 로 찾는다)\n");
                     break;
                 }
