@@ -1611,3 +1611,11 @@
 - 응답: `ReportSummaryResponse`·`ReportResponse`·`MyReportResponse`·`AdminReportResponse` 에 `days`. 구버전 앱은 모르는 필드라 무시하고 기간 전체를 한 번짜리로 보여 준다.
 - 개인정보·권한: 새로 모으는 개인정보 없음(행사 운영 시간만). 처리방침 변경 없음.
 - 확인: `ReportDaysTest` 8(새), 전체 762 통과.
+
+## 2026-11-09 — 제보: 승인된 예정 제보를 시작 전까지 내내 지도에
+
+- 사용자 요청(11-09): 예정 제보가 승인되면 시작 전 대기 시간 동안 계속 지도에 보이게. 전에는 `include=upcoming` 이 72시간 안에 시작할 것만 붙여(10-05 24→48→72시간) 일주일 뒤 행사는 승인돼도 사흘 전까지 안 보였다.
+- `ReportService.upcomingWindow()` = `report.startsAt.maxDays`(14) + 1일 — 시작은 최대 14일 뒤라 승인된 예정 제보가 모두 들어온다. 쿼리(`findUpcomingReports`)·응답 모양은 그대로, 앱 변경 없음(점선 테두리 '예정' 핀으로 이미 그린다). 승인 전(PENDING)은 여전히 빠진다.
+- Swagger 설명·주석의 '3일(72시간)'을 고침. 새 제보 알림(시작 때 한 번)·근처 알림은 바꾸지 않음.
+- 개인정보·권한: 이미 승인돼 공개될 제보를 더 일찍 보여 줄 뿐, 새로 모으는 정보 없음. 처리방침 변경 없음.
+- 확인: `ReportScheduleIntegrationTest` 의 예정 목록 테스트를 '나흘 뒤·13일 뒤도 붙는다'로 바꿈.
