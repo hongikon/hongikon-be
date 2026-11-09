@@ -6,6 +6,7 @@ import com.hongmap.hongmapbackend.building.BuildingRepository;
 import com.hongmap.hongmapbackend.common.ratelimit.SlidingWindowRateLimiter;
 import com.hongmap.hongmapbackend.report.dto.ReportCreateRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportScheduleRequest;
+import com.hongmap.hongmapbackend.report.dto.ReportUpdateRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagRequest;
 import com.hongmap.hongmapbackend.report.dto.ReportFlagResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
@@ -107,6 +108,8 @@ public class ReportService {
      * 운영진이 인증한 계정이라 도배 걱정이 적다 — 그래도 계정 탈취 대비로 한도 자체는 남긴다.
      */
     private final SlidingWindowRateLimiter officialCreateLimiter;
+    /** 작성자 수정 횟수 제한(1시간, 사용자별) — 승인된 제보도 바로 바뀌므로 내용을 자꾸 바꾸는 남용을 막는다. */
+    private final SlidingWindowRateLimiter editLimiter;
     private final long maxPendingPerOfficial;
 
     public ReportService(ReportRepository reportRepository, ReportFlagRepository reportFlagRepository,
@@ -119,7 +122,8 @@ public class ReportService {
                          @Value("${report.create.official-limit-per-hour:30}") int officialCreateLimitPerHour,
                          @Value("${report.create.official-max-pending:20}") long maxPendingPerOfficial,
                          @Value("${report.building-max-distance-meters:300}") double buildingMaxDistanceMeters,
-                         @Value("${report.off-campus-max-distance-meters:2500}") double offCampusMaxDistanceMeters) {
+                         @Value("${report.off-campus-max-distance-meters:2500}") double offCampusMaxDistanceMeters,
+                         @Value("${report.edit.limit-per-hour:20}") int editLimitPerHour) {
         this.reportRepository = reportRepository;
         this.reportFlagRepository = reportFlagRepository;
         this.reportCommentCounts = reportCommentCounts;
@@ -134,6 +138,7 @@ public class ReportService {
         this.createLimiter = new SlidingWindowRateLimiter(createLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
         this.officialCreateLimiter = new SlidingWindowRateLimiter(officialCreateLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
         this.maxPendingPerOfficial = maxPendingPerOfficial;
+        this.editLimiter = new SlidingWindowRateLimiter(editLimitPerHour, Duration.ofHours(1), Clock.systemUTC());
     }
 
     @Transactional
@@ -331,6 +336,79 @@ public class ReportService {
             validateSchedule(startsAt, endsAt, now);
         }
         report.changeSchedule(startsAt, endsAt, validateDays(startsAt, endsAt, request.days()));
+        return ReportResponse.of(report, userId, reportImageService.viewUrls(report.getImageKeys()));
+    }
+
+    /**
+     * 작성자가 자기 제보를 고친다(11-09 요청 — 지도 카드 ⋯ 에서). 승인 대기·공개 제보만, 상태는 그대로라 공개 제보는 고친 내용이
+     * 바로 지도에 보인다(사용자 결정 11-09). 대신 editedAt 을 남겨 앱·관리자 화면에 '수정됨'으로 드러내고, 1시간 횟수를 제한한다.
+     * 핀(건물·좌표)은 그대로다. 규칙은 등록과 같고, 시작 시각을 그대로 두면 이미 시작한 제보도 고칠 수 있다(updateSchedule 과 같다).
+     * 새로 모으는 정보는 없다(등록 때와 같은 항목).
+     */
+    @Transactional
+    public ReportResponse update(Long userId, Long reportId, ReportUpdateRequest request) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 제보입니다."));
+        if (!report.getUser().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 작성한 제보만 고칠 수 있어요.");
+        }
+        if (report.getStatus() != ReportStatus.PENDING && report.getStatus() != ReportStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "지금은 이 제보를 고칠 수 없어요.");
+        }
+
+        ReportCategory category;
+        try {
+            category = ReportCategory.valueOf(request.category());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리입니다: " + request.category());
+        }
+        String customLabel = request.customCategoryLabel() == null || request.customCategoryLabel().isBlank()
+                ? null : request.customCategoryLabel().strip();
+        if (category != ReportCategory.ETC && customLabel != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "customCategoryLabel은 ETC 카테고리에서만 사용할 수 있습니다.");
+        }
+        String placeLabel = request.placeLabel() == null || request.placeLabel().isBlank() ? null : request.placeLabel().strip();
+        Integer floor = null;
+        if (report.getBuilding() != null) {
+            if (request.floor() == null || request.floor() == 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "층을 다시 골라 주세요.");
+            }
+            floor = request.floor();
+        } else if (placeLabel == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "캠퍼스 밖 제보는 장소 설명을 적어 주세요. 예: 홍대입구역 9번 출구 앞");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (request.startsAt().equals(report.getStartsAt())) {
+            validateEnd(request.startsAt(), request.endsAt());
+        } else {
+            validateSchedule(request.startsAt(), request.endsAt(), now);
+        }
+        List<ReportDay> days = validateDays(request.startsAt(), request.endsAt(), request.days());
+
+        List<Integer> keep = request.keepImageIndexes() == null ? List.of() : request.keepImageIndexes();
+        int currentImages = report.getImageKeys().size();
+        if (keep.stream().anyMatch(i -> i < 0 || i >= currentImages) || keep.stream().distinct().count() != keep.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "남길 사진 정보가 맞지 않아요. 제보를 다시 열어 고쳐 주세요.");
+        }
+        List<String> rawNewKeys = request.imageKeys() == null ? List.of() : request.imageKeys();
+        if (keep.size() + rawNewKeys.size() > Report.MAX_IMAGES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진은 최대 " + Report.MAX_IMAGES + "장까지 붙일 수 있어요.");
+        }
+        // 검증을 다 통과한 요청만 센다(등록과 같이). 사진 정리(S3 사본) 전에 봐서 막힌 요청이 사본을 만들지 않게 한다.
+        if (!editLimiter.tryAcquire("user:" + userId)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "제보를 너무 자주 고치고 있어요. 잠시 후 다시 시도해 주세요.");
+        }
+        // 새 사진은 등록과 같이 키 형식·업로드·크기를 보고 메타데이터를 지운 사본의 키를 받는다(실패 시 400).
+        List<String> newKeys = reportImageService.validateForAttach(rawNewKeys);
+
+        report.editByAuthor(floor, category, category == ReportCategory.ETC ? customLabel : null, placeLabel,
+                request.title().strip(), request.content() == null || request.content().isBlank() ? null : request.content().strip(),
+                request.startsAt(), request.endsAt(), days, now);
+        List<String> removedKeys = report.replaceImages(keep, newKeys);
+        reportRepository.flush();
+        reportImageService.deleteAfterCommit(removedKeys);
         return ReportResponse.of(report, userId, reportImageService.viewUrls(report.getImageKeys()));
     }
 
