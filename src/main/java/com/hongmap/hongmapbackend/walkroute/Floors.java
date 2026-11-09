@@ -18,6 +18,40 @@ final class Floors {
         return floor > 0 ? floor - 1 : floor;
     }
 
+    /**
+     * 고를 수 있는 층(앱 buildFloorOptions — 층 다이얼과 같은 값). floors 가 있으면 지하 최하층~지상 최상층, 없으면 출입구가 걸친
+     * 층(1.5 같은 중간층 포함), 둘 다 없으면 빈 목록(층을 고를 수 없는 건물).
+     */
+    static java.util.SortedSet<Double> floorOptions(CampusBuilding building) {
+        java.util.SortedSet<Double> values = new java.util.TreeSet<>();
+        double lowest;
+        double highest;
+        if (building.floors() != null && building.floors() > 0) {
+            lowest = building.basementFloors() != null && building.basementFloors() != 0 ? -building.basementFloors() : 1;
+            highest = building.floors();
+        } else if (!building.entrances().isEmpty()) {
+            lowest = 1;
+            highest = 1;
+            for (CampusBuilding.Entrance e : building.entrances()) {
+                lowest = Math.min(lowest, e.minFloor());
+                highest = Math.max(highest, e.maxFloor());
+                for (double bound : new double[]{e.minFloor(), e.maxFloor()}) {
+                    if (bound != Math.rint(bound)) {
+                        values.add(bound);
+                    }
+                }
+            }
+        } else {
+            return values;
+        }
+        for (double level = Math.ceil(lowest); level <= Math.floor(highest); level += 1) {
+            if (level != 0) {
+                values.add(level);
+            }
+        }
+        return values;
+    }
+
     /** 숫자를 앱(JavaScript)처럼 적는다: 3 → "3", 1.5 → "1.5". */
     static String num(double value) {
         if (value == Math.rint(value) && Math.abs(value) < 1e15) {

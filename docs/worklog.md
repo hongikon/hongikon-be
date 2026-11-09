@@ -1616,8 +1616,9 @@
 
 - (사용자 요청) 앱이 들고 있던 길찾기 계산(src/utils/routing.ts)과 경로망 조사 v3 자료(surveyGraphV3.ts)를 서버로 옮김. 앱은 결과만 받는다.
 - 새 패키지 `walkroute`: `WalkRouter`(routing.ts 를 줄 단위로 옮김 — 층·출입구, Yen + 벌점 방식 후보 3개, 억지 우회 거르기, 길 흐름·메모·실내 구간), `SurveyGraph`(`resources/walkroute/survey-graph-v3.json`, 정점 616·간선 1364, 11-08 백업), `Floors`·`Geo`(fdlibm = StrictMath 라 앱 JS 와 같은 값), `CampusBuilding`(GET /map/data 의 buildings 를 그대로 읽음 — 앱과 같은 건물·출입구).
-- API(비로그인, SecurityConfig): `GET /map/routes?from=&fromFloor=&to=&toFloor=` → `{routes:[...]}`(앱 RouteAlternative 모양, 못 덮으면 직선 어림 하나). `GET /map/routes/approach?to=&toFloor=` → 내 위치 출발용 — 위치를 받지 않고 모든 실외 길 점에서 도착까지의 길과 길 점 목록을 준다. 앱이 내 위치에서 150m 안 3곳까지 걷는 시간을 더해 고른다(처리방침·공지의 '길찾기 위치는 휴대폰 안에서만' 그대로).
+- API(비로그인, SecurityConfig): `GET /map/routes?from=&fromFloor=&to=&toFloor=` → `{routes:[...]}`(앱 RouteAlternative 모양, 못 덮으면 직선 어림 하나). `GET /map/routes/approach?to=&toFloor=` → 내 위치 출발용 — 위치를 받지 않고 모든 실외 길 점에서 도착까지의 후보(최대 3개, 지나는 길 점 번호 포함)를 준다. 앱이 내 위치에서 150m 안 3곳 중 걷는 시간 + 가장 빠른 길이 가장 작은 점의 후보를 보여 준다(처리방침·공지의 '길찾기 위치는 휴대폰 안에서만' 그대로). 계산이 무거워(목적지·층마다 2초 남짓) 한 번에 하나만 계산하고 응답 JSON 을 120개까지 기억, 15초 넘게 밀리면 503.
+- 층은 그 건물 층 다이얼에 있는 층만 받는다(아니면 400) — 아무 숫자로 새 계산을 시키지 못하게. JSON 응답 gzip 압축 켬(`server.compression`, 지도 데이터 110KB·approach 300KB).
 - 캐시: 지도 데이터 version 이 바뀌면 그래프를 다시 만들고, 결과는 질문별로 기억(2000개, approach 200개). Cache-Control 5분.
-- 확인: `WalkRouterParityTest` — 운영 지도 데이터(11-09)로 앱 findRoutes 를 모든 건물 쌍·층 조합 1,902경우 돌린 결과와 시간·거리·길 흐름·메모·점까지 모두 같음. `WalkRouterApproachParityTest` — 내 위치 출발 2,496경우가 앱 findRoutesFromPoint 의 첫 후보와 같음(내 위치 출발은 이제 후보 1개). `WalkRouteServiceTest` 4. 전체 774 통과.
+- 확인: `WalkRouterParityTest` — 운영 지도 데이터(11-09)로 앱 findRoutes 를 모든 건물 쌍·층 조합 1,902경우 돌린 결과와 시간·거리·길 흐름·메모·점까지 모두 같음. `WalkRouterApproachParityTest` — 내 위치 출발 2,496경우에서 가장 빠른 길이 앱 findRoutesFromPoint 의 첫 후보와 같고 후보는 3개 이하·가장 빠른 길이 맨 앞. `WalkRouteServiceTest` 4. 전체 774 통과.
 - 경로망을 고치면: 조사 도구 백업 → `survey-graph-v3.json` 다시 만들기, 비교 자료(`src/test/resources/walkroute/*.json.gz`)도 새 규칙으로 다시 만든다.
 - 배포 순서: 이 서버가 운영에 먼저 나가야 앱 OTA 가 길찾기를 할 수 있다. 이미 깔린 앱(1.0.0·1.1.0 빌드 30)은 앱 안 계산을 계속 쓴다.
