@@ -43,6 +43,7 @@ public class MapDataMapper {
                 b.getType(),
                 b.getFloors(),
                 b.getBasementFloors(),
+                json(b.getFloorLevels(), b, "floor_levels"),
                 b.getHours(),
                 b.getDescription(),
                 json(b.getFacilities(), b, "facilities"),

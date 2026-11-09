@@ -1701,3 +1701,11 @@
 - 응답 `ReportResponse`·`ReportSummaryResponse`·`MyReportResponse`·`AdminReportResponse` 에 `editedAt`(구버전 앱은 무시).
 - 개인정보·권한: 등록 때와 같은 항목만 바꾼다(새로 모으는 정보 없음, 처리방침 변경 없음). 작성자 본인만, 사진 키는 등록과 같은 검증(서버 발급 형식·업로드 확인·다른 제보에 붙은 키 거절).
 - 확인: `ReportOwnerEditIntegrationTest` 5(새). 전체 778 중 `AskOperatorNotesIntegrationTest` 1건이 한 번 실패했다가 혼자 다시 돌리면 통과(무작위 꼬리 숫자를 개인정보로 잡는 기존 불안정 테스트, 이번 변경과 무관).
+
+## 2026-11-10 — 건물 층 정보(floor_levels)와 인문사회관 A·B동 같은 층
+
+- (사용자 요청) 엑셀(홍익대학교_건물_정보_amenity_locations_1109.xlsx, floors 시트)로 건물 26곳의 층을 넣음: `db/sync_building_floors_2026_11_10.sql` — 새 열 `buildings.floor_levels`(JSON 층 목록, 0 = 로비층 L)와 `floors`·`basement_floors`. 제1기숙사·운동장은 지도에 없거나 층이 없어 뺌.
+- 홍문관: 엑셀대로 B6~B2, L, 1~16층(B1 없음). 1.5층 출입구는 엑셀에 없어 다이얼에서 빠진다(예전 출입구 자료에만 있음, 사용자도 어딘지 모름 — 확인 필요).
+- 인문사회관 A동 n층 = B동 (n-2)층(B동 지하2층 = A동 1층, 사용자 확인). A동 1~7층. `WalkRouter.sameLevel`: A동 3층 이상은 B동 그 층, B동 지하층은 A동 그 층으로 길을 찾고 길 흐름 끝에 'B동 3층(A동 5층)', 메모 'A동 5층 = B동 3층'. 경로망 조사의 A·B tie(A3=B1 … A6=B4)와 같은 짝.
+- `MapBuilding.floorLevels`(GET /map/data), `Floors.floorOptions` 가 floorLevels 를 먼저 씀 — 층 검사(400)도 이 목록.
+- 확인: `WalkRouterLevelTest` 3(새), 전체 794 통과. ddl-auto=validate 라 SQL 을 배포 전에 실행해야 한다.
