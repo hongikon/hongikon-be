@@ -41,6 +41,8 @@ public record MyReportResponse(
         String moderationNote,
         LocalDateTime reviewedAt,
         LocalDateTime createdAt,
+        /** 작성자가 마지막으로 내용을 고친 시각(UTC). 고친 적 없으면 null — 앱이 '수정됨'을 보여 준다(11-09). */
+        LocalDateTime editedAt,
         /** 첫 번째 사진 보기 URL. 없으면 null — imageUrls[0] 과 같다 */
         String imageUrl,
         /** 사진 보기 URL 들(presigned GET, 최대 3장). 반려·삭제된 제보는 사진을 지우므로 빈 배열 */
@@ -69,6 +71,7 @@ public record MyReportResponse(
                 .moderationNote(showNote ? report.getModerationNote() : null)
                 .reviewedAt(report.getReviewedAt())
                 .createdAt(report.getCreatedAt())
+                .editedAt(report.getEditedAt())
                 .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
                 .imageUrls(imageUrls)
                 .build();
