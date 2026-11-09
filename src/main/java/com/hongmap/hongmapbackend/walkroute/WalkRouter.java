@@ -181,9 +181,9 @@ final class WalkRouter {
     }
 
     /**
-     * 내 위치에서 출발(위치를 서버로 보내지 않는 방식, 11-09). 도착 건물(층)까지 모든 실외 길 점에서의 가장 빠른 길을 한 번에 낸다 —
-     * 앱이 내 위치에서 가까운 길 점(150m 안 3곳)까지 걷는 시간을 더해 가장 빠른 것을 고른다. 예전 앱 계산(내 위치를 그 3곳에 잇고
-     * 최단 경로)과 같은 길이 나온다. 경로망이 도착 건물을 못 덮으면 빈 결과(앱이 직선 어림).
+     * 내 위치에서 출발(위치를 서버로 보내지 않는 방식, 11-09). 도착 건물(층)까지 모든 실외 길 점에서의 후보(가장 빠른 길이 맨 앞,
+     * 최대 3개 — 건물 → 건물과 같은 규칙)를 한 번에 낸다. 앱은 내 위치에서 가까운 길 점(150m 안 3곳) 중 걷는 시간 + 가장 빠른 길이
+     * 가장 작은 점을 골라 그 점의 후보를 보여 준다(가장 빠른 길은 예전 앱 계산과 같다). 경로망이 도착 건물을 못 덮으면 빈 결과.
      */
     Approach approach(CampusBuilding to, Double toFloor) {
         Graph graph = base.copy();
@@ -192,37 +192,49 @@ final class WalkRouter {
             return new Approach(List.of(), List.of());
         }
         Map<String, Double> dist = new HashMap<>();
-        Map<String, String> next = new HashMap<>();
-        shortestTree(graph, targetId, dist, next);
+        shortestTree(graph, targetId, dist, new HashMap<>());
         List<String> exclude = List.of(to.name());
-        Map<String, ApproachNode> nodes = new LinkedHashMap<>();
+        Map<String, Integer> index = new LinkedHashMap<>();
+        List<ApproachNode> nodes = new ArrayList<>();
+        java.util.function.Function<String, Integer> indexOf = id -> index.computeIfAbsent(id, k -> {
+            Point p = graph.nodes.get(k);
+            nodes.add(new ApproachNode(k, p.lat(), p.lng()));
+            return nodes.size() - 1;
+        });
         List<ApproachStart> starts = new ArrayList<>();
-        for (String id : graph.nodes.keySet()) {
+        for (String id : new ArrayList<>(graph.nodes.keySet())) {
             if (!isOutdoorPathPoint(graph, id) || !dist.containsKey(id)) {
                 continue;
             }
-            List<String> path = new ArrayList<>();
-            for (String cursor = id; cursor != null; cursor = next.get(cursor)) {
-                path.add(cursor);
-                if (!nodes.containsKey(cursor)) {
-                    Point p = graph.nodes.get(cursor);
-                    nodes.put(cursor, new ApproachNode(cursor, p.lat(), p.lng(), next.get(cursor)));
+            List<ApproachRoute> routes = new ArrayList<>();
+            for (PathResult path : routeCandidates(graph, id, targetId, MAX_ALTERNATIVES)) {
+                List<Integer> indices = new ArrayList<>(path.nodeIds().size());
+                for (String nodeId : path.nodeIds()) {
+                    indices.add(indexOf.apply(nodeId));
                 }
+                routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(nameVia(toRoute(graph, path), exclude))));
             }
-            WalkRoute route = nameVia(toRoute(graph, new PathResult(List.copyOf(path), dist.get(id))), exclude);
-            starts.add(new ApproachStart(id, withoutPoints(route)));
+            if (!routes.isEmpty()) {
+                starts.add(new ApproachStart(indexOf.apply(id), List.copyOf(routes)));
+            }
         }
-        return new Approach(List.copyOf(nodes.values()), List.copyOf(starts));
+        return new Approach(List.copyOf(nodes), List.copyOf(starts));
     }
 
-    /** 내 위치 출발용: 길 점들(다음 점 id, 도착이면 null)과 각 실외 길 점에서 도착까지의 길(점 목록은 nodes 를 따라 만든다). */
+    /**
+     * 내 위치 출발용: 길 점 목록과, 실외 길 점(nodes 의 번호)마다 도착까지의 후보. 후보의 path 는 지나는 길 점 번호 — 앱이 이것으로
+     * 지도 점을 만든다(route 에는 points 가 없다).
+     */
     public record Approach(List<ApproachNode> nodes, List<ApproachStart> starts) {
     }
 
-    public record ApproachNode(String id, double lat, double lng, String next) {
+    public record ApproachNode(String id, double lat, double lng) {
     }
 
-    public record ApproachStart(String node, WalkRoute route) {
+    public record ApproachStart(int node, List<ApproachRoute> routes) {
+    }
+
+    public record ApproachRoute(List<Integer> path, WalkRoute route) {
     }
 
     private static WalkRoute withoutPoints(WalkRoute r) {

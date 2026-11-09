@@ -16,8 +16,8 @@ import java.util.zip.GZIPInputStream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 내 위치 출발: 서버가 낸 approach(모든 길 점 → 도착)에서 앱이 고르는 방식(150m 안 가까운 3곳, 걷는 시간 더해 가장 빠른 것)이
- * 예전 앱 계산(findRoutesFromPoint 의 첫 후보)과 같은 길을 내는지. approach-parity.json.gz 는 길 점 근처 약 25m 떨어진 위치들에서
+ * 내 위치 출발: 서버가 낸 approach(모든 길 점 → 도착 후보)에서 앱이 고르는 방식(150m 안 가까운 3곳, 걷는 시간 더해 가장 빠른 점의
+ * 후보)이 예전 앱 계산(findRoutesFromPoint)과 같은 가장 빠른 길을 내는지, 후보가 3개 이하이고 가장 빠른 길이 맨 앞인지. approach-parity.json.gz 는 길 점 근처 약 25m 떨어진 위치들에서
  * 모든 건물(층 안 고름·맨 위층)로 앱이 계산한 결과(11-09).
  */
 class WalkRouterApproachParityTest {
@@ -32,15 +32,13 @@ class WalkRouterApproachParityTest {
         }
     }
 
-    /** 앱(src/utils/myLocationRoute.ts)과 같은 고르기. */
-    static WalkRoute pick(WalkRouter.Approach approach, double lat, double lng) {
+    /** 앱(src/apis/routes.ts 의 pickApproachRoutes)과 같은 고르기. 가장 빠른 길이 맨 앞. */
+    static List<WalkRoute> pick(WalkRouter.Approach approach, double lat, double lng) {
         record Near(WalkRouter.ApproachStart start, double meters) {
         }
-        Map<String, WalkRouter.ApproachNode> nodes = new HashMap<>();
-        approach.nodes().forEach(n -> nodes.put(n.id(), n));
         List<Near> near = new ArrayList<>();
         for (WalkRouter.ApproachStart start : approach.starts()) {
-            WalkRouter.ApproachNode node = nodes.get(start.node());
+            WalkRouter.ApproachNode node = approach.nodes().get(start.node());
             double meters = Geo.haversineMeters(lat, lng, node.lat(), node.lng());
             if (meters <= MY_LOCATION_MAX_METERS) {
                 near.add(new Near(start, meters));
@@ -50,28 +48,34 @@ class WalkRouterApproachParityTest {
         Near best = null;
         double bestSeconds = Double.POSITIVE_INFINITY;
         for (Near n : near.subList(0, Math.min(MY_LOCATION_LINKS, near.size()))) {
-            double seconds = n.meters() / WalkRouter.WALKING_METERS_PER_MINUTE * 60 + n.start().route().totalSeconds();
+            double seconds = n.meters() / WalkRouter.WALKING_METERS_PER_MINUTE * 60 + n.start().routes().get(0).route().totalSeconds();
             if (seconds < bestSeconds) {
                 best = n;
                 bestSeconds = seconds;
             }
         }
         if (best == null) {
-            return null;
+            return List.of();
         }
-        List<WalkRoute.Point> points = new ArrayList<>();
-        points.add(new WalkRoute.Point(lat, lng));
-        for (String id = best.start().node(); id != null; id = nodes.get(id).next()) {
-            WalkRoute.Point p = new WalkRoute.Point(nodes.get(id).lat(), nodes.get(id).lng());
-            WalkRoute.Point last = points.get(points.size() - 1);
-            if (last.lat() != p.lat() || last.lng() != p.lng()) {
-                points.add(p);
+        double walkSeconds = best.meters() / WalkRouter.WALKING_METERS_PER_MINUTE * 60;
+        List<WalkRoute> out = new ArrayList<>();
+        for (WalkRouter.ApproachRoute candidate : best.start().routes()) {
+            List<WalkRoute.Point> points = new ArrayList<>();
+            points.add(new WalkRoute.Point(lat, lng));
+            for (int i : candidate.path()) {
+                WalkRouter.ApproachNode node = approach.nodes().get(i);
+                WalkRoute.Point last = points.get(points.size() - 1);
+                if (last.lat() != node.lat() || last.lng() != node.lng()) {
+                    points.add(new WalkRoute.Point(node.lat(), node.lng()));
+                }
             }
+            WalkRoute r = candidate.route();
+            double seconds = walkSeconds + r.totalSeconds();
+            out.add(new WalkRoute(points, Math.round(best.meters() + r.distanceMeters()), seconds, Math.max(1, Math.round(seconds / 60)),
+                    r.hasIndoorTransit(), r.hasStairs(), r.hasLinkSegment(), false, r.usesElevator(), r.indoorMeters(), r.viaBuildings(),
+                    r.notes(), r.steps(), r.indoorSegments()));
         }
-        WalkRoute r = best.start().route();
-        return new WalkRoute(points, Math.round(best.meters() + r.distanceMeters()), bestSeconds, Math.max(1, Math.round(bestSeconds / 60)),
-                r.hasIndoorTransit(), r.hasStairs(), r.hasLinkSegment(), false, r.usesElevator(), r.indoorMeters(), r.viaBuildings(),
-                r.notes(), r.steps(), r.indoorSegments());
+        return out;
     }
 
     @Test
@@ -99,7 +103,12 @@ class WalkRouterApproachParityTest {
             WalkRouter.Approach approach = router.approach(to, toFloor);
             for (JsonNode c : group) {
                 total++;
-                WalkRoute actual = pick(approach, c.get("me").get(0).asDouble(), c.get("me").get(1).asDouble());
+                List<WalkRoute> picked = pick(approach, c.get("me").get(0).asDouble(), c.get("me").get(1).asDouble());
+                WalkRoute actual = picked.isEmpty() ? null : picked.get(0);
+                if (picked.size() > 3 || (picked.size() > 1 && picked.subList(1, picked.size()).stream()
+                        .anyMatch(r -> r.totalSeconds() < picked.get(0).totalSeconds()))) {
+                    mismatches.add(to.name() + ": 후보 수·순서");
+                }
                 JsonNode e = c.get("route");
                 String where = to.name() + "(" + toFloor + ") from " + c.get("me");
                 if (e.isNull() || actual == null) {

@@ -69,14 +69,25 @@ class WalkRouteServiceTest {
     }
 
     @Test
-    void 내_위치_출발용_approach_는_위치를_받지_않고_길_점마다_길을_준다() {
-        WalkRouter.Approach approach = service.approach(t, 3.0);
-        assertThat(approach.starts()).hasSizeGreaterThan(100);
-        assertThat(approach.starts().get(0).route().points()).isNull();
-        byte[] json = MAPPER.writeValueAsBytes(approach);
-        System.out.println("approach JSON bytes: " + json.length);
-        assertThat(json.length).isLessThan(600_000);
-        assertThat(service.approach(t, 3.0)).isSameAs(approach);
+    void 내_위치_출발용_approach_는_위치를_받지_않고_길_점마다_후보를_준다() throws Exception {
+        long started = System.nanoTime();
+        byte[] json = service.approachJson(t, 3.0);
+        System.out.println("approach ms: " + (System.nanoTime() - started) / 1_000_000 + ", bytes: " + json.length);
+        JsonNode approach = MAPPER.readTree(json);
+        assertThat(approach.get("starts").size()).isGreaterThan(100);
+        int withAlternatives = 0;
+        for (JsonNode start : approach.get("starts")) {
+            JsonNode routes = start.get("routes");
+            assertThat(routes.size()).isBetween(1, 3);
+            assertThat(routes.get(0).get("route").has("points")).isFalse();
+            assertThat(routes.get(0).get("path").get(0).asInt()).isEqualTo(start.get("node").asInt());
+            if (routes.size() > 1) {
+                withAlternatives++;
+            }
+        }
+        assertThat(withAlternatives).isGreaterThan(10);
+        assertThat(json.length).isLessThan(1_500_000);
+        assertThat(service.approachJson(t, 3.0)).isSameAs(json);
     }
 
     @Test
@@ -87,6 +98,11 @@ class WalkRouteServiceTest {
                 .hasMessageContaining("404");
         assertThatThrownBy(() -> service.routes(r, 500.0, t, null)).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("400");
+        // 층 다이얼에 없는 층(아무 숫자)으로 새 계산을 시키지 못한다.
+        assertThatThrownBy(() -> service.approachJson(t, 3.0001)).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400");
+        assertThatThrownBy(() -> service.approachJson(999_999, null)).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404");
         assertThatThrownBy(() -> service.routes(r, Double.NaN, t, null)).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("400");
     }

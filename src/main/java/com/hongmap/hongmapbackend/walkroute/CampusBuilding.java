@@ -9,7 +9,8 @@ import java.util.List;
  * 길찾기가 보는 건물 — GET /map/data 의 buildings[] 와 같은 값(앱이 보는 것과 같게 그 응답을 그대로 읽는다).
  * name 은 표시 이름, entrances 는 층별 출입구(없으면 빈 목록).
  */
-record CampusBuilding(Long id, String code, String name, double lat, double lng, List<Entrance> entrances) {
+record CampusBuilding(Long id, String code, String name, double lat, double lng, Integer floors, Integer basementFloors,
+                      List<Entrance> entrances) {
 
     record Entrance(String label, double lat, double lng, double minFloor, double maxFloor) {
     }
@@ -37,10 +38,15 @@ record CampusBuilding(Long id, String code, String name, double lat, double lng,
         }
         JsonNode id = node.get("id");
         JsonNode code = node.get("code");
+        JsonNode floors = node.get("floors");
+        JsonNode basementFloors = node.get("basementFloors");
         return new CampusBuilding(
                 id != null && id.isNumber() ? id.asLong() : null,
                 code != null && code.isString() ? code.asString() : null,
-                name.asString(), lat.asDouble(), lng.asDouble(), List.copyOf(entrances));
+                name.asString(), lat.asDouble(), lng.asDouble(),
+                floors != null && floors.isNumber() ? floors.asInt() : null,
+                basementFloors != null && basementFloors.isNumber() ? basementFloors.asInt() : null,
+                List.copyOf(entrances));
     }
 
     private static boolean isFinite(JsonNode n) {
