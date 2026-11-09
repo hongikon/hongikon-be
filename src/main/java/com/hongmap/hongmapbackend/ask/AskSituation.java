@@ -23,7 +23,18 @@ final class AskSituation {
             "휴학중", Pattern.compile("휴학\\s*중|휴학하고\\s*있|휴학생|휴학한\\s*상태|휴학\\s*상태"),
             "군복무", Pattern.compile("입대|군대|군\\s*복무|전역|제대|복무\\s*중"));
 
+    /**
+     * 질문이 시점을 말하는지(11-10 평가 — Haiku 손해 오류의 가장 큰 원인이 날짜 단정이었다: 시점을 안 물었는데 '신청 기간이 지났다').
+     * 말하지 않았으면 답 쓰기에 오늘 날짜를 주지 않는다 — 규칙으로 답한다.
+     */
+    private static final Pattern TIME = Pattern.compile(
+            "지금|오늘|내일|모레|이번|올해|현재|언제|며칠|몇\\s*일|몇\\s*시|마감|열려|열었|열어|닫|요즘|다음\\s*주|이따|아직|벌써|늦었|지났|당장");
+
     private AskSituation() {
+    }
+
+    static boolean mentionsTime(String question) {
+        return question != null && TIME.matcher(question).find();
     }
 
     /** 질문에서 읽은 상황 칸. 학년·이수학기는 숫자, 나머지는 true. 없으면 빈 Map. */

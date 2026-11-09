@@ -202,7 +202,9 @@ public class AskRouteService {
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
                     answer.found(), catalog.version(), links), answer.map())
-                    .withSections(AskQuestionIntent.filter(request.question(), answer.sections()));
+                    .withSections(answer.found()
+                            ? fillConsequences(AskQuestionIntent.filter(request.question(), answer.sections()), answer.text(), related.consequences())
+                            : AskQuestionIntent.filter(request.question(), answer.sections()));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             if (answerIds.isEmpty()) {
@@ -344,13 +346,21 @@ public class AskRouteService {
                 + " 것은 섞지 않는다(원문에 학부 전체 것이라고 적힌 것만 그렇다고 밝혀 함께 보일 수 있다).\n\n";
     }
 
+    static final String NO_DATE_LINE = "[오늘] (질문에 시점이 없어 날짜를 주지 않는다 — 규칙대로 언제·어떻게 하는지 답하고, 기간이 지났는지는 말하지 않는다)\n\n";
+
     String answerContext(AskRouteRequest request) {
         // 답 쓰기는 캐시하지 않으니 날짜를 넣어도 된다(분류 프롬프트에는 넣지 않는다 — 캐시가 깨진다).
         // 요일·시각까지(11-09) — '지금 열려 있어?', '오늘 몇 시까지'를 운영시간과 견주게.
-        java.time.LocalDateTime now = java.time.LocalDateTime.now(clock.withZone(KST));
-        StringBuilder message = new StringBuilder("[오늘] ").append(now.toLocalDate()).append(" (")
-                .append(now.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)).append(") ")
-                .append(String.format("%02d:%02d", now.getHour(), now.getMinute())).append(" (한국 시간)\n\n");
+        // 질문이 시점을 말하지 않으면 날짜를 주지 않는다(11-10 평가: '신청 기간이 지났다' 단정이 손해 오류의 가장 큰 원인).
+        StringBuilder message = new StringBuilder();
+        if (AskSituation.mentionsTime(request.question())) {
+            java.time.LocalDateTime now = java.time.LocalDateTime.now(clock.withZone(KST));
+            message.append("[오늘] ").append(now.toLocalDate()).append(" (")
+                    .append(now.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)).append(") ")
+                    .append(String.format("%02d:%02d", now.getHour(), now.getMinute())).append(" (한국 시간)\n\n");
+        } else {
+            message.append(NO_DATE_LINE);
+        }
         if (request.history() != null && !request.history().isEmpty()) {
             message.append("[직전 대화]\n");
             for (AskRouteRequest.Turn turn : request.history()) {
@@ -507,6 +517,49 @@ public class AskRouteService {
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId)
                 .withActions(map == null ? List.of() : withRoute(mapActions(place, facilityId, response.answer()), map.route()));
+    }
+
+    static final int MAX_FILLED_CONSEQUENCES = 2;
+
+    /**
+     * 그래프가 짚은 결과(1단계 결과 선)가 답에 빠졌으면 '꼭 확인할 점'에 선의 사실 문장을 서버가 붙인다(11-10 평가 — Haiku 실패의 가장 큰 몫이
+     * '결과 누락'이었다. 모델을 한 번 더 부르지 않고, 검토된 선 문장만 쓴다). 결과 점 이름(성적경고·제적 …)이 답 어디에도 없을 때만, 최대 2개.
+     */
+    static List<AskRouteResponse.Section> fillConsequences(List<AskRouteResponse.Section> sections, String answer,
+                                                           List<AskRuleGraph.Consequence> consequences) {
+        if (consequences == null || consequences.isEmpty()) {
+            return sections;
+        }
+        StringBuilder all = new StringBuilder(answer == null ? "" : answer);
+        for (AskRouteResponse.Section section : sections) {
+            all.append(section.title()).append(String.join("", section.items()));
+            if (section.table() != null) {
+                section.table().rows().forEach(row -> all.append(String.join("", row)));
+            }
+        }
+        String text = all.toString().replaceAll("\\s+", "");
+        List<String> missing = new ArrayList<>();
+        for (AskRuleGraph.Consequence consequence : consequences) {
+            String target = consequence.target().replaceAll("\\s+", "");
+            if (!target.isEmpty() && !text.contains(target) && !missing.contains(consequence.fact()) && missing.size() < MAX_FILLED_CONSEQUENCES) {
+                missing.add(consequence.fact());
+            }
+        }
+        if (missing.isEmpty()) {
+            return sections;
+        }
+        List<AskRouteResponse.Section> out = new ArrayList<>(sections);
+        for (int i = 0; i < out.size(); i++) {
+            AskRouteResponse.Section section = out.get(i);
+            if (AskLlmClient.CAUTION_TITLE.equals(section.title())) {
+                List<String> items = new ArrayList<>(section.items());
+                items.addAll(missing);
+                out.set(i, new AskRouteResponse.Section(section.title(), items, section.ordered(), section.table()));
+                return out;
+            }
+        }
+        out.add(new AskRouteResponse.Section(AskLlmClient.CAUTION_TITLE, missing, false, null));
+        return out;
     }
 
     /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
