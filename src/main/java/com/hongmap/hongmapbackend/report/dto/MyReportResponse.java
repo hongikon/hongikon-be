@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.report.dto;
 
 import com.hongmap.hongmapbackend.report.Report;
+import com.hongmap.hongmapbackend.report.ReportDay;
 import com.hongmap.hongmapbackend.report.ReportStatus;
 import lombok.Builder;
 
@@ -30,6 +31,11 @@ public record MyReportResponse(
         BigDecimal lng,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
+        /**
+         * 여러 날 제보의 날짜별 운영 시간(한국 시간, 날마다 다를 수 있음, 쉬는 날은 없음). 한 번짜리 제보면 null.
+         * 이때 startsAt 은 첫날 시작, endsAt 은 마지막 날 끝이고 지도에는 기간 내내 올라가 있다(11-08).
+         */
+        List<ReportDay> days,
         String status,
         String displayStatus,
         String moderationNote,
@@ -57,6 +63,7 @@ public record MyReportResponse(
                 .lng(report.getLng())
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
+                .days(report.getDays())
                 .status(status.name())
                 .displayStatus(displayStatus(report, now))
                 .moderationNote(showNote ? report.getModerationNote() : null)

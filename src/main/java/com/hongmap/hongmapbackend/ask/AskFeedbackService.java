@@ -32,12 +32,24 @@ public class AskFeedbackService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, QUESTION_TOO_LONG_MESSAGE);
         }
         boolean flow = request.outcome() == AskOutcome.FLOW;
+        AskFeedbackReason reason = AskFeedbackReason.parse(request.reason());
+        String clientId = blankToNull(request.clientId());
+        if (clientId != null) {
+            // '아니요'를 누른 뒤 이유를 고르면 같은 clientId 로 한 번 더 온다 — 새 행을 만들지 않고 고친다.
+            var existing = askFeedbackLogRepository.findFirstByClientIdOrderByIdDesc(clientId);
+            if (existing.isPresent()) {
+                existing.get().update(request.resolved(), reason);
+                return;
+            }
+        }
         askFeedbackLogRepository.save(AskFeedbackLog.builder()
                 .question(question)
                 .outcome(request.outcome())
                 .flowId(flow ? blankToNull(request.flowId()) : null)
                 .nodeId(flow ? blankToNull(request.nodeId()) : null)
                 .resolved(request.resolved())
+                .clientId(clientId)
+                .reason(Boolean.TRUE.equals(request.resolved()) ? null : reason)
                 .build());
     }
 

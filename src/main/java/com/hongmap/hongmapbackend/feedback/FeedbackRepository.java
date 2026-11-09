@@ -34,4 +34,7 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     @Modifying
     @Query("UPDATE Feedback f SET f.user = null, f.contact = null, f.imageKeys = null WHERE f.user.id = :userId")
     int detachUser(@Param("userId") Long userId);
+
+    /** 관리자 '물어보기 피드백': 답 기록마다 붙은 '운영진에게 물어보기' 문의. */
+    List<Feedback> findByAskRefIn(java.util.Collection<String> askRefs);
 }
