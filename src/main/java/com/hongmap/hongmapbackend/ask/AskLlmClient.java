@@ -202,6 +202,11 @@ public class AskLlmClient {
               위치가 답의 핵심인 질문이면 답에 쓴 장소 하나의 참조(building:…·facility:…·partner:…, 도구 결과에 나온 것)를 넣고,
               도구 없이 안내 원문의 위치로 답했으면 'guide'. 운영시간·규정·신청 방법·메뉴처럼 장소 이름이 나올 뿐 위치를 묻지 않은 질문이면
               빈 문자열('')이다(예: 'Q동 프린터 몇 시까지 돼?' → '', 'Q동 프린터 어디 있어?' → 그 facility 참조).
+              mapMode 는 '어떻게 가', '가는 길', '여기서 ○○까지', '길 알려줘'처럼 가는 길을 물으면 'route', 아니면 'show'.
+              'route' 면 앱이 학생의 지금 위치에서 그곳까지 길찾기 버튼을 붙인다 — 답에는 건물 위치·들어가는 입구·층처럼 원문에 있는 것만 짧게 쓰고,
+              학생이 지금 어디 있는지는 모르니 '지금 계신 곳에서 몇 분'처럼 지어내지 않는다('아래 길찾기 버튼으로 지금 위치에서 가는 길을 볼 수 있어요').
+            - [오늘]에는 요일과 지금 시각이 있다. '지금 열려 있어?', '지금 갈 수 있는 카페'처럼 지금을 물으면 결과의 운영시간(평일·주말·학기 중·방학)과
+              견주어 열려 있는지 판단하고, 학기 중인지 방학인지가 갈리면 학사일정을 찾는다. 운영시간이 없는 곳은 '운영시간 정보가 없어요'라고 한다.
             """;
 
     /**
@@ -296,9 +301,10 @@ public class AskLlmClient {
         answerProperties.put("found", Map.of("type", "boolean"));
         answerProperties.put("sourceIds", Map.of("type", "array", "items", Map.of("type", "string")));
         answerProperties.put("mapTarget", Map.of("type", "string"));
+        answerProperties.put("mapMode", Map.of("type", "string", "enum", List.of("show", "route")));
         this.answerConfig = OutputConfig.builder()
                 .effort(answerEffort(answerEffort))
-                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds", "mapTarget")))
+                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds", "mapTarget", "mapMode")))
                 .build();
         this.answerTools = List.of(
                 tool("search_guides", "학생 안내 목록에서 뜻과 낱말로 다른 안내를 찾는다. 결과는 id 와 한 줄 요약(최대 6개). "
@@ -793,7 +799,7 @@ public class AskLlmClient {
             }
         }
         return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null,
-                mapTarget(json.path("mapTarget").asString(""), references));
+                mapTarget(json.path("mapTarget").asString(""), "route".equals(json.path("mapMode").asString("")), references));
     }
 
     /** 근거 안내 원문의 위치를 지도에 보이라는 mapTarget 값(도구로 찾은 장소가 아닐 때). */
@@ -804,17 +810,20 @@ public class AskLlmClient {
      * 지도 버튼 대상(11-09 운영진 — 장소를 물을 때만). 모델이 고른 참조가 이번에 도구로 실제 찾은 장소일 때만 그 장소,
      * 'guide' 면 근거 안내의 위치, 비었거나 지어낸 값이면 null(지도 버튼·위치 카드를 붙이지 않는다).
      */
-    static MapTarget mapTarget(String value, Map<String, AskLiveData.Reference> references) {
+    static MapTarget mapTarget(String value, boolean route, Map<String, AskLiveData.Reference> references) {
         String target = value == null ? "" : value.strip();
         if (target.equalsIgnoreCase(MAP_TARGET_GUIDE)) {
-            return new MapTarget(null);
+            return new MapTarget(null, route);
         }
         AskLiveData.Reference place = references.get(target);
-        return place != null && MAP_PREFIXES.stream().anyMatch(target::startsWith) ? new MapTarget(place) : null;
+        return place != null && MAP_PREFIXES.stream().anyMatch(target::startsWith) ? new MapTarget(place, route) : null;
     }
 
-    /** @param place 지도에 보일 장소. null 이면 근거 안내의 위치(facilityId). */
-    public record MapTarget(AskLiveData.Reference place) {
+    /**
+     * @param place 지도에 보일 장소. null 이면 근거 안내의 위치(facilityId).
+     * @param route 가는 길을 물었다(앱이 '여기서 가는 길' 버튼 — 출발은 휴대폰의 내 위치).
+     */
+    public record MapTarget(AskLiveData.Reference place, boolean route) {
     }
 
     /** 휴대폰 폭에 맞춘 상한 — 구조화 출력이 개수 제한을 못 걸어 여기서 자른다(docs/ask-scope-policy.md 5장). */

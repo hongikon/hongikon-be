@@ -38,11 +38,25 @@ class AskMapActionsTest {
         java.util.Map<String, AskLiveData.Reference> found = java.util.Map.of(
                 "facility:q-printer", ref("facility:q-printer", "정보통신센터 Q동 1층 · [프린터]"),
                 "notice:3", ref("notice:3", "공지"));
-        assertThat(AskLlmClient.mapTarget("", found)).isNull();
-        assertThat(AskLlmClient.mapTarget("facility:made-up", found)).isNull();
-        assertThat(AskLlmClient.mapTarget("notice:3", found)).isNull();
-        assertThat(AskLlmClient.mapTarget("facility:q-printer", found).place().ref()).isEqualTo("facility:q-printer");
-        assertThat(AskLlmClient.mapTarget("guide", found).place()).isNull();
+        assertThat(AskLlmClient.mapTarget("", false, found)).isNull();
+        assertThat(AskLlmClient.mapTarget("facility:made-up", false, found)).isNull();
+        assertThat(AskLlmClient.mapTarget("notice:3", false, found)).isNull();
+        assertThat(AskLlmClient.mapTarget("facility:q-printer", false, found).place().ref()).isEqualTo("facility:q-printer");
+        assertThat(AskLlmClient.mapTarget("guide", false, found).place()).isNull();
+    }
+
+    /** 11-09 'Q동 어떻게 가': 가는 길을 물었으면 지도 버튼 뒤에 route(출발은 앱의 내 위치). 제휴처(캠퍼스 밖)는 길찾기 없음. */
+    @Test
+    void routeQuestionAddsARouteActionForCampusPlacesOnly() {
+        List<AskRouteResponse.Action> building = AskRouteService.mapActions(ref("building:hongik_q", "정보통신센터 Q동"), null, "Q동이에요.");
+        assertThat(AskRouteService.withRoute(building, true)).extracting(AskRouteResponse.Action::type, AskRouteResponse.Action::target)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("map", "building:hongik_q"),
+                        org.assertj.core.groups.Tuple.tuple("route", "building:hongik_q"));
+        assertThat(AskRouteService.withRoute(building, false)).hasSize(1);
+        List<AskRouteResponse.Action> partner = AskRouteService.mapActions(ref("partner:p1", "카페"), null, "답");
+        assertThat(AskRouteService.withRoute(partner, true)).extracting(AskRouteResponse.Action::type).containsExactly("map");
+        assertThat(AskLlmClient.mapTarget("building:hongik_q", true,
+                java.util.Map.of("building:hongik_q", ref("building:hongik_q", "정보통신센터 Q동"))).route()).isTrue();
     }
 
     @Test

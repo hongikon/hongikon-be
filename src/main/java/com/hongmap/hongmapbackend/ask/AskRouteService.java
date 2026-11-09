@@ -346,7 +346,11 @@ public class AskRouteService {
 
     String answerContext(AskRouteRequest request) {
         // 답 쓰기는 캐시하지 않으니 날짜를 넣어도 된다(분류 프롬프트에는 넣지 않는다 — 캐시가 깨진다).
-        StringBuilder message = new StringBuilder("[오늘] ").append(LocalDate.now(clock.withZone(KST))).append(" (한국 시간)\n\n");
+        // 요일·시각까지(11-09) — '지금 열려 있어?', '오늘 몇 시까지'를 운영시간과 견주게.
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(clock.withZone(KST));
+        StringBuilder message = new StringBuilder("[오늘] ").append(now.toLocalDate()).append(" (")
+                .append(now.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)).append(") ")
+                .append(String.format("%02d:%02d", now.getHour(), now.getMinute())).append(" (한국 시간)\n\n");
         if (request.history() != null && !request.history().isEmpty()) {
             message.append("[직전 대화]\n");
             for (AskRouteRequest.Turn turn : request.history()) {
@@ -502,7 +506,7 @@ public class AskRouteService {
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId)
-                .withActions(map == null ? List.of() : mapActions(place, facilityId, response.answer()));
+                .withActions(map == null ? List.of() : withRoute(mapActions(place, facilityId, response.answer()), map.route()));
     }
 
     /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
@@ -529,6 +533,18 @@ public class AskRouteService {
             return List.of(new AskRouteResponse.Action("map", "facility:" + facilityId, null, summary));
         }
         return List.of();
+    }
+
+    /**
+     * 가는 길을 물었으면(11-09 'Q동 어떻게 가') 지도 버튼 뒤에 '여기서 가는 길'(route) 버튼을 하나 더 — 건물·시설만(제휴처는 캠퍼스 밖이라 경로망에 없다).
+     * 출발(내 위치)은 앱이 휴대폰 안에서 정한다 — 서버는 위치를 받지 않는다. 옛 앱은 모르는 type 이라 그리지 않는다.
+     */
+    static List<AskRouteResponse.Action> withRoute(List<AskRouteResponse.Action> actions, boolean route) {
+        if (!route || actions.isEmpty() || actions.get(0).target().startsWith("partner:")) {
+            return actions;
+        }
+        AskRouteResponse.Action map = actions.get(0);
+        return List.of(map, new AskRouteResponse.Action("route", map.target(), map.label(), map.summary()));
     }
 
     /** 답의 첫 문장(마크다운 굵게 표시는 뗀다), 최대 ACTION_SUMMARY_MAX 자. */

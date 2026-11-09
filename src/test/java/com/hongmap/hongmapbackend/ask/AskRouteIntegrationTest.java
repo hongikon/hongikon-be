@@ -135,7 +135,7 @@ class AskRouteIntegrationTest {
     void 장소를_물으면_근거_안내의_위치와_지도_버튼을_보낸다() throws Exception {
         when(llmClient.classify(anyString(), any())).thenReturn(school("wifi/trouble"));
         when(llmClient.answer(anyList(), anyString(), any())).thenReturn(new AskLlmClient.Answer("Q동 10층이에요.", true,
-                List.of("wifi/trouble"), List.of(), List.of(), null, new AskLlmClient.MapTarget(null)));
+                List.of("wifi/trouble"), List.of(), List.of(), null, new AskLlmClient.MapTarget(null, false)));
         mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"와이파이 담당 사무실 어디야\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.facilityId").value("hi-q-10f-office-01"))
@@ -192,6 +192,7 @@ class AskRouteIntegrationTest {
         assertThat(context.getValue())
                 .contains("학생: 휴학 신청 어떻게 해?\n홍익온: 클래스넷에서 신청해요.")
                 .startsWith("[오늘] ")
+                .containsPattern("^\\[오늘\\] \\d{4}-\\d{2}-\\d{2} \\(.\\) \\d{2}:\\d{2} \\(한국 시간\\)")
                 .endsWith("[이번 질문]\n그럼 그거 언제까지야?");
     }
 

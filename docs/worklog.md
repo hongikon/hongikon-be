@@ -1682,3 +1682,13 @@
 - 새 도구 `nearest_places(from, query)`(`AskLiveData.nearestPlaces`): 출발 건물(이름·별칭) 또는 제휴업체 → 맞는 시설(종류·메모, 자기 건물 위치)·건물·제휴업체를 직선거리순 최대 6개. 같은 건물은 '같은 건물'과 층. 끝난 제휴는 뺀다. 지도 데이터(`/map/data`)만 쓰고 새로 모으는 정보 없음. 답 규칙: '직선으로 약 ○○m', 결과에 없는 장소·거리는 지어내지 않는다.
 - 확인: `AskNearestPlacesTest`(거리순·같은 건물·끝난 제휴·모르는 출발지), `AskMapActionsTest`(mapTarget 검증), `AskRouteIntegrationTest`(장소 안 물으면 위치·지도 없음 / 'guide'면 안내 위치). `*Ask*` 159개 통과. 운영 지도 데이터로 계산 확인: T동 → 편의점 = 제2기숙사 이마트24 약 75m, R동 바이스마트 약 300m.
 - 개인정보·권한: 새 저장·수집 없음. 처리방침 변경 없음.
+
+## 2026-11-09 — 물어보기: '여기서 가는 길'(route)·지금 시각
+
+운영진: "지금 여기서 Q동 어떻게 가 같은 것도", "추론을 어느 정도 요구하는 것들".
+
+- 답 구조화 출력에 `mapMode`('show'|'route'). 가는 길을 물으면 'route' → `actions` 에 `map` 다음 `route`(같은 대상, 건물·시설만 — 제휴처는 캠퍼스 밖이라 경로망에 없다, `AskRouteService.withRoute`).
+  출발(내 위치)은 앱이 휴대폰 안에서 정한다 — 서버는 위치를 받지 않는다. 옛 앱은 모르는 type 이라 그리지 않는다(지도 버튼은 그대로).
+- 답 쓰기 맥락 `[오늘]`에 요일·시각(한국 시간)을 더함 — '지금 열려 있어?'를 운영시간과 견준다. 답 규칙: 운영시간이 없는 곳은 '정보가 없어요', 학기 중·방학이 갈리면 학사일정을 찾는다. 분류 프롬프트(캐시)에는 넣지 않는다.
+- 확인: `AskMapActionsTest.routeQuestionAddsARouteActionForCampusPlacesOnly`, `AskRouteIntegrationTest`([오늘] 형식). `*Ask*` 160개 통과.
+- 개인정보: 위치·새 정보 수집 없음. 처리방침 변경 없음.
