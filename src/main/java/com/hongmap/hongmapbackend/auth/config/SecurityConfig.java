@@ -66,6 +66,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/departments").permitAll();
+                    // 앱 공지사항(게시 시각이 지난 공개 공지만). 쓰기는 /admin/notices (ADMIN).
+                    auth.requestMatchers(HttpMethod.GET, "/notices").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
                     // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
                     auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
