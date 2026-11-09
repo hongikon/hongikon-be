@@ -9,6 +9,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportImageUploadResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportScheduleRequest;
+import com.hongmap.hongmapbackend.report.dto.ReportUpdateRequest;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -93,6 +94,18 @@ public class ReportController {
             @Valid @RequestBody ReportScheduleRequest request
     ) {
         return reportService.updateSchedule(userId, id, request);
+    }
+
+    @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
+    @Operation(summary = "제보 수정", description = "작성자가 자기 제보(승인 대기·공개)의 층·장소 설명·카테고리·제목·글·사진·시간을 고칩니다. "
+            + "공개 제보는 고친 내용이 바로 지도에 보이고 editedAt 이 남습니다. 핀(건물·좌표)은 바꿀 수 없습니다. 남의 제보 403, 1시간 20회.")
+    @PutMapping("/reports/{id}")
+    public ReportResponse update(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody ReportUpdateRequest request
+    ) {
+        return reportService.update(userId, id, request);
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)

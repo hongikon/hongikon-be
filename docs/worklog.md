@@ -1671,3 +1671,14 @@
 - 개인정보·권한: 이미 승인돼 공개될 제보를 더 일찍 보여 줄 뿐, 새로 모으는 정보 없음. 처리방침 변경 없음.
 - 확인: `ReportScheduleIntegrationTest` 의 예정 목록 테스트를 '나흘 뒤·13일 뒤도 붙는다'로 바꿈.
 
+
+## 2026-11-09 — 제보: 작성자가 지도 카드 ⋯ 에서 고치고 지우기
+
+- 사용자 요청(11-09): 자기 제보를 지우고 고칠 수 있게, 지도 카드 점 세 개(⋯)에서. 삭제(`DELETE /reports/{id}`)는 이미 있었고(설정 > 내 제보에서만), 수정은 공식 계정의 시간 수정뿐이었다.
+- 사용자 결정(11-09): 승인된 제보도 고치면 **다시 검토 없이 바로** 지도에 반영. 내용·장소·사진·시간 모두.
+- `PUT /reports/{id}`(`ReportUpdateRequest`): 층·카테고리(+직접 입력)·제목·글·장소 설명·사진·시간·날짜별 시간을 통째로. 핀(건물·좌표)은 그대로(옮기려면 지우고 새로). 규칙은 등록과 같고, 시작을 그대로 두면 이미 시작한 제보도 고친다(`updateSchedule` 과 같다). 승인 대기·공개만(숨김·반려 409), 남의 제보 403.
+- 사진: `keepImageIndexes`(지금 사진 번호, 그 순서로 앞에) + `imageKeys`(새 업로드, 등록과 같은 검증·메타데이터 제거) 합쳐 3장. 뺀 사진은 커밋 뒤 S3 에서 지운다. 같은 키를 지웠다 넣지 않아 image_key UNIQUE 와 부딪치지 않는다(`Report.replaceImages`).
+- 남용 대비(검토 없이 바뀌므로): `reports.edited_at` 을 남겨 앱 시트·관리자 응답에 '수정됨'(`editedAt`), 사용자별 1시간 20회(`report.edit.limit-per-hour`). 신고는 그대로 된다. SQL `db/alter_reports_edited_at_2026_11_09.sql` — **배포 전 운영 DB 에서 먼저 실행**(ddl-auto=validate).
+- 응답 `ReportResponse`·`ReportSummaryResponse`·`MyReportResponse`·`AdminReportResponse` 에 `editedAt`(구버전 앱은 무시).
+- 개인정보·권한: 등록 때와 같은 항목만 바꾼다(새로 모으는 정보 없음, 처리방침 변경 없음). 작성자 본인만, 사진 키는 등록과 같은 검증(서버 발급 형식·업로드 확인·다른 제보에 붙은 키 거절).
+- 확인: `ReportOwnerEditIntegrationTest` 5(새). 전체 778 중 `AskOperatorNotesIntegrationTest` 1건이 한 번 실패했다가 혼자 다시 돌리면 통과(무작위 꼬리 숫자를 개인정보로 잡는 기존 불안정 테스트, 이번 변경과 무관).
