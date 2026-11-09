@@ -2,6 +2,7 @@ package com.hongmap.hongmapbackend.report.dto;
 
 import com.hongmap.hongmapbackend.report.AuthorKeys;
 import com.hongmap.hongmapbackend.report.Report;
+import com.hongmap.hongmapbackend.report.ReportDay;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -35,6 +36,11 @@ public record ReportSummaryResponse(
         String authorKey,
         LocalDateTime startsAt,
         LocalDateTime endsAt,
+        /**
+         * 여러 날 제보의 날짜별 운영 시간(한국 시간, 날마다 다를 수 있음, 쉬는 날은 없음). 한 번짜리 제보면 null.
+         * 이때 startsAt 은 첫날 시작, endsAt 은 마지막 날 끝이고 지도에는 기간 내내 올라가 있다(11-08).
+         */
+        List<ReportDay> days,
         LocalDateTime createdAt,
         /** 작성자 표시 이름(앱 닉네임 또는 가린 로그인 닉네임). authorNickname 도 같은 값이며 구버전 앱 호환용으로 남겨 둔다. */
         String authorDisplayName,
@@ -76,6 +82,7 @@ public record ReportSummaryResponse(
                 .authorKey(AuthorKeys.of(report.getUser().getId()))
                 .startsAt(report.getStartsAt())
                 .endsAt(report.getEndsAt())
+                .days(report.getDays())
                 .createdAt(report.getCreatedAt())
                 .authorDisplayName(report.getUser().getDisplayName())
                 .authorOfficial(report.getUser().isOfficial())
