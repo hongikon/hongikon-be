@@ -201,7 +201,7 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.references())
+                    answer.found(), catalog.version(), links), answer.map())
                     .withSections(AskQuestionIntent.filter(request.question(), answer.sections()));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
@@ -463,8 +463,11 @@ public class AskRouteService {
         return message.toString().stripTrailing();
     }
 
-    /** 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3), 처음 나온 위치. */
-    private AskRouteResponse withButtons(AskRouteResponse response, List<AskLiveData.Reference> references) {
+    /**
+     * 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3),
+     * 그리고 장소를 물은 질문일 때만(map 이 있을 때) 위치 카드·지도 버튼.
+     */
+    private AskRouteResponse withButtons(AskRouteResponse response, AskLlmClient.MapTarget map) {
         List<AskRouteResponse.Link> pages = new ArrayList<>();
         List<AskRouteResponse.Phone> phones = new ArrayList<>();
         String facilityId = null;
@@ -490,32 +493,35 @@ public class AskRouteService {
                 facilityId = meta.facilityId();
             }
         }
-        if (facilityId == null) {
-            // 안내에 위치가 없으면 답에 쓴 지도 시설의 위치(facility:{id}).
-            facilityId = references.stream().map(AskLiveData.Reference::ref).filter(ref -> ref.startsWith("facility:"))
-                    .map(ref -> ref.substring("facility:".length())).findFirst().orElse(null);
+        AskLiveData.Reference place = map == null ? null : map.place();
+        if (map == null) {
+            // 장소를 묻지 않은 질문(운영시간·규정·신청 방법 …)이면 건물·시설 이름이 나와도 위치 카드·지도를 붙이지 않는다(11-09 운영진).
+            facilityId = null;
+        } else if (place != null) {
+            facilityId = place.ref().startsWith("facility:") ? place.ref().substring("facility:".length()) : null;
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId)
-                .withActions(mapActions(references, facilityId, response.answer()));
+                .withActions(map == null ? List.of() : mapActions(place, facilityId, response.answer()));
     }
 
-    /** 지도 대상이 되는 근거(답이 실제로 쓴 순서) — 건물·편의시설·제휴. */
+    /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
     private static final List<String> PLACE_PREFIXES = List.of("building:", "facility:", "partner:");
     static final int ACTION_SUMMARY_MAX = 90;
 
     /**
-     * '지도에서 보기' 버튼(11-07). 답이 쓴 근거 중 처음 나온 건물·시설·제휴, 없으면 근거 안내의 위치(facilityId).
+     * '지도에서 보기' 버튼(11-07). 모델이 고른 장소(place, 이번에 도구로 찾은 것만), 없으면 근거 안내의 위치(facilityId).
      * 대상 id 는 지도 데이터에 있는 것만(도구 결과·카탈로그) — 모델이 좌표나 id 를 만들지 않는다. 버튼은 하나만.
+     * 장소를 묻는 질문일 때만 부른다(11-09).
      */
-    static List<AskRouteResponse.Action> mapActions(List<AskLiveData.Reference> references, String facilityId, String answer) {
+    static List<AskRouteResponse.Action> mapActions(AskLiveData.Reference place, String facilityId, String answer) {
         String summary = summaryOf(answer);
-        for (AskLiveData.Reference reference : references) {
-            String ref = reference.ref();
+        if (place != null) {
+            String ref = place.ref();
             if (PLACE_PREFIXES.stream().anyMatch(prefix -> ref.startsWith(prefix) && ref.length() > prefix.length())) {
                 // 시설 참조 제목은 설명 한 줄(이름·층·시간…)이라 앱이 지도 데이터 이름을 쓴다. 건물·제휴는 이름 그대로.
-                String label = ref.startsWith("facility:") || reference.title() == null || reference.title().isBlank()
-                        ? null : reference.title();
+                String label = ref.startsWith("facility:") || place.title() == null || place.title().isBlank()
+                        ? null : place.title();
                 return List.of(new AskRouteResponse.Action("map", ref, label, summary));
             }
         }

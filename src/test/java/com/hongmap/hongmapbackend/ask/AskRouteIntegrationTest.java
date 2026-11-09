@@ -119,7 +119,7 @@ class AskRouteIntegrationTest {
     }
 
     @Test
-    void 답과_함께_근거_안내의_학교_페이지_전화_위치_버튼을_보낸다() throws Exception {
+    void 답과_함께_근거_안내의_학교_페이지_전화_버튼을_보내고_장소를_묻지_않으면_위치는_뺀다() throws Exception {
         when(llmClient.classify(anyString(), any())).thenReturn(school("wifi/trouble"));
         when(llmClient.answer(anyList(), anyString(), any()))
                 .thenReturn(new AskLlmClient.Answer("기기별 설명서를 보세요.", true, List.of("wifi/trouble")));
@@ -127,7 +127,19 @@ class AskRouteIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pages[0].url").value("https://wifi.hongik.ac.kr/hongik_wifi/"))
                 .andExpect(jsonPath("$.phones[0].phone").value("02-320-1405"))
-                .andExpect(jsonPath("$.facilityId").value("hi-q-10f-office-01"));
+                .andExpect(jsonPath("$.facilityId").doesNotExist())
+                .andExpect(jsonPath("$.actions").isEmpty());
+    }
+
+    @Test
+    void 장소를_물으면_근거_안내의_위치와_지도_버튼을_보낸다() throws Exception {
+        when(llmClient.classify(anyString(), any())).thenReturn(school("wifi/trouble"));
+        when(llmClient.answer(anyList(), anyString(), any())).thenReturn(new AskLlmClient.Answer("Q동 10층이에요.", true,
+                List.of("wifi/trouble"), List.of(), List.of(), null, new AskLlmClient.MapTarget(null)));
+        mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"와이파이 담당 사무실 어디야\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.facilityId").value("hi-q-10f-office-01"))
+                .andExpect(jsonPath("$.actions[0].target").value("facility:hi-q-10f-office-01"));
     }
 
     @Test
@@ -452,7 +464,7 @@ class AskRouteIntegrationTest {
     void 출구_검사가_답을_버리면_다른_대학_문구로_바꾸고_MIX_BLOCKED로_남긴다() throws Exception {
         when(llmClient.classify(anyString(), any())).thenReturn(school(ANSWER_NODE));
         when(llmClient.answer(anyList(), anyString(), any())).thenReturn(new AskLlmClient.Answer(
-                AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), "연세대"));
+                AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), "연세대", null));
         String body = mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"기숙사 신청 방법\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer").value(AskScope.OTHER_SCHOOL.refusal()))
@@ -469,7 +481,7 @@ class AskRouteIntegrationTest {
                 List.of(List.of("30일까지", "5/6"), List.of("60일까지", "2/3")));
         var section = new com.hongmap.hongmapbackend.ask.dto.AskRouteResponse.Section("반환 기준", List.of(), false, table);
         when(llmClient.answer(anyList(), anyString(), any())).thenReturn(new AskLlmClient.Answer(
-                "기간에 따라 달라요.", true, List.of(ANSWER_NODE), List.of(), List.of(section), null));
+                "기간에 따라 달라요.", true, List.of(ANSWER_NODE), List.of(), List.of(section), null, null));
         mockMvc.perform(route(randomIp(), KEY, "{\"question\":\"휴학 등록금 반환\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sections[0].title").value("반환 기준"))

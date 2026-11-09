@@ -24,6 +24,7 @@ import java.time.format.DateTimeParseException;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -199,6 +200,114 @@ public class AskLiveData {
             references.add(new Reference(ref, hit.node().path("name").asString(""), null, null));
         }
         return references;
+    }
+
+    static final int NEAREST_LIMIT = 6;
+
+    /**
+     * 가까운 곳 찾기(11-09 운영진 — 'T동에서 제일 가까운 편의점'). 출발 장소는 건물(이름·별칭) 또는 제휴업체 이름,
+     * 찾을 것은 시설(종류·메모)·건물(이름·종류)·제휴업체(이름·종류·혜택) 낱말. 시설은 자기 건물 위치를 쓴다.
+     * 가장 많이 맞은 것들만 남겨 위치 사이 직선거리 순으로 준다 — 실제 걷는 길은 더 길 수 있다.
+     */
+    public List<Reference> nearestPlaces(String from, String query, StringBuilder text) {
+        JsonNode data = jsonMapper.readTree(mapDataService.current().body());
+        List<String> fromWords = queryWords(from);
+        List<String> words = queryWords(query);
+        if (fromWords.isEmpty() || words.isEmpty()) {
+            text.append("출발 장소와 찾을 것을 둘 다 주세요.");
+            return List.of();
+        }
+        Map<String, JsonNode> buildingsByName = new HashMap<>();
+        data.path("buildings").forEach(building -> buildingsByName.put(building.path("name").asString(""), building));
+        // 출발: 이름이 가장 많이 맞은 건물, 없으면 제휴업체.
+        JsonNode origin = null;
+        String originName = null;
+        int best = 0;
+        for (JsonNode building : data.path("buildings")) {
+            int score = score(building.path("name").asString("") + " " + building.path("code").asString(""), fromWords);
+            if (score > best) {
+                best = score;
+                origin = building;
+                originName = building.path("name").asString("");
+            }
+        }
+        if (origin == null) {
+            for (JsonNode partner : data.path("partners")) {
+                int score = score(partner.path("name").asString(""), fromWords);
+                if (score > best) {
+                    best = score;
+                    origin = partner;
+                    originName = partner.path("name").asString("");
+                }
+            }
+        }
+        if (origin == null || !origin.path("lat").isNumber() || !origin.path("lng").isNumber()) {
+            text.append("출발 장소 '").append(from).append("'를 지도에서 찾지 못했어요.");
+            return List.of();
+        }
+        boolean originIsBuilding = buildingsByName.containsKey(originName);
+        LocalDate today = cafeteriaMenuService.today();
+        record Hit(Reference reference, String line, int score, double meters, boolean sameBuilding) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode facility : data.path("facilities")) {
+            String line = facilityLine(facility);
+            int score = score(facility.path("kind").asString("") + " " + facility.path("note").asString(""), words);
+            JsonNode building = buildingsByName.get(facility.path("buildingName").asString(""));
+            if (score > 0 && building != null && building.path("lat").isNumber()) {
+                boolean same = originIsBuilding && originName.equals(building.path("name").asString(""));
+                String ref = "facility:" + facility.path("id").asString("");
+                hits.add(new Hit(new Reference(ref, line, null, null), line, score, meters(origin, building), same));
+            }
+        }
+        for (JsonNode building : data.path("buildings")) {
+            String about = building.path("name").asString("") + " " + building.path("type").asString("") + " "
+                    + building.path("category").asString("");
+            int score = score(about, words);
+            if (score > 0 && building != origin && building.path("lat").isNumber()) {
+                String name = building.path("name").asString("");
+                hits.add(new Hit(new Reference("building:" + building.path("code").asString(""), name, null, null),
+                        name + " · [" + building.path("type").asString("") + "]", score, meters(origin, building), false));
+            }
+        }
+        for (JsonNode partner : data.path("partners")) {
+            String endsOn = partner.path("endsOn").asString("");
+            if ((!endsOn.isEmpty() && endsOn.compareTo(today.toString()) < 0) || partner == origin || !partner.path("lat").isNumber()) {
+                continue;
+            }
+            String name = partner.path("name").asString("");
+            StringBuilder line = new StringBuilder(name).append(" [제휴 ").append(partner.path("category").asString("")).append("]");
+            appendPart(line, "혜택", partner.path("benefit").asString(null));
+            appendPart(line, "시간", partner.path("hours").asString(null));
+            int score = score(name + " " + partner.path("category").asString("") + " 제휴 " + partner.path("benefit").asString(""), words);
+            if (score > 0) {
+                hits.add(new Hit(new Reference("partner:" + partner.path("id").asString(""), name, null, null),
+                        line.toString(), score, meters(origin, partner), false));
+            }
+        }
+        int top = hits.stream().mapToInt(Hit::score).max().orElse(0);
+        List<Hit> sorted = hits.stream().filter(hit -> hit.score() == top)
+                .sorted(Comparator.comparingDouble(Hit::meters)).limit(NEAREST_LIMIT).toList();
+        text.append("출발: ").append(originName).append(" (거리는 위치 사이 직선거리 — 실제 걷는 길은 더 길 수 있다)\n");
+        if (sorted.isEmpty()) {
+            text.append("'").append(query).append("'에 맞는 곳을 지도 데이터에서 찾지 못했어요.");
+            return List.of();
+        }
+        List<Reference> references = new ArrayList<>();
+        for (Hit hit : sorted) {
+            text.append(hit.reference().ref()).append(" · ").append(hit.line()).append(" · ")
+                    .append(hit.sameBuilding() ? "같은 건물" : "직선 약 " + Math.round(hit.meters() / 10) * 10 + "m").append('\n');
+            references.add(hit.reference());
+        }
+        return references;
+    }
+
+    /** 두 위치(lat·lng) 사이 거리(m) — 캠퍼스 범위라 평면 근사로 충분하다. */
+    static double meters(JsonNode a, JsonNode b) {
+        double lat = Math.toRadians((a.path("lat").asDouble() + b.path("lat").asDouble()) / 2);
+        double dy = (a.path("lat").asDouble() - b.path("lat").asDouble()) * 111_320;
+        double dx = (a.path("lng").asDouble() - b.path("lng").asDouble()) * 111_320 * Math.cos(lat);
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
     /** 질문에서 2글자 이상 낱말 최대 6개(소문자). */

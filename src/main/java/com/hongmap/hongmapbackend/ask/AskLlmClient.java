@@ -195,6 +195,13 @@ public class AskLlmClient {
             """ + AskGlossary.PROMPT + """
             - sourceIds 에는 답에 실제로 쓴 내용의 출처만 중요한 순서로 넣는다(안내 id·학과 홈페이지 page:…·공지 notice:…·학식 cafeteria:…·시설 facility:…·건물 building:…·제휴 partner:…). 답의 날짜·마감·절차를 공지에서 가져왔으면 그 공지를 반드시 넣는다.
               읽기만 하고 답에 쓰지 않은 것은 넣지 않는다. found=false 면 담당 부서를 가져온 안내 id 하나.
+            - '○○에서 제일 가까운 △△', '○○ 근처 △△', '△△ 어디가 가까워'처럼 가까운 곳을 물으면 nearest_places(from, query)로 찾아 가까운 순으로 답한다.
+              거리는 위치 사이 직선거리라 '직선으로 약 ○○m'처럼 '약'을 붙이고, 같은 건물이면 층을 밝힌다. 결과에 운영시간이 있으면 함께 쓴다.
+              출발 장소를 못 찾았으면 어느 건물 기준인지 되묻는다. 결과에 없는 장소·거리는 지어내지 않는다.
+            - mapTarget(지도 버튼): 학생이 장소를 물을 때만 채운다 — 어디 있는지·몇 층인지·어떻게 가는지·가장 가까운 곳·근처 장소처럼
+              위치가 답의 핵심인 질문이면 답에 쓴 장소 하나의 참조(building:…·facility:…·partner:…, 도구 결과에 나온 것)를 넣고,
+              도구 없이 안내 원문의 위치로 답했으면 'guide'. 운영시간·규정·신청 방법·메뉴처럼 장소 이름이 나올 뿐 위치를 묻지 않은 질문이면
+              빈 문자열('')이다(예: 'Q동 프린터 몇 시까지 돼?' → '', 'Q동 프린터 어디 있어?' → 그 facility 참조).
             """;
 
     /**
@@ -288,9 +295,10 @@ public class AskLlmClient {
         answerProperties.put("sections", Map.of("type", "array", "items", section));
         answerProperties.put("found", Map.of("type", "boolean"));
         answerProperties.put("sourceIds", Map.of("type", "array", "items", Map.of("type", "string")));
+        answerProperties.put("mapTarget", Map.of("type", "string"));
         this.answerConfig = OutputConfig.builder()
                 .effort(answerEffort(answerEffort))
-                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds")))
+                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds", "mapTarget")))
                 .build();
         this.answerTools = List.of(
                 tool("search_guides", "학생 안내 목록에서 뜻과 낱말로 다른 안내를 찾는다. 결과는 id 와 한 줄 요약(최대 6개). "
@@ -317,6 +325,10 @@ public class AskLlmClient {
                 tool("search_partners", "학교 제휴업체(식당·카페·주점 등)의 혜택·대상 소속·주소·시간을 낱말로 찾는다. 끝난 제휴는 빠진다. 최대 8개(참조 partner:id). "
                                 + "예: '치킨 제휴', '기숙사 제휴 카페', '총학생회 할인'.",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
+                tool("nearest_places", "출발 장소(건물·제휴업체 이름)에서 가까운 시설·건물·제휴업체를 거리순으로 찾는다(최대 6개, 참조 facility:id·building:code·partner:id). "
+                                + "같은 건물이면 '같은 건물'과 층, 아니면 위치 사이 직선거리(m). "
+                                + "예: from 'T동', query '편의점' / from '중앙도서관', query '프린터' / from 'R동', query '카페 제휴'.",
+                        Map.of("from", Map.of("type", "string"), "query", Map.of("type", "string")), List.of("from", "query")),
                 tool("cafeteria_menu", "그날 학교 식당 메뉴(식당·끼니·시간·가격·메뉴). date 는 yyyy-MM-dd, 비우거나 today 면 오늘.",
                         Map.of("date", Map.of("type", "string")), List.of("date")));
         if (client == null) {
@@ -680,6 +692,14 @@ public class AskLlmClient {
             hits.forEach(hit -> references.put(hit.ref(), hit));
             return hits.isEmpty() ? (buildings ? "찾은 건물이 없어요." : "찾은 제휴업체가 없어요.") : out.toString();
         }
+        if ("nearest_places".equals(use.name()) && input != null && input.get("from") instanceof String from
+                && input.get("query") instanceof String query) {
+            progress.searchingFacilities(from + " 근처 " + query);
+            StringBuilder out = new StringBuilder();
+            List<AskLiveData.Reference> hits = liveData.nearestPlaces(from, query, out);
+            hits.forEach(hit -> references.put(hit.ref(), hit));
+            return out.toString();
+        }
         if ("cafeteria_menu".equals(use.name())) {
             Object date = input == null ? null : input.get("date");
             AskLiveData.DayMenu menu = liveData.cafeteria(date instanceof String text ? text : null);
@@ -755,7 +775,7 @@ public class AskLlmClient {
         Optional<String> otherSchool = OtherSchoolGuard.ungrounded(all.toString(), ground);
         if (otherSchool.isPresent()) {
             log.warn("물어보기 답에 근거 없는 다른 대학 이름({})이 있어 답을 버렸다", otherSchool.get());
-            return new Answer(AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), otherSchool.get());
+            return new Answer(AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), otherSchool.get(), null);
         }
         boolean found = json.path("found").asBoolean(false);
         List<String> sourceIds = new ArrayList<>();
@@ -772,7 +792,29 @@ public class AskLlmClient {
                 usedReferences.add(references.get(value));
             }
         }
-        return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null);
+        return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null,
+                mapTarget(json.path("mapTarget").asString(""), references));
+    }
+
+    /** 근거 안내 원문의 위치를 지도에 보이라는 mapTarget 값(도구로 찾은 장소가 아닐 때). */
+    static final String MAP_TARGET_GUIDE = "guide";
+    private static final List<String> MAP_PREFIXES = List.of("building:", "facility:", "partner:");
+
+    /**
+     * 지도 버튼 대상(11-09 운영진 — 장소를 물을 때만). 모델이 고른 참조가 이번에 도구로 실제 찾은 장소일 때만 그 장소,
+     * 'guide' 면 근거 안내의 위치, 비었거나 지어낸 값이면 null(지도 버튼·위치 카드를 붙이지 않는다).
+     */
+    static MapTarget mapTarget(String value, Map<String, AskLiveData.Reference> references) {
+        String target = value == null ? "" : value.strip();
+        if (target.equalsIgnoreCase(MAP_TARGET_GUIDE)) {
+            return new MapTarget(null);
+        }
+        AskLiveData.Reference place = references.get(target);
+        return place != null && MAP_PREFIXES.stream().anyMatch(target::startsWith) ? new MapTarget(place) : null;
+    }
+
+    /** @param place 지도에 보일 장소. null 이면 근거 안내의 위치(facilityId). */
+    public record MapTarget(AskLiveData.Reference place) {
     }
 
     /** 휴대폰 폭에 맞춘 상한 — 구조화 출력이 개수 제한을 못 걸어 여기서 자른다(docs/ask-scope-policy.md 5장). */
@@ -951,15 +993,16 @@ public class AskLlmClient {
      * @param found     원문에서 확인한 답이면 true, 확인되지 않아 담당 부서를 안내한 답이면 false
      * @param sourceIds 근거로 쓴 안내(이번 요청에서 실제로 원문을 넘긴 것만)
      * @param references 근거로 쓴 공지·학식(이번 요청에서 실제로 읽은 것만)
+     * @param map        지도 버튼 대상. 장소를 묻는 질문이 아니면 null
      */
     public record Answer(String text, boolean found, List<String> sourceIds, List<AskLiveData.Reference> references,
-                         List<AskRouteResponse.Section> sections, String blockedSchool) {
+                         List<AskRouteResponse.Section> sections, String blockedSchool, MapTarget map) {
         public Answer(String text, boolean found, List<String> sourceIds) {
-            this(text, found, sourceIds, List.of(), List.of(), null);
+            this(text, found, sourceIds, List.of(), List.of(), null, null);
         }
 
         public Answer(String text, boolean found, List<String> sourceIds, List<AskLiveData.Reference> references) {
-            this(text, found, sourceIds, references, List.of(), null);
+            this(text, found, sourceIds, references, List.of(), null, null);
         }
     }
 }
