@@ -74,6 +74,8 @@ public class SecurityConfig {
                     // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
                     auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/map/routes", "/map/routes/approach").permitAll();
+                    // 경로 조사 도구용 — 개발용 암호키(X-Dev-Key)를 컨트롤러가 확인한다(RouteGraphController).
+                    auth.requestMatchers("/map/route-graph/**").permitAll();
                     // 학식 메뉴(학교 홈페이지 공개 메뉴를 서버가 가져와 둔 것). 조회만.
                     auth.requestMatchers(HttpMethod.GET, "/cafeteria/menus", "/cafeteria/menus/week").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();

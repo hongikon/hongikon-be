@@ -300,6 +300,49 @@ final class WalkRouter {
                 fromFloor != null || toFloor != null, false, false, true, null, null, null, null, null, null);
     }
 
+    // ---- 경로망 검사(조사 도구 '서버에 올리기') ----
+
+    /** 서버 건물로 이어지지 않는 경로망 건물 code(서버 지도에 없는 건물이거나 code·출입구 이름이 다르다). */
+    java.util.SortedSet<String> unresolvedBuildingCodes() {
+        java.util.SortedSet<String> out = new java.util.TreeSet<>();
+        for (SurveyGraph.Vertex v : survey.vertices()) {
+            if (v.code() != null && !v.code().isEmpty() && resolveBuilding.apply(v.code()) == null) {
+                out.add(v.code());
+            }
+        }
+        return out;
+    }
+
+    /** 큰 길망과 떨어진 정점(조사가 덜 끝난 조각 — 길찾기에 쓰지 않는다). */
+    List<String> detachedVertexIds() {
+        List<String> out = new ArrayList<>();
+        for (String id : base.nodes.keySet()) {
+            if (!base.mainComponent.contains(id)) {
+                out.add(id);
+            }
+        }
+        return out;
+    }
+
+    /** 경로망에 이어진 출입구가 없는 서버 건물(가까운 길까지 직선으로 잇거나 직선 어림으로 안내된다). */
+    List<String> buildingsWithoutEntrances() {
+        List<String> out = new ArrayList<>();
+        for (CampusBuilding building : buildings) {
+            if (!base.entrancesByBuilding.containsKey(building.name())) {
+                out.add(building.name());
+            }
+        }
+        return out;
+    }
+
+    int vertexCount() {
+        return survey.vertices().size();
+    }
+
+    int edgeCount() {
+        return survey.edges().size();
+    }
+
     // ---- 이어 붙은 건물의 같은 층 ----
 
     record Level(CampusBuilding building, Double floor) {

@@ -1,15 +1,11 @@
 package com.hongmap.hongmapbackend.walkroute;
 
-import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +13,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 건물(층)에서 건물(층)까지 걷는 길 후보. 건물은 GET /map/data 와 같은 값(MapDataService 스냅숏)을 읽어, 앱이 보는 건물·출입구와
- * 늘 같다. 지도 데이터가 바뀌면(version) 그래프를 다시 만든다.
+ * 건물(층)에서 건물(층)까지 걷는 길 후보. 건물은 GET /map/data 와 같은 값(CampusBuildings)을 읽어, 앱이 보는 건물·출입구와
+ * 늘 같다. 지도 데이터나 적용한 경로망(WalkGraphService.active)이 바뀌면 그래프를 다시 만든다.
  *
  * <p>층은 그 건물에서 고를 수 있는 층(앱 층 다이얼과 같은 값)만 받는다 — 아무 숫자나 받으면 매번 새로 계산하게 할 수 있다.
  * 내 위치 출발용 approach 는 계산이 무거워(목적지마다 2초 남짓) 한 번에 하나만 계산하고, 만든 응답(JSON)을 기억해 둔다.
@@ -31,21 +27,25 @@ public class WalkRouteService {
     /** approach 계산을 기다리는 최대 시간. 넘으면 503(앱은 직선 어림). */
     private static final long APPROACH_WAIT_SECONDS = 15;
 
-    private final MapDataService mapDataService;
+    private final CampusBuildings campusBuildings;
+    private final WalkGraphService graphs;
     private final JsonMapper jsonMapper;
-    private final SurveyGraph survey;
     private final Semaphore approachSlot = new Semaphore(1, true);
     private volatile Built built;
     private final Map<String, List<WalkRoute>> results = lru(RESULT_CACHE_SIZE);
     private final Map<String, byte[]> approaches = lru(APPROACH_CACHE_SIZE);
 
+    /** version = 지도 데이터 version + 경로망(file 또는 v{id}). */
     private record Built(String version, WalkRouter router, Map<Long, CampusBuilding> byId) {
     }
 
-    public WalkRouteService(MapDataService mapDataService, JsonMapper jsonMapper) {
-        this.mapDataService = mapDataService;
+    /** 조사 도구 길 시험용으로 마지막에 만든 버전 경로망 길찾기. */
+    private volatile Built preview;
+
+    public WalkRouteService(CampusBuildings campusBuildings, WalkGraphService graphs, JsonMapper jsonMapper) {
+        this.campusBuildings = campusBuildings;
+        this.graphs = graphs;
         this.jsonMapper = jsonMapper;
-        this.survey = SurveyGraph.load(jsonMapper);
     }
 
     private static <V> Map<String, V> lru(int size) {
@@ -58,10 +58,25 @@ public class WalkRouteService {
     }
 
     public List<WalkRoute> routes(long fromId, Double fromFloor, long toId, Double toFloor) {
+        return routes(current(), fromId, fromFloor, toId, toFloor);
+    }
+
+    /** 조사 도구 길 시험: 한 버전 경로망으로 찾은 길(결과는 기억하지 않는다 — 초안을 계속 바꿔 올린다). */
+    public List<WalkRoute> previewRoutes(long versionId, long fromId, Double fromFloor, long toId, Double toFloor) {
+        CampusBuildings.Snapshot buildings = campusBuildings.current();
+        String version = buildings.version() + "|v" + versionId;
+        Built b = preview;
+        if (b == null || !b.version().equals(version)) {
+            b = new Built(version, new WalkRouter(graphs.graphOf(versionId), buildings.list()), buildings.byId());
+            preview = b;
+        }
+        return routes(b, fromId, fromFloor, toId, toFloor);
+    }
+
+    private List<WalkRoute> routes(Built current, long fromId, Double fromFloor, long toId, Double toFloor) {
         if (fromId == toId) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "출발과 도착이 같은 건물입니다");
         }
-        Built current = current();
         CampusBuilding from = building(current, fromId);
         CampusBuilding to = building(current, toId);
         checkFloor(from, fromFloor);
@@ -126,30 +141,19 @@ public class WalkRouteService {
     }
 
     private Built current() {
-        MapDataService.Snapshot snapshot = mapDataService.current();
+        CampusBuildings.Snapshot buildings = campusBuildings.current();
+        WalkGraphService.ActiveGraph graph = graphs.active();
+        String version = buildings.version() + "|" + graph.key();
         Built b = built;
-        if (b != null && b.version().equals(snapshot.version())) {
+        if (b != null && b.version().equals(version)) {
             return b;
         }
         synchronized (this) {
             b = built;
-            if (b != null && b.version().equals(snapshot.version())) {
+            if (b != null && b.version().equals(version)) {
                 return b;
             }
-            List<CampusBuilding> buildings = new ArrayList<>();
-            Map<Long, CampusBuilding> byId = new HashMap<>();
-            JsonNode list = jsonMapper.readTree(snapshot.body()).path("buildings");
-            for (JsonNode node : list) {
-                CampusBuilding building = CampusBuilding.from(node);
-                if (building == null) {
-                    continue;
-                }
-                buildings.add(building);
-                if (building.id() != null) {
-                    byId.put(building.id(), building);
-                }
-            }
-            b = new Built(snapshot.version(), new WalkRouter(survey, buildings), Map.copyOf(byId));
+            b = new Built(version, new WalkRouter(graph.graph(), buildings.list()), buildings.byId());
             built = b;
             results.clear();
             approaches.clear();
