@@ -41,4 +41,11 @@ UPDATE `buildings` SET `floor_levels` = '[1, 2, 3, 4, 5]', `floors` = 5, `baseme
 UPDATE `buildings` SET `floor_levels` = '[-1, 1, 2, 3]', `floors` = 3, `basement_floors` = 1 WHERE `code` = 'hongik_z3'; -- 제3강의동 Z3동
 UPDATE `buildings` SET `floor_levels` = '[-1, 1, 2, 3, 4]', `floors` = 4, `basement_floors` = 1 WHERE `code` = 'hongik_z4'; -- 제4강의동 Z4동
 
+-- 홍문관 1.5층 출입구(HI_R_1F5_ENTER) 삭제(11-10 사용자 요청): 엑셀·경로망 조사에 없는 층이고 어디인지 확인되지 않았다.
+-- 출입구 JSON 에서 그 항목만 뺀다. 이미 없으면 아무것도 바꾸지 않는다(두 번 실행해도 된다). 경로망(path_nodes)은 이 출입구를 가리키지 않는다.
+UPDATE `buildings`
+SET `entrances` = JSON_REMOVE(`entrances`, REPLACE(JSON_UNQUOTE(JSON_SEARCH(`entrances`, 'one', 'HI_R_1F5_ENTER', NULL, '$[*].label')), '.label', ''))
+WHERE `code` = 'hongik_r' AND JSON_SEARCH(`entrances`, 'one', 'HI_R_1F5_ENTER', NULL, '$[*].label') IS NOT NULL;
+
 -- 확인: SELECT code, floors, basement_floors, floor_levels FROM buildings ORDER BY sort_order, id;
+--       SELECT JSON_EXTRACT(entrances, '$[*].label') FROM buildings WHERE code = 'hongik_r';  -- HI_R_1F5_ENTER 가 없어야 한다
