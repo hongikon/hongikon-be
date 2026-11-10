@@ -271,7 +271,7 @@ public class AskRouteService {
         if (known(request.hint())) {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
-        return message.append(AskBoards.hint(request.question()))
+        return message.append(AskBoards.hint(request.question())).append(AskCourses.aliasLine(request.question()))
                 .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
@@ -281,10 +281,11 @@ public class AskRouteService {
         if (question.replaceAll("\\s+", "").length() <= FOLLOW_UP_CHARS && request.history() != null && !request.history().isEmpty()) {
             AskRouteRequest.Turn last = request.history().get(request.history().size() - 1);
             if (last.question() != null && !last.question().isBlank()) {
-                return oneLine(last.question()) + " " + question;
+                return AskCourses.expand(oneLine(last.question()) + " " + question);
             }
         }
-        return question;
+        // 줄임말(중동·컴프 …)은 정식 이름을 붙여 찾는다.
+        return AskCourses.expand(question);
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
@@ -378,6 +379,7 @@ public class AskRouteService {
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
                 .append(departmentLine(request.question()))
+                .append(AskCourses.aliasLine(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 

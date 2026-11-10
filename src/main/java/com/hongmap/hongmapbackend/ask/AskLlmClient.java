@@ -211,6 +211,10 @@ public class AskLlmClient {
               학생이 지금 어디 있는지는 모르니 '지금 계신 곳에서 몇 분'처럼 지어내지 않는다('아래 길찾기 버튼으로 지금 위치에서 가는 길을 볼 수 있어요').
             - '공학관', '인문사회관', '강의동'처럼 같은 이름의 건물이 여럿이면(제1·2·3·4공학관 등) 하나만 골라 답하지 않는다 — 결과에 나온 건물을
               모두 짧게(이름·별칭·무엇이 있는지) 보이고, 어느 건물이 궁금한지 물어 본다. 학생이 번호·동을 말했으면 그 건물만 답한다.
+            - 과목·교과과정 질문('○○과 1학년 때 뭐 들어?', '컴프 몇 학년 과목이야?', '화공 2학년 2학기 전공필수')은 search_courses 로 찾는다.
+              학과·학년 과목은 표(학기 | 과목 | 학점 | 이수구분)로 원문 줄을 모두 넣고, '2026 교과과정책자 기준'과 '이번 학기 개설·분반은 수강신청 시스템에서 확인'을 밝힌다.
+              '책자 합계 검산 안 됨'이 붙은 줄이 있으면 '책자 원문 확인'을 한 줄 덧붙인다. 입학연도에 따라 교육과정이 다를 수 있다는 점도 짧게.
+              courses:2026 을 sourceIds 에 넣는다. [질문 속 줄임말]에 '여러 과목'으로 적힌 줄임말이면 후보 과목을 보이고 어느 과목인지 묻는다.
             - [오늘]에 날짜가 없으면(질문에 시점이 없음) 이번 학기 신청 기간이 지났는지·지금 열려 있는지를 말하지 않는다 — 규칙(언제·어떻게)만 쓴다.
             - [오늘]에 날짜가 있으면 요일과 지금 시각도 있다. '지금 열려 있어?', '지금 갈 수 있는 카페'처럼 지금을 물으면 결과의 운영시간(평일·주말·학기 중·방학)과
               견주어 열려 있는지 판단하고, 학기 중인지 방학인지가 갈리면 학사일정을 찾는다. 운영시간이 없는 곳은 '운영시간 정보가 없어요'라고 한다.
@@ -347,6 +351,12 @@ public class AskLlmClient {
                                 + "같은 건물이면 '같은 건물'과 층, 아니면 위치 사이 직선거리(m). "
                                 + "예: from 'T동', query '편의점' / from '중앙도서관', query '프린터' / from 'R동', query '카페 제휴'.",
                         Map.of("from", Map.of("type", "string"), "query", Map.of("type", "string")), List.of("from", "query")),
+                tool("search_courses", "2026 교과과정책자의 학과별 교과과정(과목명·학수번호·학년·학기·학점·이수구분)을 찾는다. query 는 과목명·줄임말(컴프·선대·운체 …)·학수번호, "
+                                + "비우고 dept·grade 를 주면 그 학과·학년 과목 목록. dept 는 학과·전공 이름(컴퓨터공학과·화학공학전공 …), grade·term 은 숫자, campus 는 세종일 때만 '세종'. "
+                                + "참조는 courses:2026 하나.",
+                        Map.of("query", Map.of("type", "string"), "dept", Map.of("type", "string"),
+                                "grade", Map.of("type", "integer"), "term", Map.of("type", "integer"), "campus", Map.of("type", "string")),
+                        List.of("query")),
                 tool("cafeteria_menu", "그날 학교 식당 메뉴(식당·끼니·시간·가격·메뉴). date 는 yyyy-MM-dd, 비우거나 today 면 오늘.",
                         Map.of("date", Map.of("type", "string")), List.of("date")));
         if (client == null) {
@@ -729,6 +739,19 @@ public class AskLlmClient {
             List<AskLiveData.Reference> hits = liveData.nearestPlaces(from, query, out);
             hits.forEach(hit -> references.put(hit.ref(), hit));
             return out.toString();
+        }
+        if ("search_courses".equals(use.name()) && input != null) {
+            String query = input.get("query") instanceof String text ? text : "";
+            String dept = input.get("dept") instanceof String text ? text : null;
+            Integer grade = input.get("grade") instanceof Number n ? n.intValue() : null;
+            Integer term = input.get("term") instanceof Number n ? n.intValue() : null;
+            String campus = input.get("campus") instanceof String text ? text : null;
+            progress.searching(query.isBlank() ? (dept == null ? "과목" : dept + " 과목") : query);
+            String out = AskCourses.search(query, dept, grade, term, campus, AskCourses.data());
+            if (out.startsWith(AskCourses.SOURCE_REF)) {
+                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, AskCourses.SOURCE_URL, null));
+            }
+            return out;
         }
         if ("cafeteria_menu".equals(use.name())) {
             Object date = input == null ? null : input.get("date");
