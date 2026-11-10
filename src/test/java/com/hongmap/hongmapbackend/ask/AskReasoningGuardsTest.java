@@ -58,4 +58,11 @@ class AskReasoningGuardsTest {
         assertThat(AskRouteService.fillConsequences(withCaution, "성적경고, 등록금", consequences).get(0).items())
                 .containsExactly("기존", "지운 학기도 재학연한에 들어간다.");
     }
+
+    @Test
+    void 다른_말로_이미_한_결과는_다시_붙이지_않는다() {
+        String said = "지운학기를빼고8학기를채워야해서졸업이늦어지고등록금을더낼수있어요";
+        assertThat(AskRouteService.alreadySaid(said, "학기재수강으로 지운 학기를 빼고 8학기(5년제 10학기)를 채워야 해서 졸업이 늦어지고 등록금을 더 낼 수 있다.")).isTrue();
+        assertThat(AskRouteService.alreadySaid(said, "학기재수강으로 지운 학기도 재학연한에 들어간다.")).isFalse();
+    }
 }

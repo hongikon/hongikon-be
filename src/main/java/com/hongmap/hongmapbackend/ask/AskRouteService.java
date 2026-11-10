@@ -541,7 +541,8 @@ public class AskRouteService {
         List<String> missing = new ArrayList<>();
         for (AskRuleGraph.Consequence consequence : consequences) {
             String target = consequence.target().replaceAll("\\s+", "");
-            if (!target.isEmpty() && !text.contains(target) && !missing.contains(consequence.fact()) && missing.size() < MAX_FILLED_CONSEQUENCES) {
+            if (!target.isEmpty() && !text.contains(target) && !alreadySaid(text, consequence.fact())
+                    && !missing.contains(consequence.fact()) && missing.size() < MAX_FILLED_CONSEQUENCES) {
                 missing.add(consequence.fact());
             }
         }
@@ -560,6 +561,20 @@ public class AskRouteService {
         }
         out.add(new AskRouteResponse.Section(AskLlmClient.CAUTION_TITLE, missing, false, null));
         return out;
+    }
+
+    /**
+     * 답이 그 결과를 다른 말로 이미 했는지 — 선 문장의 2글자 이상 낱말(앞 3글자로 줄여 조사 차이를 넘긴다) 중 60% 이상이 답에 있으면 했다고 본다.
+     * 결과 점 이름(예: '등록금 이연')이 답에 글자 그대로 없어도 '등록금을 더 낼 수 있어요'로 이미 말했는데 같은 문장을 또 붙이던 것(11-10 3회차).
+     */
+    static boolean alreadySaid(String squashedAnswer, String fact) {
+        List<String> words = java.util.Arrays.stream(fact.split("[\\s,·()—.\\-]+"))
+                .map(String::strip).filter(word -> word.length() >= 2).map(word -> word.substring(0, Math.min(3, word.length()))).distinct().toList();
+        if (words.isEmpty()) {
+            return false;
+        }
+        long hit = words.stream().filter(squashedAnswer::contains).count();
+        return hit * 10 >= words.size() * 6L;
     }
 
     /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
