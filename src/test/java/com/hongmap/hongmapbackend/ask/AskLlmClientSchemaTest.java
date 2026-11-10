@@ -23,7 +23,7 @@ class AskLlmClientSchemaTest {
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
-        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "1h", "low", 6000, "");
+        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "1h", "low", 6000, "", "");
 
         assertThat(client.answerSystemBlocks()).hasSize(1);
         assertThat(client.answerSystemBlocks().get(0).text()).isEqualTo(client.answerSystem());
