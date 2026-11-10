@@ -1719,3 +1719,11 @@
 - 인문사회관 A동 n층 = B동 (n-2)층(B동 지하2층 = A동 1층, 사용자 확인). A동 1~7층. `WalkRouter.sameLevel`: A동 3층 이상은 B동 그 층, B동 지하층은 A동 그 층으로 길을 찾고 길 흐름 끝에 'B동 3층(A동 5층)', 메모 'A동 5층 = B동 3층'. 경로망 조사의 A·B tie(A3=B1 … A6=B4)와 같은 짝.
 - `MapBuilding.floorLevels`(GET /map/data), `Floors.floorOptions` 가 floorLevels 를 먼저 씀 — 층 검사(400)도 이 목록.
 - 확인: `WalkRouterLevelTest` 3(새), 전체 794 통과. ddl-auto=validate 라 SQL 을 배포 전에 실행해야 한다.
+
+## 2026-11-10 — 길찾기 경로망을 11-10 조사 백업으로, 홍문관 1.5층 출입구 삭제
+
+- (사용자 요청) `resources/walkroute/survey-graph-v3.json` 을 `path-survey-v3-backup-20261110-0104.json`(내보낸 시각 2026-11-09T16:04Z)으로 다시 만듦: 정점 616 → 687, 간선 1364 → 1463, 출입구 90 → 93, 메모 점 63·선 11. 만든 방법: 앱 저장소 `scripts/path/import-survey-v3.mjs <백업> <이 파일>`.
+- 비교 자료(`src/test/resources/walkroute/*.json.gz`)도 새 경로망으로 다시 만듦 — 앱 예전 길찾기(hongikon-fe 06ad8a4 의 routing.ts)에 같은 경로망과 운영 지도 데이터(11-10)를 넣어 돌린 결과. 건물 쌍 1,902경우 모두 같음. 내 위치 출발 2,704경우는 시간이 모두 같고 4경우만 같은 시간의 다른 길(동점 — 서버 쪽이 계단 구간이 적은 길) → 테스트를 '시간은 모두 같고, 같은 시간 다른 길은 1% 까지'로 고침.
+- 바뀐 길: 1,902경우 중 402경우 시간이 달라짐(빨라짐 324·느려짐 78), 1분 넘게 바뀐 146경우는 모두 빨라짐(체육관 주변 새 길, 최대 3.5분).
+- 홍문관 1.5층 출입구 삭제는 #97(층 SQL)에 넣으려던 커밋이 머지 뒤에 올라가 빠져서 따로 `db/remove_hongmun_1f5_entrance_2026_11_10.sql` 로(로컬 MySQL 에서 두 번 실행해 확인).
+- 확인: 전체 801 통과.
