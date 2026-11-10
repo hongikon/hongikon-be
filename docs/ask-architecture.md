@@ -299,6 +299,7 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 환경변수 | 쓰는 곳 | 비면 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Claude 호출(고르기·답 쓰기) | 고르기가 꺼져 503, 앱은 낱말 찾기로 |
+| `ASK_LLM_WORKSPACE_ID` | Anthropic 워크스페이스 ID. 키가 워크스페이스에 속하지 않으면 `anthropic-workspace-id` 헤더가 있어야 한다 | 헤더 없음(키가 워크스페이스에 속하지 않으면 400) |
 | `ASK_DEV_KEY_SHA256` | `/dev/ask` 암호키의 SHA-256 hex(앱 `DevPathGate` 의 `KEY_SHA256` 과 같은 값) | 엔드포인트 404(운영 기본) |
 | `ASK_LLM_MODEL` | 모델(기본 `claude-haiku-5-5`) | 기본값 |
 | `ASK_LLM_ANSWER_EFFORT` | 답 쓰기 effort `low`(기본)·`medium`·`high`. 3-7절 | 기본값. 다른 값이면 기동 실패 |

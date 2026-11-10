@@ -1784,3 +1784,27 @@
   답 규칙: 학과·학년 과목은 표로, '2026 교과과정책자 기준'·'이번 학기 개설·분반은 수강신청 시스템'·입학연도 차이, 검산 안 된 줄은 '책자 원문 확인', 여러 과목 줄임말은 되묻기.
 - 공개 자료(학교 교과과정책자)만. 개인정보 없음. 확인: `AskCoursesTest`(실제 데이터), `*Ask*` 170개 통과.
 - 남은 것: 학과 쪽 그림(앱 그림 칸·OTA), 자동 줄임말 후보 운영진 확인.
+## 2026-11-10 — 길찾기 경로망을 11-10 조사 백업으로, 홍문관 1.5층 출입구 삭제
+
+- (사용자 요청) `resources/walkroute/survey-graph-v3.json` 을 `path-survey-v3-backup-20261110-0104.json`(내보낸 시각 2026-11-09T16:04Z)으로 다시 만듦: 정점 616 → 687, 간선 1364 → 1463, 출입구 90 → 93, 메모 점 63·선 11. 만든 방법: 앱 저장소 `scripts/path/import-survey-v3.mjs <백업> <이 파일>`.
+- 비교 자료(`src/test/resources/walkroute/*.json.gz`)도 새 경로망으로 다시 만듦 — 앱 예전 길찾기(hongikon-fe 06ad8a4 의 routing.ts)에 같은 경로망과 운영 지도 데이터(11-10)를 넣어 돌린 결과. 건물 쌍 1,902경우 모두 같음. 내 위치 출발 2,704경우는 시간이 모두 같고 4경우만 같은 시간의 다른 길(동점 — 서버 쪽이 계단 구간이 적은 길) → 테스트를 '시간은 모두 같고, 같은 시간 다른 길은 1% 까지'로 고침.
+- 바뀐 길: 1,902경우 중 402경우 시간이 달라짐(빨라짐 324·느려짐 78), 1분 넘게 바뀐 146경우는 모두 빨라짐(체육관 주변 새 길, 최대 3.5분).
+- 홍문관 1.5층 출입구 삭제는 #97(층 SQL)에 넣으려던 커밋이 머지 뒤에 올라가 빠져서 따로 `db/remove_hongmun_1f5_entrance_2026_11_10.sql` 로(로컬 MySQL 에서 두 번 실행해 확인).
+- 확인: 전체 801 통과.
+
+## 2026-11-10 — 길찾기 경로망 버전(조사 도구에서 올리기·시험·적용)
+
+- (사용자 요청) 경로망을 PR·배포 없이 조사 도구('서버' 탭)에서 바꾼다. 새 테이블 `walk_graph_versions`(`db/create_walk_graph_versions_table_2026_11_10.sql`): 경로망 JSON·백업 원본·검사 결과, 상태 DRAFT·ACTIVE·ARCHIVED. 적용 중인 것 말고 30개까지 남긴다.
+- `RouteGraphController`(`/map/route-graph`, @Hidden): 목록·올리기·결과·백업 받기·적용·길 시험(고른 버전과 운영을 나란히). 로그인 대신 /dev 암호키(`X-Dev-Key`, `common.devkey.DevKeyGuard` — `ask.dev-key-sha256` 과 같은 키, 미설정 서버는 404). 사용자 결정 11-10: 적용도 암호키로.
+- `WalkGraphService`: 올리기 검사(모양·정점 2만·간선 6만·JSON 500만 자, 백업은 v3 형식만), 운영 경로망과 건물 쌍마다(층 안 고름) 가장 빠른 길 비교(같음·빨라짐·느려짐·직선 어림이 된 쌍, 많이 바뀐 20쌍). 비교는 한 번에 하나. `active()` = ACTIVE 버전, 없으면 저장소 파일. 적용하면 커밋 직후 길찾기가 새 경로망(지도 데이터 version + 경로망 열쇠로 다시 만듦), 다른 경로로 바뀐 것도 1분마다 확인.
+- `CampusBuildings`: 지도 데이터 스냅숏의 건물 읽기를 길찾기·검사가 같이 쓰게 뺌. `WalkRouter`: 검사용(떨어진 정점, 이어지지 않는 code, 출입구 없는 건물).
+- 확인: `RouteGraphIntegrationTest` 3(키 403, 모양 400, 올리기 → 길 시험 → 적용하면 운영 길이 바로 바뀌고 예전 것을 다시 적용하면 되돌아옴, 백업 받기), 전체 804 통과. 배포 전에 테이블 SQL 실행.
+- 물어보기의 같은 키 확인(AskRouteController.checkKey)은 다른 세션이 작업 중이라 DevKeyGuard 로 합치지 않았다(같은 동작).
+
+## 2026-11-10 — Anthropic 워크스페이스 ID 헤더(선택)
+
+- (사용자 요청) 새 API 키가 워크스페이스에 속해 있지 않아 Anthropic 호출이 400("must include the anthropic-workspace-id header")으로 실패. 서버에서 헤더를 붙여 시험하니 정상.
+- `ask.llm.workspace-id`(`ASK_LLM_WORKSPACE_ID`, 기본 비움). 값이 있을 때만 `AskLlmClient.clientBuilder` 가 `anthropic-workspace-id` 헤더를 붙인다(SDK 2.34.0 `putHeader`). 비어 있으면 예전과 같다. 실제 ID 는 운영 `.env` 에만 둔다(공개 저장소).
+- `docs/ask-architecture.md` 환경변수 표에 한 줄 추가.
+- 릴리스: 운영 `.env` 에 `ASK_LLM_WORKSPACE_ID` 추가, `ANTHROPIC_API_KEY` 를 새 키로 교체, 컨테이너 다시 만들기. 적용할 SQL 없음.
+- 확인: `AskLlmClientWorkspaceTest` 4(새, 로컬 HTTP 서버로 헤더가 붙는지/안 붙는지, 생성자), 기존 테스트 4개 생성자 인자 추가, 전체 819 통과.

@@ -186,9 +186,9 @@ class AskRuleGraphTest {
         AskCatalog real = new AskCatalog(MAPPER);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskLlmClient off = new AskLlmClient(real, null, retriever, new AskRuleGraph(real, (AskRuleGraph.GraphFile) null, false, 8, 2), MAPPER,
-                "", "claude-haiku-5-5", 20, "5m", "low", 6000, "");
+                "", "claude-haiku-5-5", 20, "5m", "low", 6000, "", "");
         assertThat(off.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM);
-        AskLlmClient on = new AskLlmClient(real, null, retriever, graph(8, 2), MAPPER, "", "claude-haiku-5-5", 20, "5m", "low", 6000, "");
+        AskLlmClient on = new AskLlmClient(real, null, retriever, graph(8, 2), MAPPER, "", "claude-haiku-5-5", 20, "5m", "low", 6000, "", "");
         assertThat(on.answerSystem()).isEqualTo(AskLlmClient.ANSWER_SYSTEM + AskLlmClient.RULE_GRAPH_SYSTEM);
         assertThat(AskLlmClient.RULE_GRAPH_SYSTEM).contains("[함께 볼 규정]은 보조다");
     }

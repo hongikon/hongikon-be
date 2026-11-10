@@ -233,6 +233,8 @@ public class AskLlmClient {
               '○○이면 달라요'처럼 학생이 말하지 않은 조건으로 답을 채우지 않는다.
             """;
 
+    static final String WORKSPACE_HEADER = "anthropic-workspace-id";
+
     private final AnthropicClient client;
     private final AskCatalog catalog;
     private final AskLiveData liveData;
@@ -263,7 +265,8 @@ public class AskLlmClient {
                         @Value("${ask.llm.cache-ttl:1h}") String cacheTtl,
                         @Value("${ask.llm.answer-effort:low}") String answerEffort,
                         @Value("${ask.llm.answer-max-tokens:6000}") long answerMaxTokens,
-                        @Value("${ask.llm.answer-extra-file:}") String answerExtraFile) {
+                        @Value("${ask.llm.answer-extra-file:}") String answerExtraFile,
+                        @Value("${ask.llm.workspace-id:}") String workspaceId) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
@@ -278,12 +281,7 @@ public class AskLlmClient {
                 .text(answerSystem)
                 .cacheControl(cacheControl(cacheTtl))
                 .build());
-        this.client = apiKey == null || apiKey.isBlank() ? null : AnthropicOkHttpClient.builder()
-                .apiKey(apiKey)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                // 기본 2회 재시도면 앱이 너무 오래 기다린다. 한 번만 다시 하고, 안 되면 앱이 낱말 찾기·원문 안내로 돌아간다.
-                .maxRetries(1)
-                .build();
+        this.client = apiKey == null || apiKey.isBlank() ? null : clientBuilder(apiKey, timeoutSeconds, workspaceId).build();
         this.classifySystem = List.of(TextBlockParam.builder()
                 .text(catalog.systemPrompt())
                 .cacheControl(cacheControl(cacheTtl))
@@ -366,6 +364,22 @@ public class AskLlmClient {
 
     public boolean enabled() {
         return client != null;
+    }
+
+    /**
+     * Anthropic 클라이언트 설정. workspaceId 가 비어 있지 않으면 anthropic-workspace-id 헤더를 붙인다
+     * (워크스페이스에 속하지 않은 API 키는 이 헤더가 없으면 400). 비어 있으면 예전과 같다.
+     */
+    static AnthropicOkHttpClient.Builder clientBuilder(String apiKey, long timeoutSeconds, String workspaceId) {
+        AnthropicOkHttpClient.Builder builder = AnthropicOkHttpClient.builder()
+                .apiKey(apiKey)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
+                // 기본 2회 재시도면 앱이 너무 오래 기다린다. 한 번만 다시 하고, 안 되면 앱이 낱말 찾기, 원문 안내로 돌아간다.
+                .maxRetries(1);
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            builder.putHeader(WORKSPACE_HEADER, workspaceId.trim());
+        }
+        return builder;
     }
 
     /** 답 쓰기 시스템 프롬프트(규정 그래프가 켜져 있으면 지시 세 줄이 붙는다). */
