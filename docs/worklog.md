@@ -1789,3 +1789,11 @@
 - `CampusBuildings`: 지도 데이터 스냅숏의 건물 읽기를 길찾기·검사가 같이 쓰게 뺌. `WalkRouter`: 검사용(떨어진 정점, 이어지지 않는 code, 출입구 없는 건물).
 - 확인: `RouteGraphIntegrationTest` 3(키 403, 모양 400, 올리기 → 길 시험 → 적용하면 운영 길이 바로 바뀌고 예전 것을 다시 적용하면 되돌아옴, 백업 받기), 전체 804 통과. 배포 전에 테이블 SQL 실행.
 - 물어보기의 같은 키 확인(AskRouteController.checkKey)은 다른 세션이 작업 중이라 DevKeyGuard 로 합치지 않았다(같은 동작).
+
+## 2026-11-10 — Anthropic 워크스페이스 ID 헤더(선택)
+
+- (사용자 요청) 새 API 키가 워크스페이스에 속해 있지 않아 Anthropic 호출이 400("must include the anthropic-workspace-id header")으로 실패. 서버에서 헤더를 붙여 시험하니 정상.
+- `ask.llm.workspace-id`(`ASK_LLM_WORKSPACE_ID`, 기본 비움). 값이 있을 때만 `AskLlmClient.clientBuilder` 가 `anthropic-workspace-id` 헤더를 붙인다(SDK 2.34.0 `putHeader`). 비어 있으면 예전과 같다. 실제 ID 는 운영 `.env` 에만 둔다(공개 저장소).
+- `docs/ask-architecture.md` 환경변수 표에 한 줄 추가.
+- 릴리스: 운영 `.env` 에 `ASK_LLM_WORKSPACE_ID` 추가, `ANTHROPIC_API_KEY` 를 새 키로 교체, 컨테이너 다시 만들기. 적용할 SQL 없음.
+- 확인: `AskLlmClientWorkspaceTest` 4(새, 로컬 HTTP 서버로 헤더가 붙는지/안 붙는지, 생성자), 기존 테스트 4개 생성자 인자 추가, 전체 819 통과.
