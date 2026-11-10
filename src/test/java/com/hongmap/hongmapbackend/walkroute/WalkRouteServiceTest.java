@@ -45,7 +45,9 @@ class WalkRouteServiceTest {
         }
         mapData = mock(MapDataService.class);
         when(mapData.current()).thenReturn(new MapDataService.Snapshot("v1", body));
-        service = new WalkRouteService(mapData, MAPPER);
+        WalkGraphService graphs = mock(WalkGraphService.class);
+        when(graphs.active()).thenReturn(new WalkGraphService.ActiveGraph(null, SurveyGraph.load(MAPPER)));
+        service = new WalkRouteService(new CampusBuildings(mapData, MAPPER), graphs, MAPPER);
     }
 
     @Test
