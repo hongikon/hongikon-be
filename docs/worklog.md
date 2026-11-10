@@ -1561,6 +1561,16 @@
 - 고침: `AskBoards.GROUPS`(학부 → 전공 게시판들), 학부 이름 꼴(`신소재화공`·`신소재화학공학`)은 전공 줄임말보다 먼저 맞춤. 이름 맞출 때 공백·가운뎃점 무시. `Match(name, boards, alias)` — 학부로 물으면 두 전공 게시판을 함께, 한 전공으로 물으면 그 전공만 찾고 같은 학부 다른 전공 홈페이지는 근거에서 뺌(`AskRouteService`). 고르기 힌트(`hint`)는 학부면 학부 이름으로.
 - 개인정보·권한: 질문 문자열 매칭만 바뀜. 저장·전송 항목 변화 없음.
 - 확인: `./gradlew test` (AskBoardsTest 새 1개 포함).
+## 2026-10-29 — 홍보 링크 방문 수(hongikon.com/app/club) (dev)
+
+- 운영진 요청: 동아리 단톡방 홍보 글의 링크로 몇 명이 들어왔는지만 보고 싶다. 들어오면 바로 앱 받기 안내(hongikon.com/app)로.
+- 흐름: FE `netlify.toml` 이 `/app/club` 을 `https://api.hongikon.com/promo/club` 으로 프록시 → 새 `PromoVisitController` `GET /promo/{source}`(permitAll)가 방문 수 +1 후 `https://hongikon.com/app` 으로 302(no-store).
+- `PromoVisitService`: 경로·날짜(KST)별 숫자 하나만 올린다(`INSERT … ON DUPLICATE KEY UPDATE`). IP·User-Agent·사용자는 저장하지 않음 — 처리방침 변경 불필요. 설정 `promo.sources`(기본 `club`)에 있는 경로만 센다. 링크 미리보기 봇(kakaotalk-scrap 등)·User-Agent 없는 요청은 세지 않는다. 기록 실패(테이블 없음 등)는 경고만 남기고 이동은 그대로.
+- 조회: `GET /admin/promo-visits`(ADMIN, 기존 /admin/** 규칙) — 경로·날짜·방문 수.
+- **DB 변경 — 운영에 실행**: `db/create_promo_visits_table.sql`. 엔티티가 없어 validate 와 무관(빠뜨려도 서버는 뜨고 숫자만 안 쌓인다).
+- 테스트 `PromoVisitIntegrationTest` 4(사람 방문 2회 → 2, 봇·UA 없음·모르는 경로는 0, 테이블 없어도 302, 관리자 조회 401).
+- (11-05, 사용자 요청 "QR 로 hongikon.com/app 에 몇 명 들어왔나") 앱 받기 안내 페이지 자체 방문 수: `GET /promo/app/seen`(permitAll, 204 no-store) — FE `/app` 정적 페이지의 보이지 않는 이미지가 부른다(자바스크립트 없이 동작, 미리보기 봇은 보통 이미지를 안 받는다). `source=app` 은 QR·직접 입력·홍보 링크 경유를 합친 페이지 방문이고, `/promo/app` 이동으로는 세지 않아 홍보 링크와 겹치지 않는다. 포스터 QR 은 `/app` 고정이라 QR 만 따로는 못 센다(다음 인쇄 때 `/app/qr` 같은 경로로). 테스트 3 추가(7), 전체 761 통과.
+
 
 ## 2026-11-04 — 물어보기 RAG 색인: 재학생 팁 6쪽 넣기 + 색인 이어 만들기
 
@@ -1724,3 +1734,41 @@
 - `rule-graph.json`: `seasonal-retake-any-grade` 확인(원문 [제도안내] 대조), 새 선 `military-two-paths`(입대 전 두 길 — 일반휴학 뒤 군입대휴학 전환 / 다니다 군입대휴학). 51선 모두 확인됨, validate 통과. 확인 표시는 'Claude 원문 대조, 운영진 요청' — 운영진이 다시 볼 수 있다.
 - 평가(docs/ask-reasoning-eval.md 9~10절): Haiku 고정, 그래프 켬(선 4·안내 1·effort low)이 정답 27.7/44·손해 오류 0.3·중앙 9.7초로 가장 좋음. 운영 반영은 EC2 `.env` `ASK_GRAPH_ENABLED=true`.
 - 확인: `AskReasoningGuardsTest`, `AskSituationTest`, `*Ask*` 165개 통과.
+## 2026-11-09 — 지도 길찾기를 서버로(앱 routing.ts 이전)
+
+- (사용자 요청) 앱이 들고 있던 길찾기 계산(src/utils/routing.ts)과 경로망 조사 v3 자료(surveyGraphV3.ts)를 서버로 옮김. 앱은 결과만 받는다.
+- 새 패키지 `walkroute`: `WalkRouter`(routing.ts 를 줄 단위로 옮김 — 층·출입구, Yen + 벌점 방식 후보 3개, 억지 우회 거르기, 길 흐름·메모·실내 구간), `SurveyGraph`(`resources/walkroute/survey-graph-v3.json`, 정점 616·간선 1364, 11-08 백업), `Floors`·`Geo`(fdlibm = StrictMath 라 앱 JS 와 같은 값), `CampusBuilding`(GET /map/data 의 buildings 를 그대로 읽음 — 앱과 같은 건물·출입구).
+- API(비로그인, SecurityConfig): `GET /map/routes?from=&fromFloor=&to=&toFloor=` → `{routes:[...]}`(앱 RouteAlternative 모양, 못 덮으면 직선 어림 하나). `GET /map/routes/approach?to=&toFloor=` → 내 위치 출발용 — 위치를 받지 않고 모든 실외 길 점에서 도착까지의 후보(최대 3개, 지나는 길 점 번호 포함)를 준다. 앱이 내 위치에서 150m 안 3곳 중 걷는 시간 + 가장 빠른 길이 가장 작은 점의 후보를 보여 준다(처리방침·공지의 '길찾기 위치는 휴대폰 안에서만' 그대로). 계산이 무거워(목적지·층마다 2초 남짓) 한 번에 하나만 계산하고 응답 JSON 을 120개까지 기억, 15초 넘게 밀리면 503.
+- 층은 그 건물 층 다이얼에 있는 층만 받는다(아니면 400) — 아무 숫자로 새 계산을 시키지 못하게. JSON 응답 gzip 압축 켬(`server.compression`, 지도 데이터 110KB·approach 300KB).
+- 캐시: 지도 데이터 version 이 바뀌면 그래프를 다시 만들고, 결과는 질문별로 기억(2000개, approach 200개). Cache-Control 5분.
+- 확인: `WalkRouterParityTest` — 운영 지도 데이터(11-09)로 앱 findRoutes 를 모든 건물 쌍·층 조합 1,902경우 돌린 결과와 시간·거리·길 흐름·메모·점까지 모두 같음. `WalkRouterApproachParityTest` — 내 위치 출발 2,496경우에서 가장 빠른 길이 앱 findRoutesFromPoint 의 첫 후보와 같고 후보는 3개 이하·가장 빠른 길이 맨 앞. `WalkRouteServiceTest` 4. 전체 774 통과.
+- 경로망을 고치면: 조사 도구 백업 → `survey-graph-v3.json` 다시 만들기, 비교 자료(`src/test/resources/walkroute/*.json.gz`)도 새 규칙으로 다시 만든다.
+- 배포 순서: 이 서버가 운영에 먼저 나가야 앱 OTA 가 길찾기를 할 수 있다. 이미 깔린 앱(1.0.0·1.1.0 빌드 30)은 앱 안 계산을 계속 쓴다.
+
+## 2026-11-09 — 앱 공지사항을 관리자 페이지에서 쓰고 게시 시각 예약
+
+- 사용자 요청(11-09): 공지사항을 백엔드에 쓰면 정한 시점부터 앱에 띄우기("제대로 된 방법" — 서버 API + 관리자 화면). 전에는 공지가 앱 코드(FE `constants/appNotices.ts`)에 적혀 있어 공지마다 OTA 가 필요했고, 팝업은 끝 날짜만 있고 시작 시점이 없었다.
+- 테이블 `app_notices`(title 100, body 5000, publish_at, popup_until NULL, popup_text 300, UTC). SQL `db/create_app_notices_table_2026_11_09.sql` — **배포 전 운영 DB 에서 먼저 실행**(ddl-auto=validate).
+- `GET /notices`(게스트 허용): 게시 시각이 지난 공지 최근 50개, 최근 게시 순. `popup{text, until}` 은 publish_at ≤ 지금 < popup_until 일 때만 붙는다.
+- `GET/POST/PUT/DELETE /admin/notices`(ADMIN, /admin/** 규칙·감사 로그): 예약 포함 전부, status SCHEDULED·PUBLISHED. 규칙(`AppNoticeService`): 팝업은 문구 필수·게시보다 뒤·게시 후 31일까지, 예약은 1년 안. 팝업을 끄면 popup_text 를 버린다.
+- 앱: 켤 때 `/notices` 를 한 번 받아(4초 제한) 앱에 적힌 공지와 섞는다. 못 받으면 앱에 적힌 공지만. 관리자 웹에 '앱 공지' 화면(FE).
+- 개인정보·권한: 공지 본문은 운영진이 쓰는 공개 글. 앱은 로그인·기기 정보 없이 받는다. 새로 모으는 정보 없음, 처리방침 변경 없음. 쓰기는 ADMIN 만(테스트로 일반 회원·게스트 403/401 확인).
+- 확인: `AppNoticeIntegrationTest` 5(새), 전체 778 통과. 처음엔 시계를 바꿔 끼운 테스트 컨텍스트가 하나 늘어 다른 테스트가 메모리 부족(OOM)으로 깨져서, 지금 시각 기준으로 바꿔 공용 컨텍스트를 쓰게 했다.
+## 2026-11-09 — 제보: 작성자가 지도 카드 ⋯ 에서 고치고 지우기
+
+- 사용자 요청(11-09): 자기 제보를 지우고 고칠 수 있게, 지도 카드 점 세 개(⋯)에서. 삭제(`DELETE /reports/{id}`)는 이미 있었고(설정 > 내 제보에서만), 수정은 공식 계정의 시간 수정뿐이었다.
+- 사용자 결정(11-09): 승인된 제보도 고치면 **다시 검토 없이 바로** 지도에 반영. 내용·장소·사진·시간 모두.
+- `PUT /reports/{id}`(`ReportUpdateRequest`): 층·카테고리(+직접 입력)·제목·글·장소 설명·사진·시간·날짜별 시간을 통째로. 핀(건물·좌표)은 그대로(옮기려면 지우고 새로). 규칙은 등록과 같고, 시작을 그대로 두면 이미 시작한 제보도 고친다(`updateSchedule` 과 같다). 승인 대기·공개만(숨김·반려 409), 남의 제보 403.
+- 사진: `keepImageIndexes`(지금 사진 번호, 그 순서로 앞에) + `imageKeys`(새 업로드, 등록과 같은 검증·메타데이터 제거) 합쳐 3장. 뺀 사진은 커밋 뒤 S3 에서 지운다. 같은 키를 지웠다 넣지 않아 image_key UNIQUE 와 부딪치지 않는다(`Report.replaceImages`).
+- 남용 대비(검토 없이 바뀌므로): `reports.edited_at` 을 남겨 앱 시트·관리자 응답에 '수정됨'(`editedAt`), 사용자별 1시간 20회(`report.edit.limit-per-hour`). 신고는 그대로 된다. SQL `db/alter_reports_edited_at_2026_11_09.sql` — **배포 전 운영 DB 에서 먼저 실행**(ddl-auto=validate).
+- 응답 `ReportResponse`·`ReportSummaryResponse`·`MyReportResponse`·`AdminReportResponse` 에 `editedAt`(구버전 앱은 무시).
+- 개인정보·권한: 등록 때와 같은 항목만 바꾼다(새로 모으는 정보 없음, 처리방침 변경 없음). 작성자 본인만, 사진 키는 등록과 같은 검증(서버 발급 형식·업로드 확인·다른 제보에 붙은 키 거절).
+- 확인: `ReportOwnerEditIntegrationTest` 5(새). 전체 778 중 `AskOperatorNotesIntegrationTest` 1건이 한 번 실패했다가 혼자 다시 돌리면 통과(무작위 꼬리 숫자를 개인정보로 잡는 기존 불안정 테스트, 이번 변경과 무관).
+
+## 2026-11-10 — 건물 층 정보(floor_levels)와 인문사회관 A·B동 같은 층
+
+- (사용자 요청) 엑셀(홍익대학교_건물_정보_amenity_locations_1109.xlsx, floors 시트)로 건물 26곳의 층을 넣음: `db/sync_building_floors_2026_11_10.sql` — 새 열 `buildings.floor_levels`(JSON 층 목록, 0 = 로비층 L)와 `floors`·`basement_floors`. 제1기숙사·운동장은 지도에 없거나 층이 없어 뺌.
+- 홍문관: 엑셀대로 B6~B2, L, 1~16층(B1 없음). 1.5층 출입구는 엑셀에 없어 다이얼에서 빠진다(예전 출입구 자료에만 있음, 사용자도 어딘지 모름 — 확인 필요).
+- 인문사회관 A동 n층 = B동 (n-2)층(B동 지하2층 = A동 1층, 사용자 확인). A동 1~7층. `WalkRouter.sameLevel`: A동 3층 이상은 B동 그 층, B동 지하층은 A동 그 층으로 길을 찾고 길 흐름 끝에 'B동 3층(A동 5층)', 메모 'A동 5층 = B동 3층'. 경로망 조사의 A·B tie(A3=B1 … A6=B4)와 같은 짝.
+- `MapBuilding.floorLevels`(GET /map/data), `Floors.floorOptions` 가 floorLevels 를 먼저 씀 — 층 검사(400)도 이 목록.
+- 확인: `WalkRouterLevelTest` 3(새), 전체 794 통과. ddl-auto=validate 라 SQL 을 배포 전에 실행해야 한다.

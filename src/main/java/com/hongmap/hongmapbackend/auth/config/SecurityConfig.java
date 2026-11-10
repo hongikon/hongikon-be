@@ -57,6 +57,8 @@ public class SecurityConfig {
                     }
                     auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/status").permitAll();
+                    // 홍보 링크(방문 수 +1 후 앱 받기 안내로 302). PromoVisitController.
+                    auth.requestMatchers(HttpMethod.GET, "/promo/*", "/promo/*/seen").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/reports").permitAll();
                     // 제보 댓글 목록은 게스트도 본다(쓰기·삭제·신고는 아래 authenticated).
                     auth.requestMatchers(HttpMethod.GET, "/reports/*/comments", "/reports/*/comments/*/replies").permitAll();
@@ -66,9 +68,12 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/departments").permitAll();
+                    // 앱 공지사항(게시 시각이 지난 공개 공지만). 쓰기는 /admin/notices (ADMIN).
+                    auth.requestMatchers(HttpMethod.GET, "/notices").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
                     // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
                     auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/map/routes", "/map/routes/approach").permitAll();
                     // 학식 메뉴(학교 홈페이지 공개 메뉴를 서버가 가져와 둔 것). 조회만.
                     auth.requestMatchers(HttpMethod.GET, "/cafeteria/menus", "/cafeteria/menus/week").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
