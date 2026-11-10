@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -149,6 +150,41 @@ final class AskCourses {
      * campus: '세종'을 주지 않으면 서울. 결과는 학과 → 학년 → 학기 순 한 줄씩, 최대 {@link #MAX_LINES}.
      */
     static String search(String query, String dept, Integer grade, Integer term, String campus, Data d) {
+        // 검색어에 학년·학기·학과가 섞여 오면 칸으로 옮긴다(11-10 실제 모델: '컴공 1학년 과목'을 query 에 그대로 넣었다).
+        String rest = query == null ? "" : query;
+        java.util.regex.Matcher g = java.util.regex.Pattern.compile("([1-5])\\s*학년").matcher(rest);
+        if (g.find()) {
+            if (grade == null) {
+                grade = Integer.parseInt(g.group(1));
+            }
+            rest = rest.replace(g.group(), " ");
+        }
+        java.util.regex.Matcher t = java.util.regex.Pattern.compile("([12])\\s*학기").matcher(rest);
+        if (t.find()) {
+            if (term == null) {
+                term = Integer.parseInt(t.group(1));
+            }
+            rest = rest.replace(t.group(), " ");
+        }
+        if (dept == null || dept.isBlank()) {
+            Optional<AskBoards.Match> board = AskBoards.find(rest);
+            if (board.isPresent()) {
+                dept = board.get().name();
+                rest = board.get().strip(rest);
+            }
+        } else {
+            dept = AskBoards.find(dept).map(AskBoards.Match::name).orElse(dept);
+        }
+        rest = rest.replaceAll("(과목|교과과정|커리큘럼|수업|뭐|들어|듣는|들어야|전공필수|전공선택|목록|알려줘|있어)", " ").strip();
+        String result = searchOnce(rest, dept, grade, term, campus, d);
+        // 이름으로 못 찾았는데 학과는 있으면 그 학과(학년) 과목 목록으로.
+        if (!result.startsWith(SOURCE_REF) && !squash(rest).isEmpty() && dept != null && !dept.isBlank()) {
+            result = searchOnce("", dept, grade, term, campus, d);
+        }
+        return result;
+    }
+
+    private static String searchOnce(String query, String dept, Integer grade, Integer term, String campus, Data d) {
         String q = squash(query);
         Set<String> names = new LinkedHashSet<>();
         if (!q.isEmpty()) {

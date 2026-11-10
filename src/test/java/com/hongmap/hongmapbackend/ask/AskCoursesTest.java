@@ -43,4 +43,12 @@ class AskCoursesTest {
         assertThat(AskCourses.search("", "게임소프트웨어", 1, null, null, DATA)).contains("찾지 못했어요");
         assertThat(AskCourses.search("", "게임소프트웨어", 1, null, "세종", DATA)).contains("게임소프트웨어");
     }
+
+    /** 11-10 실제 모델이 '컴공 1학년 과목'을 query 에 통째로 넣었다 — 학과·학년을 칸으로 옮기고, 이름으로 못 찾으면 학과 목록으로. */
+    @Test
+    void 검색어에_섞인_학과_학년을_칸으로_옮긴다() {
+        String out = AskCourses.search("컴공 1학년 과목", null, null, null, null, DATA);
+        assertThat(out).contains("컴퓨터공학과 1학년").contains("대학수학").contains("C-프로그래밍").doesNotContain("2학년");
+        assertThat(AskCourses.search("1학년 뭐 들어", "컴공", null, null, null, DATA)).contains("컴퓨터공학과 1학년");
+    }
 }
