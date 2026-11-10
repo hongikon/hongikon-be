@@ -1715,3 +1715,12 @@
 - `ask.llm.answer-extra-file`(`ASK_LLM_ANSWER_EXTRA_FILE`, 기본 없음) — 답 쓰기 지시 뒤에 붙일 추가 지시 파일. 파일을 못 읽으면 시작을 멈춘다(설정 오타로 조용히 빠지지 않게).
 - 기본값이면 지금과 같다. 평가: FE `scripts/ask/reason-eval/matrix.sh`(설정 5개 — haiku-base / haiku-graph / haiku-graph-medium / haiku-graph-reason / sonnet-graph-reason).
 - 확인: `AskLlmClientSchemaTest.추가_답_지시_파일은_…`, `*Ask*` 162개 통과. 로컬 키 없이 배관만 확인(서버 시작·개발 키 인증·답 모으기).
+
+## 2026-11-10 — 물어보기: Haiku 손해 오류 막기·규정 그래프 보강(평가 반영)
+
+- 답 쓰기: 질문에 시점 낱말(지금·이번·언제·오늘·마감 …)이 없으면 오늘 날짜를 주지 않는다(`AskSituation.mentionsTime`, `AskRouteService.NO_DATE_LINE`) — 11-10 평가에서 손해 오류 1위가 '신청 기간이 지났다' 단정.
+- 그래프: 학생이 말한 상황에 맞은 조건 선을 같은 단계 안에서 먼저(R07 '졸업유예 재수강 불가'가 결과 선에 밀려 잘림). 1단계 결과 선의 결과가 답에 없으면 서버가 '꼭 확인할 점'에 선 문장을 붙인다(최대 2, 모델 재호출 없음).
+- 상황 칸 `군복무` 에서 '입대'를 뺐다 — 입대 전 질문에 전역 뒤 복학 규정이 붙었다(R15).
+- `rule-graph.json`: `seasonal-retake-any-grade` 확인(원문 [제도안내] 대조), 새 선 `military-two-paths`(입대 전 두 길 — 일반휴학 뒤 군입대휴학 전환 / 다니다 군입대휴학). 51선 모두 확인됨, validate 통과. 확인 표시는 'Claude 원문 대조, 운영진 요청' — 운영진이 다시 볼 수 있다.
+- 평가(docs/ask-reasoning-eval.md 9~10절): Haiku 고정, 그래프 켬(선 4·안내 1·effort low)이 정답 27.7/44·손해 오류 0.3·중앙 9.7초로 가장 좋음. 운영 반영은 EC2 `.env` `ASK_GRAPH_ENABLED=true`.
+- 확인: `AskReasoningGuardsTest`, `AskSituationTest`, `*Ask*` 165개 통과.

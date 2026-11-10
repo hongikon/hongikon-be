@@ -127,7 +127,7 @@
     { "id": "seasonal-retake-any-grade", "from": "semester-retake", "to": "course-retake", "type": "예외",
       "fact": "정규학기 과목재수강은 C+ 이하만 되지만 계절학기에서는 성적과 상관없이 과목재수강을 할 수 있다 — 학기 전체를 지우는 학기재수강 말고도 방법이 있다.",
       "guide": "course-retake/start", "quote": "C+ 이하 과목은 같은 과목을 다시 수강신청하면 자동으로 재수강이 돼요(계절학기는 성적과 상관없이 가능)",
-      "condition": null, "reviewed": "" },
+      "condition": null, "reviewed": "2026-11-10 Claude(원문 대조 — 수강신청 안내 [제도안내] '단, 계절학기의 경우 기취득학점에 상관없이 재수강 신청 가능', 운영진 요청)" },
     { "id": "retake-delete-timing", "from": "course-retake", "to": "retake-predelete", "type": "기간",
       "fact": "재수강 전 성적은 그 학기 성적이 확정된 뒤 지워지고, 4학년은 선삭제를 신청해 미리 지울 수 있다.",
       "guide": "course-retake/start", "quote": "종강일 이후 재수강 학기의 성적이 확정되는 시점에 삭제됨 (단, 4학년 학생인 경우 선삭제 신청이 가능함)",
@@ -231,6 +231,10 @@
     { "id": "excess-tuition-by-credits", "from": "excess-semester", "to": "tuition", "type": "결과",
       "fact": "학기초과자는 수강신청 학점에 따라 등록금을 낸다(1~3학점 1/6, 4~6학점 1/3, 7~9학점 1/2, 10학점 이상 전액).",
       "guide": "excess-semester/start", "quote": "1학점 ~ 3학점까지 : 원 학과 등록금의 1/6 금액",
-      "condition": null, "reviewed": "2026-11-02 세원" }
+      "condition": null, "reviewed": "2026-11-02 세원" },
+    { "id": "military-two-paths", "from": "military-leave", "to": "course-registration", "type": "결과",
+      "fact": "학기 중에 입대할 예정이면 두 길이 있다 — 2월·8월에 일반휴학을 먼저 신청한 뒤 입영 10일 전~입영일에 군입대휴학으로 바꾸면 그 학기 일반휴학이 군입대휴학으로 전환되고(신입생 1년·편입생 1학기는 일반휴학 불가), 일반휴학 없이 다니다 입대하면 군입대휴학이 승인될 때까지 수강신청한 대로 다녀야 한다.",
+      "guide": "military-leave/start", "quote": "군입대휴학이 승인될때가지 수강신청 내역에 따라 학업을 하여야 함",
+      "condition": null, "reviewed": "2026-11-10 Claude(원문 대조 — military-leave/start ①·② 방법, 운영진 요청)" }
   ]
 }
