@@ -31,13 +31,11 @@ public record AdminUserResponse(
         /** 정지·신고 이력으로 탈퇴 기록이 남은 계정의 재가입이면 그 요약, 아니면 null. 전체는 GET /admin/users/{id}/prior-history */
         AdminUserPriorHistory priorHistory,
         /** 운영진이 붙인 공식 이름(학생회 등). 없으면 null */
-        String officialName
+        String officialName,
+        /** 공식 계정 신청을 보낸 회원인지. 신청한 회원(또는 이미 공식 계정)에게만 공식 이름을 붙일 수 있다 */
+        boolean officialRequested
 ) {
-    public static AdminUserResponse of(User user) {
-        return of(user, null);
-    }
-
-    public static AdminUserResponse of(User user, AdminUserPriorHistory priorHistory) {
+    public static AdminUserResponse of(User user, AdminUserPriorHistory priorHistory, boolean officialRequested) {
         return new AdminUserResponse(
                 user.getId(),
                 user.getDisplayName(),
@@ -51,6 +49,7 @@ public record AdminUserResponse(
                 user.getMemberCode(),
                 user.getAppNickname(),
                 priorHistory,
-                user.getOfficialName());
+                user.getOfficialName(),
+                officialRequested);
     }
 }
