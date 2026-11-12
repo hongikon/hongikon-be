@@ -55,6 +55,19 @@ public class AskLiveData {
      * 운영진이 지도에 넣어 둔 운영시간·예약 방법(헤이영캠퍼스 공간예약 등)을 답에 쓰게 한다(10-16, 'K동 공동학습실'·'멀티미디어실'을 못 찾았다).
      * 맞은 낱말이 많은 순. 참조는 `facility:{id}`(앱이 위치 버튼으로 그린다).
      */
+    /** 지도 시설의 종류(campus_facilities.kind — 열람실·학생처 …). 지도에 없으면 빈 값. 지도 버튼 교차 확인용(11-12). */
+    public java.util.Optional<String> facilityKind(String facilityId) {
+        if (facilityId == null || facilityId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        for (JsonNode facility : jsonMapper.readTree(mapDataService.current().body()).path("facilities")) {
+            if (facilityId.equals(facility.path("id").asString(""))) {
+                return java.util.Optional.ofNullable(facility.path("kind").asString(null));
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     public List<Reference> searchFacilities(String query, StringBuilder text) {
         JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
         List<String> kinds = AskFacilityKinds.kinds(query);
