@@ -24,6 +24,7 @@ import java.time.format.DateTimeParseException;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,12 +55,29 @@ public class AskLiveData {
      * 운영진이 지도에 넣어 둔 운영시간·예약 방법(헤이영캠퍼스 공간예약 등)을 답에 쓰게 한다(10-16, 'K동 공동학습실'·'멀티미디어실'을 못 찾았다).
      * 맞은 낱말이 많은 순. 참조는 `facility:{id}`(앱이 위치 버튼으로 그린다).
      */
+    /** 지도 시설의 종류(campus_facilities.kind — 열람실·학생처 …). 지도에 없으면 빈 값. 지도 버튼 교차 확인용(11-12). */
+    public java.util.Optional<String> facilityKind(String facilityId) {
+        if (facilityId == null || facilityId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        for (JsonNode facility : jsonMapper.readTree(mapDataService.current().body()).path("facilities")) {
+            if (facilityId.equals(facility.path("id").asString(""))) {
+                return java.util.Optional.ofNullable(facility.path("kind").asString(null));
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     public List<Reference> searchFacilities(String query, StringBuilder text) {
+        JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
+        List<String> kinds = AskFacilityKinds.kinds(query);
+        if (!kinds.isEmpty()) {
+            return facilitiesOfKinds(facilities, kinds, AskFacilityKinds.narrowingWords(query), text);
+        }
         List<String> words = queryWords(query);
         if (words.isEmpty()) {
             return List.of();
         }
-        JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
         record Hit(JsonNode node, String line, int score) {
         }
         List<Hit> hits = new ArrayList<>();
@@ -80,7 +98,58 @@ public class AskLiveData {
         return references;
     }
 
+    /** 종류 전체 목록 상한 — '공부할 곳'(열람실·스터디룸·라운지)이 지도에 23곳(11-12). 표 행 상한(40)보다 작게. */
+    static final int FACILITY_KIND_LIMIT = 25;
+
+    /**
+     * 한 종류(또는 묶음 — 공부: 열람실·스터디룸·라운지) 시설 전부를 건물별로(11-12 '프린터 9곳 중 2곳만'). 질문에 건물·시간 같은 낱말이 있고
+     * 그 낱말이 맞는 시설이 있으면 그것만('K동 열람실', '24시간 열람실'), 없으면 그 종류 전부. 머리줄로 모두 보이라고 알린다.
+     */
+    List<Reference> facilitiesOfKinds(JsonNode facilities, List<String> kinds, List<String> narrowing, StringBuilder text) {
+        List<JsonNode> ofKinds = new ArrayList<>();
+        for (JsonNode facility : facilities) {
+            if (kinds.contains(facility.path("kind").asString(""))) {
+                ofKinds.add(facility);
+            }
+        }
+        List<JsonNode> narrowed = narrowing.isEmpty() ? List.of()
+                : ofKinds.stream().filter(facility -> score(facilityLine(facility), narrowing) > 0).toList();
+        boolean all = narrowed.isEmpty();
+        List<JsonNode> shown = new ArrayList<>(all ? ofKinds : narrowed);
+        // 건물별로 묶고(지도 데이터에 처음 나온 건물 순), 건물 안에서는 위층부터.
+        List<String> buildingOrder = new ArrayList<>();
+        shown.forEach(facility -> {
+            String building = facility.path("buildingName").asString("");
+            if (!buildingOrder.contains(building)) {
+                buildingOrder.add(building);
+            }
+        });
+        shown.sort(Comparator.comparingInt((JsonNode facility) -> buildingOrder.indexOf(facility.path("buildingName").asString("")))
+                .thenComparingInt(facility -> facility.path("floor").isNumber() ? -facility.path("floor").asInt() : Integer.MAX_VALUE));
+        if (shown.isEmpty()) {
+            return List.of();
+        }
+        String label = String.join("·", kinds);
+        text.append(all
+                ? "[종류별 전체 목록] 지도에 있는 " + label + " " + shown.size() + "곳 전부다. 건물별로 묶어 빠짐없이 모두 보인다(안내 원문에 몇 곳만 있어도 이 목록을 다 넣고, 안내 원문에만 있는 곳도 함께 넣는다).\n"
+                : "[" + label + " 중 질문 낱말(" + String.join(" ", narrowing) + ")에 맞는 곳] " + shown.size() + "곳.\n");
+        List<Reference> references = new ArrayList<>();
+        for (JsonNode facility : shown.subList(0, Math.min(FACILITY_KIND_LIMIT, shown.size()))) {
+            String ref = "facility:" + facility.path("id").asString("");
+            String line = facilityLine(facility);
+            text.append(ref).append(" · ").append(line).append('\n');
+            references.add(new Reference(ref, line, null, null));
+        }
+        if (shown.size() > FACILITY_KIND_LIMIT) {
+            text.append("(").append(shown.size() - FACILITY_KIND_LIMIT).append("곳 더 있어요 — 건물 이름을 붙여 다시 찾는다)\n");
+        }
+        return references;
+    }
+
     static final int BUILDING_SEARCH_LIMIT = 3;
+    /** '공학관'처럼 이름이 같은 건물 무리(제1~4공학관)는 다 준다 — 대신 건물마다 시설 줄을 줄인다(11-09, 4곳 중 제1공학관만 답하던 것). */
+    static final int BUILDING_FAMILY_LIMIT = 6;
+    static final int BUILDING_FAMILY_FACILITY_LINES = 12;
     /** 건물 하나에 붙일 시설 줄 수 상한(홍문관처럼 연구소·사무실이 40곳 넘는 건물도 있다). */
     static final int BUILDING_FACILITY_LINES = 60;
     static final int PARTNER_SEARCH_LIMIT = 8;
@@ -109,9 +178,13 @@ public class AskLiveData {
             }
         }
         hits.sort((a, b) -> b.score() - a.score());
+        // 질문 낱말이 모두 이름에 든 건물이 셋보다 많으면(공학관·인문사회관·강의동) 그 무리를 모두 — 건물마다 시설 줄은 줄인다.
+        long family = hits.stream().filter(hit -> score(hit.node().path("name").asString(""), words) == words.size()).count();
+        int limit = family > BUILDING_SEARCH_LIMIT ? (int) Math.min(family, BUILDING_FAMILY_LIMIT) : BUILDING_SEARCH_LIMIT;
+        int facilityLines = limit > BUILDING_SEARCH_LIMIT ? BUILDING_FAMILY_FACILITY_LINES : BUILDING_FACILITY_LINES;
         LocalDate today = cafeteriaMenuService.today();
         List<Reference> references = new ArrayList<>();
-        for (Hit hit : hits.subList(0, Math.min(BUILDING_SEARCH_LIMIT, hits.size()))) {
+        for (Hit hit : hits.subList(0, Math.min(limit, hits.size()))) {
             JsonNode building = hit.node();
             String name = building.path("name").asString("");
             String ref = "building:" + building.path("code").asString("");
@@ -133,7 +206,7 @@ public class AskLiveData {
                 if (lines++ == 0) {
                     text.append("- 층별 시설:\n");
                 }
-                if (lines > BUILDING_FACILITY_LINES) {
+                if (lines > facilityLines) {
                     text.append("  (시설이 더 있어요 — search_facilities 로 찾는다)\n");
                     break;
                 }
@@ -199,6 +272,114 @@ public class AskLiveData {
             references.add(new Reference(ref, hit.node().path("name").asString(""), null, null));
         }
         return references;
+    }
+
+    static final int NEAREST_LIMIT = 6;
+
+    /**
+     * 가까운 곳 찾기(11-09 운영진 — 'T동에서 제일 가까운 편의점'). 출발 장소는 건물(이름·별칭) 또는 제휴업체 이름,
+     * 찾을 것은 시설(종류·메모)·건물(이름·종류)·제휴업체(이름·종류·혜택) 낱말. 시설은 자기 건물 위치를 쓴다.
+     * 가장 많이 맞은 것들만 남겨 위치 사이 직선거리 순으로 준다 — 실제 걷는 길은 더 길 수 있다.
+     */
+    public List<Reference> nearestPlaces(String from, String query, StringBuilder text) {
+        JsonNode data = jsonMapper.readTree(mapDataService.current().body());
+        List<String> fromWords = queryWords(from);
+        List<String> words = queryWords(query);
+        if (fromWords.isEmpty() || words.isEmpty()) {
+            text.append("출발 장소와 찾을 것을 둘 다 주세요.");
+            return List.of();
+        }
+        Map<String, JsonNode> buildingsByName = new HashMap<>();
+        data.path("buildings").forEach(building -> buildingsByName.put(building.path("name").asString(""), building));
+        // 출발: 이름이 가장 많이 맞은 건물, 없으면 제휴업체.
+        JsonNode origin = null;
+        String originName = null;
+        int best = 0;
+        for (JsonNode building : data.path("buildings")) {
+            int score = score(building.path("name").asString("") + " " + building.path("code").asString(""), fromWords);
+            if (score > best) {
+                best = score;
+                origin = building;
+                originName = building.path("name").asString("");
+            }
+        }
+        if (origin == null) {
+            for (JsonNode partner : data.path("partners")) {
+                int score = score(partner.path("name").asString(""), fromWords);
+                if (score > best) {
+                    best = score;
+                    origin = partner;
+                    originName = partner.path("name").asString("");
+                }
+            }
+        }
+        if (origin == null || !origin.path("lat").isNumber() || !origin.path("lng").isNumber()) {
+            text.append("출발 장소 '").append(from).append("'를 지도에서 찾지 못했어요.");
+            return List.of();
+        }
+        boolean originIsBuilding = buildingsByName.containsKey(originName);
+        LocalDate today = cafeteriaMenuService.today();
+        record Hit(Reference reference, String line, int score, double meters, boolean sameBuilding) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode facility : data.path("facilities")) {
+            String line = facilityLine(facility);
+            int score = score(facility.path("kind").asString("") + " " + facility.path("note").asString(""), words);
+            JsonNode building = buildingsByName.get(facility.path("buildingName").asString(""));
+            if (score > 0 && building != null && building.path("lat").isNumber()) {
+                boolean same = originIsBuilding && originName.equals(building.path("name").asString(""));
+                String ref = "facility:" + facility.path("id").asString("");
+                hits.add(new Hit(new Reference(ref, line, null, null), line, score, meters(origin, building), same));
+            }
+        }
+        for (JsonNode building : data.path("buildings")) {
+            String about = building.path("name").asString("") + " " + building.path("type").asString("") + " "
+                    + building.path("category").asString("");
+            int score = score(about, words);
+            if (score > 0 && building != origin && building.path("lat").isNumber()) {
+                String name = building.path("name").asString("");
+                hits.add(new Hit(new Reference("building:" + building.path("code").asString(""), name, null, null),
+                        name + " · [" + building.path("type").asString("") + "]", score, meters(origin, building), false));
+            }
+        }
+        for (JsonNode partner : data.path("partners")) {
+            String endsOn = partner.path("endsOn").asString("");
+            if ((!endsOn.isEmpty() && endsOn.compareTo(today.toString()) < 0) || partner == origin || !partner.path("lat").isNumber()) {
+                continue;
+            }
+            String name = partner.path("name").asString("");
+            StringBuilder line = new StringBuilder(name).append(" [제휴 ").append(partner.path("category").asString("")).append("]");
+            appendPart(line, "혜택", partner.path("benefit").asString(null));
+            appendPart(line, "시간", partner.path("hours").asString(null));
+            int score = score(name + " " + partner.path("category").asString("") + " 제휴 " + partner.path("benefit").asString(""), words);
+            if (score > 0) {
+                hits.add(new Hit(new Reference("partner:" + partner.path("id").asString(""), name, null, null),
+                        line.toString(), score, meters(origin, partner), false));
+            }
+        }
+        int top = hits.stream().mapToInt(Hit::score).max().orElse(0);
+        List<Hit> sorted = hits.stream().filter(hit -> hit.score() == top)
+                .sorted(Comparator.comparingDouble(Hit::meters)).limit(NEAREST_LIMIT).toList();
+        text.append("출발: ").append(originName).append(" (거리는 위치 사이 직선거리 — 실제 걷는 길은 더 길 수 있다)\n");
+        if (sorted.isEmpty()) {
+            text.append("'").append(query).append("'에 맞는 곳을 지도 데이터에서 찾지 못했어요.");
+            return List.of();
+        }
+        List<Reference> references = new ArrayList<>();
+        for (Hit hit : sorted) {
+            text.append(hit.reference().ref()).append(" · ").append(hit.line()).append(" · ")
+                    .append(hit.sameBuilding() ? "같은 건물" : "직선 약 " + Math.round(hit.meters() / 10) * 10 + "m").append('\n');
+            references.add(hit.reference());
+        }
+        return references;
+    }
+
+    /** 두 위치(lat·lng) 사이 거리(m) — 캠퍼스 범위라 평면 근사로 충분하다. */
+    static double meters(JsonNode a, JsonNode b) {
+        double lat = Math.toRadians((a.path("lat").asDouble() + b.path("lat").asDouble()) / 2);
+        double dy = (a.path("lat").asDouble() - b.path("lat").asDouble()) * 111_320;
+        double dx = (a.path("lng").asDouble() - b.path("lng").asDouble()) * 111_320 * Math.cos(lat);
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
     /** 질문에서 2글자 이상 낱말 최대 6개(소문자). */
@@ -429,6 +610,10 @@ public class AskLiveData {
         StringBuilder text = new StringBuilder();
         boolean any = false;
         for (CafeteriaRestaurantResponse restaurant : response.restaurants()) {
+            // 문 닫은 식당(교직원식당, 10-31)은 메뉴가 없으면 뺀다 — '이날 메뉴 없음' 줄이 운영 중인 식당처럼 읽혔다(11-12).
+            if (restaurant.meals().isEmpty() && AskClosedPlaces.mentions(restaurant.name())) {
+                continue;
+            }
             text.append("[").append(restaurant.name()).append("]\n");
             if (restaurant.meals().isEmpty()) {
                 text.append("- 이날 메뉴 없음\n");

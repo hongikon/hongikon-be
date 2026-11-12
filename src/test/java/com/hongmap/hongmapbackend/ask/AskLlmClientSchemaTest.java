@@ -23,10 +23,20 @@ class AskLlmClientSchemaTest {
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
-        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "1h", "low");
+        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "1h", "low", 6000, "", "");
 
         assertThat(client.answerSystemBlocks()).hasSize(1);
         assertThat(client.answerSystemBlocks().get(0).text()).isEqualTo(client.answerSystem());
         assertThat(client.answerSystemBlocks().get(0).cacheControl()).isPresent();
+    }
+
+    @Test
+    void 추가_답_지시_파일은_답_쓰기_지시_뒤에_붙고_없으면_시작을_멈춘다() throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("ask-extra", ".txt");
+        java.nio.file.Files.writeString(file, "  추론 지시 한 줄  ");
+        assertThat(AskLlmClient.readExtra(file.toString())).isEqualTo("\n추론 지시 한 줄\n");
+        assertThat(AskLlmClient.readExtra("")).isEmpty();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> AskLlmClient.readExtra("/없는/파일.txt"))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

@@ -86,7 +86,9 @@ public class AskLlmClient {
      * 답 한 차례의 출력 한도. 내부 추론(thinking)도 여기서 쓰므로 넉넉히 둔다 — 1,500 이었을 때 원문이 긴 안내(졸업요건·학교 메일)에서
      * 추론에 한도를 다 써 JSON 이 잘리고 답 쓰기가 실패했다(10-15). 답 자체는 2~6문장이라 실제 비용은 거의 그대로다.
      */
-    private static final long ANSWER_MAX_TOKENS = 6_000;
+    /** 답 쓰기 출력 한도 기본값. effort 를 high 로 올리면 내부 추론이 한도를 다 써 답이 실패한다(10-28 평가 원인 8) — 그때 ask.llm.answer-max-tokens 를 함께 올린다. */
+    static final long ANSWER_MAX_TOKENS = 6_000;
+    private final long answerMaxTokens;
 
     static final String ANSWER_SYSTEM = """
             너는 홍익대학교 학생 안내 앱 '홍익온'의 안내 도우미다. 학생의 이번 질문에 [안내 원문]만 근거로 답한다.
@@ -99,6 +101,9 @@ public class AskLlmClient {
             - 학식·식단 질문은 cafeteria_menu 로 그날 메뉴를 본다(날짜를 말하지 않으면 오늘).
             - 건물·시설(스터디룸·공동학습실·프레젠테이션룸·세미나실·학과 라운지·열람실·프린터·카페·식당·편의점·엘리베이터 등)의 위치·운영시간·예약 방법은
               search_facilities 로 학교 지도 시설 정보를 찾는다. 건물은 'K동', '제1공학관'처럼 찾을 수 있다. [안내 원문]이 비어 있으면 도구로 먼저 찾아본다.
+              '열람실 어디 있어'·'공부할 곳'·'프린트 어디서 해'·'편의점 어디'처럼 한 종류의 시설을 물으면 search_facilities 결과([종류별 전체 목록])를 빠짐없이
+              모두 보인다 — 안내 원문에 몇 곳만 있어도 지도 목록을 다 넣고, 안내 원문에만 있는 곳(지도에 없는 곳)도 같은 표에 함께 넣는다. sections 의 table(건물 | 층 | 이름 | 시간·메모)에 건물별로 넣고, 메모의
+              '비공식 정보'·'운영시간 확인 필요'·'이용 불가'는 그대로 밝힌다. 여러 곳을 보이는 목록 답이면 mapTarget 은 ''.
             - 건물 자체(어디 있는지·몇 층까지·운영시간·그 건물에 뭐가 있는지·지금 하는 전시)는 search_buildings, 학교 제휴업체 혜택은 search_partners 로 찾는다.
             - 찾아봐도 확인되지 않으면 found=false 로 하고 "안내에서 확인되지 않아요"라고 분명히 말한 뒤, 원문에 있는 담당 부서와 전화를 알려 준다. 원문에 부서도 없으면 학교 담당 부서에 문의하라고만 한다.
             - 학생 상황에 따라 답이 달라지면(휴학 종류, 신입생 여부, 단과대학 등) 경우를 나눠 짧게 쓰거나 어느 경우인지 되묻는다.
@@ -147,13 +152,16 @@ public class AskLlmClient {
                  '어떻게: '(방법·준비물·본인 여부). 결과를 언제·어떻게 알려 주는지, 안 하면 생기는 일은 '꼭 확인할 점'으로.
                  원문에 없는 칸은 지어내지 않고 빼며, 빠진 것이 '언제'·'어디서'면 answer 에 '안내에 없어요'라고 밝힌다.
                  원문 일정이 지난 학기·지난해 것이면 그 일정과 게시일을 그대로 쓰고 '이번 일정은 새 공지를 확인해야 해요'라고 밝힌다 — 방법은 빼지 않는다.
-              14) 동아리·학회 같은 학생 단체의 모집·가입 기간과 방법은 단체마다 따로 정한다(운영진 확인). 원문·공지에 그 단체의 모집 기간이 없으면
-                 '확인되지 않아요'로 끝내지 않는다 — '동아리 모집은 동아리마다 따로 해서, 관심 있는 동아리에 직접 문의해야 해요'라고 답하고,
-                 원문에 있는 그 동아리의 인스타그램·동아리방 위치를 알려 준다. 어느 동아리인지 모르면 분야(공연·스포츠·레저·학술·종교·사회·전시)를 되묻는다.
-                 원문에 '상시 모집'처럼 모집 정보가 있는 동아리는 그대로 알려 준다. 학생지원팀·총동아리연합회는 각 동아리 연락처를 모를 때의 문의처로만 쓴다.
+              14) 동아리·학회 같은 학생 단체의 모집·가입 기간과 방법은 단체마다 따로 정한다(운영진 확인). 중앙동아리면 search_clubs 결과의
+                 '모집 안내'(동아리가 총학생회 페이지에 적은 문구 — '매학기 초', '상시 모집', '8/24~9/6' 등)를 그대로 알려 주고, 그 문구만으로는
+                 지금 모집 중인지 알 수 없으니 이번 일정은 그 동아리 인스타그램 공지로 확인하라고 덧붙인다. 날짜가 적힌 문구는 연도가 없으면
+                 '안내에 적힌 기간'이라고만 쓴다. 원문·결과에 그 단체의 모집 정보가 없으면 '확인되지 않아요'로 끝내지 않는다 —
+                 '동아리 모집은 동아리마다 따로 해서, 관심 있는 동아리에 직접 문의해야 해요'라고 답하고 인스타그램·동방 위치를 알려 준다.
+                 어느 동아리인지 모르면('동아리 언제 모집해?') 동아리마다 다르다는 것과 결과에 많이 보이는 꼴(학기 초 모집·상시 모집)을 짧게 말하고,
+                 분과(공연·스포츠·레저·학술·종교·사회·전시)나 관심 있는 동아리를 되묻는다. 학생지원팀·총동아리연합회는 각 동아리 연락처를 모를 때의 문의처로만 쓴다.
               15) '○○ 학회'·'○○ 동아리 뭐 있어'처럼 무엇이 있는지 묻는 목록형 질문이면 원문에 있는 이름을 실제로 보인다 —
-                 '14개가 나와 있어요'처럼 개수·위치만 말하고 끝내지 않는다. 이름과 성격이 함께 있으면 표(이름 | 성격)로, 12개가 넘으면
-                 주요한 것을 보이고 나머지는 학교·학과 홈페이지 링크로 넘긴다. 표는 sections 의 table 칸에 실제로 넣는다 —
+                 '14개가 나와 있어요'처럼 개수·위치만 말하고 끝내지 않는다. 이름과 성격이 함께 있으면 표(이름 | 성격)로 원문에 있는 것을 모두 넣는다
+                 (40개까지 — 그보다 많을 때만 주요한 것을 보이고 나머지는 학교·학과 홈페이지 링크로 넘긴다). 몇 개만 골라 보이지 않는다. 표는 sections 의 table 칸에 실제로 넣는다 —
                  answer 에 '아래 표'라고 쓰고 sections 를 비우지 않는다(섹션 제목은 '○○ 목록'처럼 붙인다).
             - 질문이 특정 학과·단과대학이나 이름이 붙은 장학금·프로그램·행사(예: '컴퓨터공학과 동문장학금', '○○장학금')를 말하면,
               [안내 원문]에 그 이름이 없을 때 학교 전체 안내로 대신 답하지 않는다 — 먼저 search_notices 로 그 이름(학과 이름도 함께)을 찾고
@@ -171,9 +179,11 @@ public class AskLlmClient {
               학교 안내·공지를 따르고, 안내·공지와 규정 문장이 다르면 최신 안내·공지를 따르며 다르다는 점을 짧게 알린다.
               부칙(시행일·경과조치)은 학번·입학년도에 따라 다르게 적용되는 규정을 말할 때만 쓴다.
             - 교수(교원) 정보: 학과 교수진 원문(page:… 교수진)에 있는 이름·소속 학과·직위·연구분야는 답에 써도 된다
-              ('○○ 연구하시는 교수님', '○○ 교수님 전공 분야' — 10-31 운영진 결정). 교수 개인의 연구실 호실·전화·이메일·면담 시간·
-              학력·개인 이력은 원문에 있어도 쓰지 않는다. 연락·면담을 물으면 그 학과 홈페이지 교수진 페이지로 안내한다.
-              교수님에 관한 답에는 sourceIds 에 그 page id 를 넣는다 — 앱이 그 페이지 링크를 붙인다. 어느 학과 교수님인지 모르면
+              ('○○ 연구하시는 교수님', '○○ 교수님 전공 분야' — 10-31 운영진 결정). '○○과 교수님 누구 있어'처럼 교수진을 물으면
+              원문 교수진의 모든 교수님을 표(이름 | 직위 | 연구분야)로 넣는다 — 일부만 고르지 않는다(11-09 운영진). 교수 개인의 연구실 호실·전화·이메일·면담 시간·
+              학력·개인 이력은 원문에 있어도 쓰지 않는다. 연구실 위치·이메일·연락·면담을 물으면 그 교수님 소개 페이지(학과 홈페이지)에서
+              볼 수 있다고 안내한다 — 원문에 교수님 한 분의 소개 쪽(page:…_p… '○○ 교수')이 있으면 그 page id 를, 없으면 학과 교수진 page id 를
+              sourceIds 맨 앞에 넣는다(11-07 — 앱이 그 페이지 링크를 붙인다). 교수님에 관한 답에는 늘 그 page id 를 넣는다. 어느 학과 교수님인지 모르면
               학과를 되묻는다. 원문에 없는 교수님은 지어내지 않는다. 학과 사무실 위치·전화는 써도 된다.
             - 다른 대학(절대 규칙): 홍익대학교 안내만 쓴다. 다른 대학 이름은 근거 원문에 그 이름이 있을 때만 원문 그대로 쓴다
               (예: 행복기숙사 참여 대학 목록). 다른 대학의 제도·시설·일정을 말하거나 다른 대학 질문에 홍익대 정보로 대신 답하지 않는다 —
@@ -194,6 +204,40 @@ public class AskLlmClient {
             """ + AskGlossary.PROMPT + """
             - sourceIds 에는 답에 실제로 쓴 내용의 출처만 중요한 순서로 넣는다(안내 id·학과 홈페이지 page:…·공지 notice:…·학식 cafeteria:…·시설 facility:…·건물 building:…·제휴 partner:…). 답의 날짜·마감·절차를 공지에서 가져왔으면 그 공지를 반드시 넣는다.
               읽기만 하고 답에 쓰지 않은 것은 넣지 않는다. found=false 면 담당 부서를 가져온 안내 id 하나.
+            - '○○에서 제일 가까운 △△', '○○ 근처 △△', '△△ 어디가 가까워'처럼 가까운 곳을 물으면 nearest_places(from, query)로 찾아 가까운 순으로 답한다.
+              거리는 위치 사이 직선거리라 '직선으로 약 ○○m'처럼 '약'을 붙이고, 같은 건물이면 층을 밝힌다. 결과에 운영시간이 있으면 함께 쓴다.
+              출발 장소를 못 찾았으면 어느 건물 기준인지 되묻는다. 결과에 없는 장소·거리는 지어내지 않는다.
+            - mapTarget(지도 버튼): 학생이 장소를 물을 때만 채운다 — 어디 있는지·몇 층인지·어떻게 가는지·가장 가까운 곳·근처 장소처럼
+              위치가 답의 핵심인 질문이면 답에 쓴 장소 하나의 참조(building:…·facility:…·partner:…, 도구 결과에 나온 것)를 넣고,
+              도구 없이 안내 원문의 위치로 답했으면 'guide'. 운영시간·규정·신청 방법·메뉴처럼 장소 이름이 나올 뿐 위치를 묻지 않은 질문이면
+              빈 문자열('')이다(예: 'Q동 프린터 몇 시까지 돼?' → '', 'Q동 프린터 어디 있어?' → 그 facility 참조,
+              '학생회관 출력센터 몇 층이야?' → 그 facility 참조 — 층을 묻는 것도 위치를 묻는 것이다).
+              mapMode 는 '어떻게 가', '가는 길', '여기서 ○○까지', '길 알려줘'처럼 가는 길을 물으면 'route', 아니면 'show'.
+              'route' 면 앱이 학생의 지금 위치에서 그곳까지 길찾기 버튼을 붙인다 — 답에는 건물 위치·들어가는 입구·층처럼 원문에 있는 것만 짧게 쓰고,
+              학생이 지금 어디 있는지는 모르니 '지금 계신 곳에서 몇 분'처럼 지어내지 않는다('아래 길찾기 버튼으로 지금 위치에서 가는 길을 볼 수 있어요').
+            - '공학관', '인문사회관', '강의동'처럼 같은 이름의 건물이 여럿이면(제1·2·3·4공학관 등) 하나만 골라 답하지 않는다 — 결과에 나온 건물을
+              모두 짧게(이름·별칭·무엇이 있는지) 보이고, 어느 건물이 궁금한지 물어 본다. 학생이 번호·동을 말했으면 그 건물만 답한다.
+            - 과목·교과과정 질문('○○과 1학년 때 뭐 들어?', '컴프 몇 학년 과목이야?', '화공 2학년 2학기 전공필수')은 search_courses 로 찾는다.
+              학과·학년 과목은 표(학기 | 과목 | 학점 | 이수구분)로 원문 줄을 모두 넣고, '2026 교과과정책자 기준'과 '이번 학기 개설·분반은 수강신청 시스템에서 확인'을 밝힌다.
+              '책자 합계 검산 안 됨'이 붙은 줄이 있으면 '책자 원문 확인'을 한 줄 덧붙인다. 입학연도에 따라 교육과정이 다를 수 있다는 점도 짧게.
+              courses:2026 을 sourceIds 에 넣는다. [질문 속 줄임말]에 '여러 과목'으로 적힌 줄임말이면 후보 과목을 보이고 어느 과목인지 묻는다.
+              '4학년 1학기에 전공필수 있는 학과', '전필이 가장 많은 학과'처럼 학과를 가리지 않거나 세고 더하는 질문은 search_courses 를
+              mode 'count_by_dept'(category·grade·term 채움)로 부르고, 결과의 학과 수·과목 수·학점을 그대로 쓴다(직접 세거나 더하지 않는다).
+            - 중앙동아리 질문(목록·분야별 동아리·특정 동아리의 동방·정기 모임·모집·인스타그램 같은 링크·소개)은 search_clubs 로 찾는다 —
+              [안내 원문]에 동아리 안내가 있어도 먼저 부른다. search_clubs(clubs:hongikunion, 총학생회 중앙동아리 안내)가 동아리 이름·분과·동방·
+              정기 모임·모집 안내·링크의 기준이다: [안내 원문](학교 홈페이지 옛 동아리 안내)과 다르면 search_clubs 를 따르고 옛 호실·이름은 쓰지 않는다.
+              search_clubs 에서 찾지 못한 동아리는 '총학생회 중앙동아리 목록에는 없어요(가동아리·학과 소모임·연합동아리일 수 있어요)'라고 하고,
+              [안내 원문]에 그 동아리의 옛 동방 호실이 있어도 쓰지 않는다(옛 호실을 지금 다른 동아리가 쓰기도 한다).
+              전체 목록('중동 뭐 있어', '중앙동아리 목록')은 query 를 비워 부르고, 표 하나(분과 | 동아리)에 분과마다 한 행씩 그 분과 동아리 이름을
+              쉼표로 모두 적는다(66개 전부 — 일부만 고르지 않는다). 한 분과 목록이면 표(이름 | 소개 | 동방). 분야('밴드 동아리', '봉사 동아리')는
+              query 에 분야 낱말을 넣고, 결과 후보의 소개를 읽어 그 분야에 맞는 동아리만 표(이름 | 소개 | 동방)로 보인다.
+              동방은 결과의 '동방' 그대로(건물·층 포함) 쓴다. 인스타그램·유튜브 같은 링크를 물으면 주소는 답 글에 쓰지 않고(규칙 6)
+              '아래 링크 버튼'이라고 한 뒤 그 링크의 참조(club:번호:link…)를 sourceIds 맨 앞에 넣는다 — 앱이 그 주소로 버튼을 붙인다.
+              sourceIds 에 clubs:hongikunion 과 답에 쓴 동아리의
+              club:번호(결과의 [참조 …])를 넣는다 — 참조 id 는 sourceIds 에만 쓰고 답 글·표에는 쓰지 않는다. 동방 위치를 물었고 결과에 '지도 참조'가 있으면 그 building 참조를 mapTarget 에 넣는다.
+            - [오늘]에 날짜가 없으면(질문에 시점이 없음) 이번 학기 신청 기간이 지났는지·지금 열려 있는지를 말하지 않는다 — 규칙(언제·어떻게)만 쓴다.
+            - [오늘]에 날짜가 있으면 요일과 지금 시각도 있다. '지금 열려 있어?', '지금 갈 수 있는 카페'처럼 지금을 물으면 결과의 운영시간(평일·주말·학기 중·방학)과
+              견주어 열려 있는지 판단하고, 학기 중인지 방학인지가 갈리면 학사일정을 찾는다. 운영시간이 없는 곳은 '운영시간 정보가 없어요'라고 한다.
             """;
 
     /**
@@ -208,6 +252,8 @@ public class AskLlmClient {
             - '(조건: … - 학생이 말한 상황)'인 규정은 학생이 말한 상황이니 그대로 적용한다. 서버가 상황을 모르는 조건 규정은 넘기지 않으니
               '○○이면 달라요'처럼 학생이 말하지 않은 조건으로 답을 채우지 않는다.
             """;
+
+    static final String WORKSPACE_HEADER = "anthropic-workspace-id";
 
     private final AnthropicClient client;
     private final AskCatalog catalog;
@@ -237,24 +283,25 @@ public class AskLlmClient {
                         @Value("${ask.llm.model:claude-haiku-5-5}") String model,
                         @Value("${ask.llm.timeout-seconds:20}") long timeoutSeconds,
                         @Value("${ask.llm.cache-ttl:1h}") String cacheTtl,
-                        @Value("${ask.llm.answer-effort:low}") String answerEffort) {
+                        @Value("${ask.llm.answer-effort:low}") String answerEffort,
+                        @Value("${ask.llm.answer-max-tokens:6000}") long answerMaxTokens,
+                        @Value("${ask.llm.answer-extra-file:}") String answerExtraFile,
+                        @Value("${ask.llm.workspace-id:}") String workspaceId) {
         this.catalog = catalog;
         this.liveData = liveData;
         this.retriever = retriever;
         this.jsonMapper = jsonMapper;
         this.model = model;
         this.longCache = cacheControl(cacheTtl).ttl().isPresent();
-        this.answerSystem = ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM;
+        this.answerMaxTokens = answerMaxTokens > 0 ? answerMaxTokens : ANSWER_MAX_TOKENS;
+        // 추가 답 지시(평가로 고른 추론 지시 등, docs/ask-reasoning-eval.md 8절). 파일이 없으면 시작을 멈춘다 — 설정 오타로 조용히 빠지지 않게.
+        String extra = readExtra(answerExtraFile);
+        this.answerSystem = (ruleGraph.enabled() ? ANSWER_SYSTEM + RULE_GRAPH_SYSTEM : ANSWER_SYSTEM) + extra;
         this.answerSystemBlocks = List.of(TextBlockParam.builder()
                 .text(answerSystem)
                 .cacheControl(cacheControl(cacheTtl))
                 .build());
-        this.client = apiKey == null || apiKey.isBlank() ? null : AnthropicOkHttpClient.builder()
-                .apiKey(apiKey)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                // 기본 2회 재시도면 앱이 너무 오래 기다린다. 한 번만 다시 하고, 안 되면 앱이 낱말 찾기·원문 안내로 돌아간다.
-                .maxRetries(1)
-                .build();
+        this.client = apiKey == null || apiKey.isBlank() ? null : clientBuilder(apiKey, timeoutSeconds, workspaceId).build();
         this.classifySystem = List.of(TextBlockParam.builder()
                 .text(catalog.systemPrompt())
                 .cacheControl(cacheControl(cacheTtl))
@@ -287,9 +334,11 @@ public class AskLlmClient {
         answerProperties.put("sections", Map.of("type", "array", "items", section));
         answerProperties.put("found", Map.of("type", "boolean"));
         answerProperties.put("sourceIds", Map.of("type", "array", "items", Map.of("type", "string")));
+        answerProperties.put("mapTarget", Map.of("type", "string"));
+        answerProperties.put("mapMode", Map.of("type", "string", "enum", List.of("show", "route")));
         this.answerConfig = OutputConfig.builder()
                 .effort(answerEffort(answerEffort))
-                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds")))
+                .format(schema(answerProperties, List.of("answer", "sections", "found", "sourceIds", "mapTarget", "mapMode")))
                 .build();
         this.answerTools = List.of(
                 tool("search_guides", "학생 안내 목록에서 뜻과 낱말로 다른 안내를 찾는다. 결과는 id 와 한 줄 요약(최대 6개). "
@@ -308,6 +357,7 @@ public class AskLlmClient {
                 tool("read_notice", "공지 하나의 본문을 읽는다. id 는 search_notices 결과의 notice:뒤 숫자.",
                         Map.of("id", Map.of("type", "integer")), List.of("id")),
                 tool("search_facilities", "학교 지도의 시설 정보(건물·층·종류·운영시간·예약 방법 메모)를 낱말로 찾는다. 맞는 낱말이 많은 순 최대 8개(참조 facility:id). "
+                                + "열람실·공부·스터디룸·라운지·프린트·편의점·카페·식당 같은 종류 낱말이 있으면 그 종류 전부(건물 낱말이 있으면 그 건물 것만). "
                                 + "예: 'K동 공동학습실', '프레젠테이션룸 예약', '멀티미디어실', 'T동 라운지'.",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
                 tool("search_buildings", "학교 지도의 건물 정보(이름·별칭·종류·층수·운영시간·소개)와 그 건물의 층별 시설·지금 하는 전시를 낱말로 찾는다. 맞는 건물 최대 3개(참조 building:code, 시설은 facility:id). "
@@ -316,6 +366,26 @@ public class AskLlmClient {
                 tool("search_partners", "학교 제휴업체(식당·카페·주점 등)의 혜택·대상 소속·주소·시간을 낱말로 찾는다. 끝난 제휴는 빠진다. 최대 8개(참조 partner:id). "
                                 + "예: '치킨 제휴', '기숙사 제휴 카페', '총학생회 할인'.",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
+                tool("nearest_places", "출발 장소(건물·제휴업체 이름)에서 가까운 시설·건물·제휴업체를 거리순으로 찾는다(최대 6개, 참조 facility:id·building:code·partner:id). "
+                                + "같은 건물이면 '같은 건물'과 층, 아니면 위치 사이 직선거리(m). "
+                                + "예: from 'T동', query '편의점' / from '중앙도서관', query '프린터' / from 'R동', query '카페 제휴'.",
+                        Map.of("from", Map.of("type", "string"), "query", Map.of("type", "string")), List.of("from", "query")),
+                tool("search_courses", "2026 교과과정책자의 학과별 교과과정(과목명·학수번호·학년·학기·학점·이수구분)을 서버가 거르고 센다 — 칸만 채운다. "
+                                + "query 는 과목명·줄임말(컴프·선대·운체 …)·학수번호(없으면 빈 문자열), dept 는 학과·전공 이름(컴퓨터공학과·화학공학전공 …), "
+                                + "grade·term 은 숫자, category 는 이수구분(전공필수·전필·전공선택·전선·전공기초·교양·교양필수·MSC·일반선택), campus 는 세종일 때만 '세종'. "
+                                + "mode 'list'(기본)는 과목 줄, 'count_by_dept' 는 책자 모든 행을 세어 학과별 과목 수·학점 합과 예시 과목 — "
+                                + "'학과 상관없이·어느 학과·가장 많은 학과·○○ 있는 학과' 질문이나 '○○과 3학년 전공필수 몇 학점'처럼 세거나 더하는 질문에 쓴다. "
+                                + "참조는 courses:2026 하나.",
+                        Map.of("query", Map.of("type", "string"), "dept", Map.of("type", "string"),
+                                "grade", Map.of("type", "integer"), "term", Map.of("type", "integer"), "campus", Map.of("type", "string"),
+                                "category", Map.of("type", "string"),
+                                "mode", Map.of("type", "string", "enum", List.of("list", "count_by_dept"))),
+                        List.of("query")),
+                tool("search_clubs", "총학생회가 올린 홍익대 중앙동아리 66개(이름·분과·소개·동방·정기 모임·모집 안내·링크)를 찾는다. "
+                                + "query 는 동아리 이름('뚜라미', 'HIUC')이나 분야 낱말('밴드', '축구', '봉사'), 비우면 분과별 전체 목록. "
+                                + "category 는 분과(공연·스포츠·레저·학술·사회·전시·종교, 없으면 비움). 참조는 clubs:hongikunion 과 동아리마다 club:번호.",
+                        Map.of("query", Map.of("type", "string"), "category", Map.of("type", "string")),
+                        List.of("query")),
                 tool("cafeteria_menu", "그날 학교 식당 메뉴(식당·끼니·시간·가격·메뉴). date 는 yyyy-MM-dd, 비우거나 today 면 오늘.",
                         Map.of("date", Map.of("type", "string")), List.of("date")));
         if (client == null) {
@@ -327,7 +397,35 @@ public class AskLlmClient {
         return client != null;
     }
 
+    /**
+     * Anthropic 클라이언트 설정. workspaceId 가 비어 있지 않으면 anthropic-workspace-id 헤더를 붙인다
+     * (워크스페이스에 속하지 않은 API 키는 이 헤더가 없으면 400). 비어 있으면 예전과 같다.
+     */
+    static AnthropicOkHttpClient.Builder clientBuilder(String apiKey, long timeoutSeconds, String workspaceId) {
+        AnthropicOkHttpClient.Builder builder = AnthropicOkHttpClient.builder()
+                .apiKey(apiKey)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
+                // 기본 2회 재시도면 앱이 너무 오래 기다린다. 한 번만 다시 하고, 안 되면 앱이 낱말 찾기, 원문 안내로 돌아간다.
+                .maxRetries(1);
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            builder.putHeader(WORKSPACE_HEADER, workspaceId.trim());
+        }
+        return builder;
+    }
+
     /** 답 쓰기 시스템 프롬프트(규정 그래프가 켜져 있으면 지시 세 줄이 붙는다). */
+    static String readExtra(String file) {
+        if (file == null || file.isBlank()) {
+            return "";
+        }
+        try {
+            String text = java.nio.file.Files.readString(java.nio.file.Path.of(file.strip())).strip();
+            return text.isEmpty() ? "" : "\n" + text + "\n";
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("ask.llm.answer-extra-file 을 읽지 못했다: " + file, e);
+        }
+    }
+
     String answerSystem() {
         return answerSystem;
     }
@@ -521,7 +619,7 @@ public class AskLlmClient {
 
         MessageCreateParams.Builder params = MessageCreateParams.builder()
                 .model(model)
-                .maxTokens(ANSWER_MAX_TOKENS)
+                .maxTokens(answerMaxTokens)
                 .systemOfTextBlockParams(answerSystemBlocks)
                 .outputConfig(answerConfig)
                 .addUserMessage(first.toString());
@@ -679,6 +777,68 @@ public class AskLlmClient {
             hits.forEach(hit -> references.put(hit.ref(), hit));
             return hits.isEmpty() ? (buildings ? "찾은 건물이 없어요." : "찾은 제휴업체가 없어요.") : out.toString();
         }
+        if ("nearest_places".equals(use.name()) && input != null && input.get("from") instanceof String from
+                && input.get("query") instanceof String query) {
+            progress.searchingFacilities(from + " 근처 " + query);
+            StringBuilder out = new StringBuilder();
+            List<AskLiveData.Reference> hits = liveData.nearestPlaces(from, query, out);
+            hits.forEach(hit -> references.put(hit.ref(), hit));
+            return out.toString();
+        }
+        if ("search_courses".equals(use.name()) && input != null) {
+            String query = input.get("query") instanceof String text ? text : "";
+            String dept = input.get("dept") instanceof String text ? text : null;
+            Integer grade = input.get("grade") instanceof Number n ? n.intValue() : null;
+            Integer term = input.get("term") instanceof Number n ? n.intValue() : null;
+            String campus = input.get("campus") instanceof String text ? text : null;
+            String category = input.get("category") instanceof String text ? text : null;
+            AskCourses.Mode mode = AskCourses.Mode.of(input.get("mode") instanceof String text ? text : null);
+            progress.searching(query.isBlank() ? (dept == null ? "과목" : dept + " 과목") : query);
+            String out = AskCourses.search(query, dept, grade, term, category, campus, mode, AskCourses.data());
+            if (out.startsWith(AskCourses.SOURCE_REF)) {
+                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, AskCourses.SOURCE_URL, null));
+            }
+            return out;
+        }
+        if ("search_clubs".equals(use.name()) && input != null) {
+            String query = input.get("query") instanceof String text ? text : "";
+            String category = input.get("category") instanceof String text && !text.isBlank() ? text : null;
+            progress.searching(query.isBlank() ? (category == null ? "중앙동아리" : category + " 동아리") : query);
+            AskClubs.Result result = AskClubs.search(query, category, AskClubs.data());
+            if (!result.found()) {
+                return result.text();
+            }
+            references.put(AskClubs.SOURCE_REF, new AskLiveData.Reference(AskClubs.SOURCE_REF, AskClubs.SOURCE_TITLE, AskClubs.SOURCE_URL, null));
+            StringBuilder out = new StringBuilder(result.text());
+            Set<String> buildings = new LinkedHashSet<>();
+            for (AskClubs.Club club : result.shown()) {
+                references.put(club.ref(), new AskLiveData.Reference(club.ref(), club.name() + " · " + AskClubs.SOURCE_TITLE, club.detailUrl(), null));
+                for (int i = 0; i < club.links().size(); i++) {
+                    String ref = AskClubs.linkRef(club, i);
+                    references.put(ref, new AskLiveData.Reference(ref, AskClubs.linkTitle(club, i), club.links().get(i).url(), null));
+                }
+                String building = AskClubs.building(club.room());
+                if (building != null) {
+                    buildings.add(building);
+                }
+            }
+            // 동방 건물을 지도 참조로(동아리 한두 곳을 자세히 볼 때만) — '뚜라미 동방 어디야'에 지도 버튼을 붙일 수 있게.
+            if (!buildings.isEmpty() && buildings.size() <= 2) {
+                for (String building : buildings) {
+                    try {
+                        List<AskLiveData.Reference> hits = liveData.searchBuildings(building, new StringBuilder());
+                        if (!hits.isEmpty()) {
+                            references.put(hits.get(0).ref(), hits.get(0));
+                            out.append("- 지도 참조(동방 건물 ").append(building).append("): ").append(hits.get(0).ref())
+                                    .append(" · ").append(hits.get(0).title()).append('\n');
+                        }
+                    } catch (RuntimeException e) {
+                        log.debug("동방 건물 지도 참조를 찾지 못했다({}): {}", building, e.toString());
+                    }
+                }
+            }
+            return out.toString();
+        }
         if ("cafeteria_menu".equals(use.name())) {
             Object date = input == null ? null : input.get("date");
             AskLiveData.DayMenu menu = liveData.cafeteria(date instanceof String text ? text : null);
@@ -754,7 +914,7 @@ public class AskLlmClient {
         Optional<String> otherSchool = OtherSchoolGuard.ungrounded(all.toString(), ground);
         if (otherSchool.isPresent()) {
             log.warn("물어보기 답에 근거 없는 다른 대학 이름({})이 있어 답을 버렸다", otherSchool.get());
-            return new Answer(AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), otherSchool.get());
+            return new Answer(AskScope.OTHER_SCHOOL.refusal(), false, List.of(), List.of(), List.of(), otherSchool.get(), null);
         }
         boolean found = json.path("found").asBoolean(false);
         List<String> sourceIds = new ArrayList<>();
@@ -771,7 +931,32 @@ public class AskLlmClient {
                 usedReferences.add(references.get(value));
             }
         }
-        return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null);
+        return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null,
+                mapTarget(json.path("mapTarget").asString(""), "route".equals(json.path("mapMode").asString("")), references));
+    }
+
+    /** 근거 안내 원문의 위치를 지도에 보이라는 mapTarget 값(도구로 찾은 장소가 아닐 때). */
+    static final String MAP_TARGET_GUIDE = "guide";
+    private static final List<String> MAP_PREFIXES = List.of("building:", "facility:", "partner:");
+
+    /**
+     * 지도 버튼 대상(11-09 운영진 — 장소를 물을 때만). 모델이 고른 참조가 이번에 도구로 실제 찾은 장소일 때만 그 장소,
+     * 'guide' 면 근거 안내의 위치, 비었거나 지어낸 값이면 null(지도 버튼·위치 카드를 붙이지 않는다).
+     */
+    static MapTarget mapTarget(String value, boolean route, Map<String, AskLiveData.Reference> references) {
+        String target = value == null ? "" : value.strip();
+        if (target.equalsIgnoreCase(MAP_TARGET_GUIDE)) {
+            return new MapTarget(null, route);
+        }
+        AskLiveData.Reference place = references.get(target);
+        return place != null && MAP_PREFIXES.stream().anyMatch(target::startsWith) ? new MapTarget(place, route) : null;
+    }
+
+    /**
+     * @param place 지도에 보일 장소. null 이면 근거 안내의 위치(facilityId).
+     * @param route 가는 길을 물었다(앱이 '여기서 가는 길' 버튼 — 출발은 휴대폰의 내 위치).
+     */
+    public record MapTarget(AskLiveData.Reference place, boolean route) {
     }
 
     /** 휴대폰 폭에 맞춘 상한 — 구조화 출력이 개수 제한을 못 걸어 여기서 자른다(docs/ask-scope-policy.md 5장). */
@@ -783,7 +968,8 @@ public class AskLlmClient {
     static final int MAX_CAUTION_ITEMS = 2;
     static final String CAUTION_TITLE = "꼭 확인할 점";
     static final int MAX_TABLE_COLUMNS = 4;
-    static final int MAX_TABLE_ROWS = 12;
+    /** 표 행 상한 — 학과 교수진(컴퓨터공학과 18명)·동아리 목록을 다 보이게(11-09 '교수님 정보가 일부만'). 표는 가로로 짧아 휴대폰에서도 읽힌다. */
+    static final int MAX_TABLE_ROWS = 40;
 
     static List<AskRouteResponse.Section> sections(JsonNode node) {
         List<AskRouteResponse.Section> out = new ArrayList<>();
@@ -950,15 +1136,16 @@ public class AskLlmClient {
      * @param found     원문에서 확인한 답이면 true, 확인되지 않아 담당 부서를 안내한 답이면 false
      * @param sourceIds 근거로 쓴 안내(이번 요청에서 실제로 원문을 넘긴 것만)
      * @param references 근거로 쓴 공지·학식(이번 요청에서 실제로 읽은 것만)
+     * @param map        지도 버튼 대상. 장소를 묻는 질문이 아니면 null
      */
     public record Answer(String text, boolean found, List<String> sourceIds, List<AskLiveData.Reference> references,
-                         List<AskRouteResponse.Section> sections, String blockedSchool) {
+                         List<AskRouteResponse.Section> sections, String blockedSchool, MapTarget map) {
         public Answer(String text, boolean found, List<String> sourceIds) {
-            this(text, found, sourceIds, List.of(), List.of(), null);
+            this(text, found, sourceIds, List.of(), List.of(), null, null);
         }
 
         public Answer(String text, boolean found, List<String> sourceIds, List<AskLiveData.Reference> references) {
-            this(text, found, sourceIds, references, List.of(), null);
+            this(text, found, sourceIds, references, List.of(), null, null);
         }
     }
 }

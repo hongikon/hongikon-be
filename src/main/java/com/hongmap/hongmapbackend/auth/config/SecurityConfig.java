@@ -68,9 +68,14 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/places", "/places/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/news", "/news/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/departments").permitAll();
+                    // 앱 공지사항(게시 시각이 지난 공개 공지만). 쓰기는 /admin/notices (ADMIN).
+                    auth.requestMatchers(HttpMethod.GET, "/notices").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/partners", "/partners/**").permitAll();
                     // 앱 지도 데이터(건물·편의시설·제휴업체). 공개 정보만 담는다 — 편집은 /admin/map/** (ADMIN).
                     auth.requestMatchers(HttpMethod.GET, "/map/data").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/map/routes", "/map/routes/approach").permitAll();
+                    // 경로 조사 도구용 — 개발용 암호키(X-Dev-Key)를 컨트롤러가 확인한다(RouteGraphController).
+                    auth.requestMatchers("/map/route-graph/**").permitAll();
                     // 학식 메뉴(학교 홈페이지 공개 메뉴를 서버가 가져와 둔 것). 조회만.
                     auth.requestMatchers(HttpMethod.GET, "/cafeteria/menus", "/cafeteria/menus/week").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/routes/search").permitAll();
@@ -81,7 +86,7 @@ public class SecurityConfig {
                     // 물어보기 LLM 분류(개발 중, 웹 /dev/ask). 로그인 대신 컨트롤러가 X-Ask-Dev-Key 로 막는다(키 미설정이면 404).
                     // 앱 '물어보기' 탭(BETA)은 로그인 토큰이 있으면 그 계정으로 받는다 — 게스트·한도는 컨트롤러(AskPublicQuota)가 막는다.
                     auth.requestMatchers(HttpMethod.POST, "/ask/route", "/ask/route/stream", "/ask/route/feedback").permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/ask/status").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/ask/status", "/ask/popular").permitAll();
                     // 운영용 엔드포인트는 users.role = ADMIN 만. 비로그인은 401, 일반 사용자는 403.
                     auth.requestMatchers("/admin/**", "/crawler/**").access((authentication, context) ->
                             new AuthorizationDecision(adminAccessChecker.isAdmin(authentication.get())));

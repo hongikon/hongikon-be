@@ -9,6 +9,7 @@ import com.hongmap.hongmapbackend.report.dto.ReportImageUploadResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportListResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportResponse;
 import com.hongmap.hongmapbackend.report.dto.ReportScheduleRequest;
+import com.hongmap.hongmapbackend.report.dto.ReportUpdateRequest;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -69,7 +70,7 @@ public class ReportController {
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
     @Operation(summary = "실시간 제보 목록 조회", description = "지금 진행 중인(startsAt ≤ 지금 ≤ endsAt) 승인된 제보를 건물 id로 필터링해 조회합니다. "
-            + "include=upcoming 이면 3일(72시간) 안에 시작할 예정 제보를 시작 시각 순으로 뒤에 덧붙입니다(항목의 startsAt 이 지금보다 뒤면 예정).")
+            + "include=upcoming 이면 승인된 예정 제보(시작 전까지 내내)를 시작 시각 순으로 뒤에 덧붙입니다(항목의 startsAt 이 지금보다 뒤면 예정).")
     @GetMapping("/reports")
     public ReportListResponse getLiveReports(
             @AuthenticationPrincipal Long userId,
@@ -93,6 +94,18 @@ public class ReportController {
             @Valid @RequestBody ReportScheduleRequest request
     ) {
         return reportService.updateSchedule(userId, id, request);
+    }
+
+    @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
+    @Operation(summary = "제보 수정", description = "작성자가 자기 제보(승인 대기·공개)의 층·장소 설명·카테고리·제목·글·사진·시간을 고칩니다. "
+            + "공개 제보는 고친 내용이 바로 지도에 보이고 editedAt 이 남습니다. 핀(건물·좌표)은 바꿀 수 없습니다. 남의 제보 403, 1시간 20회.")
+    @PutMapping("/reports/{id}")
+    public ReportResponse update(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody ReportUpdateRequest request
+    ) {
+        return reportService.update(userId, id, request);
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
