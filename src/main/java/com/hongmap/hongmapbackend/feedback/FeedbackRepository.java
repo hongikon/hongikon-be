@@ -35,6 +35,15 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     @Query("UPDATE Feedback f SET f.user = null, f.contact = null, f.imageKeys = null WHERE f.user.id = :userId")
     int detachUser(@Param("userId") Long userId);
 
+    /** 내용이 prefix 로 시작하는 이 회원의 문의가 있는지(공식 계정 신청 확인 — OfficialRequests). */
+    boolean existsByUser_IdAndContentStartingWith(Long userId, String prefix);
+
+    /** userIds 중 내용이 prefix 로 시작하는 문의를 보낸 회원 id(관리자 회원 목록의 '신청함' 표시). */
+    @Query("SELECT DISTINCT f.user.id FROM Feedback f WHERE f.user.id IN :userIds AND f.content LIKE CONCAT(:prefix, '%')")
+    List<Long> findUserIdsByContentPrefix(@Param("userIds") java.util.Collection<Long> userIds, @Param("prefix") String prefix);
+
+    List<Feedback> findByUser_IdAndStatusAndContentStartingWith(Long userId, FeedbackStatus status, String prefix);
+
     /** 관리자 '물어보기 피드백': 답 기록마다 붙은 '운영진에게 물어보기' 문의. */
     List<Feedback> findByAskRefIn(java.util.Collection<String> askRefs);
 }

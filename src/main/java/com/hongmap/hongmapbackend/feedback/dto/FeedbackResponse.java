@@ -1,6 +1,7 @@
 package com.hongmap.hongmapbackend.feedback.dto;
 
 import com.hongmap.hongmapbackend.feedback.Feedback;
+import com.hongmap.hongmapbackend.feedback.OfficialRequests;
 import com.hongmap.hongmapbackend.user.User;
 
 import java.time.LocalDateTime;
@@ -14,6 +15,7 @@ import java.util.List;
  * @param userNickname    구버전 관리자 화면 호환용. 예전엔 로그인 닉네임 원문이었지만 이제 userDisplayName 과 같은 값
  * @param userDisplayName 앱 닉네임, 없으면 가린 로그인 닉네임("홍**")
  * @param userMemberCode  공개 회원 번호(K7Q2M9XA4D)
+ * @param officialRequestName 공식 계정 신청이면 신청서에 적힌 단체 이름(관리자 화면이 공식 이름 칸에 미리 채운다), 아니면 null
  */
 public record FeedbackResponse(
         Long id,
@@ -27,7 +29,8 @@ public record FeedbackResponse(
         String userDisplayName,
         String userMemberCode,
         /** 참고 사진 보기 URL(presigned GET, 1시간 유효). 없으면 빈 배열 */
-        List<String> imageUrls
+        List<String> imageUrls,
+        String officialRequestName
 ) {
     public static FeedbackResponse of(Feedback feedback) {
         return of(feedback, List.of());
@@ -47,6 +50,7 @@ public record FeedbackResponse(
                 feedback.getResolvedAt(),
                 displayName,
                 user != null ? user.getMemberCode() : null,
-                imageUrls == null ? List.of() : imageUrls);
+                imageUrls == null ? List.of() : imageUrls,
+                OfficialRequests.requestedName(feedback.getContent()));
     }
 }

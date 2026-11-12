@@ -3,6 +3,9 @@ package com.hongmap.hongmapbackend.admin;
 import com.hongmap.hongmapbackend.auth.jwt.JwtTokenProvider;
 import com.hongmap.hongmapbackend.building.Building;
 import com.hongmap.hongmapbackend.building.BuildingRepository;
+import com.hongmap.hongmapbackend.feedback.Feedback;
+import com.hongmap.hongmapbackend.feedback.FeedbackRepository;
+import com.hongmap.hongmapbackend.feedback.FeedbackStatus;
 import com.hongmap.hongmapbackend.report.Report;
 import com.hongmap.hongmapbackend.report.ReportCategory;
 import com.hongmap.hongmapbackend.report.ReportStatus;
@@ -49,6 +52,7 @@ class AdminApiIntegrationTest {
     @Autowired BuildingRepository buildingRepository;
     @Autowired ReportRepository reportRepository;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired FeedbackRepository feedbackRepository;
 
     User admin;
     User normal;
@@ -71,6 +75,19 @@ class AdminApiIntegrationTest {
     void 공식_계정으로_인증하면_공식_이름과_배지가_제보에_보이고_해제할_수_있다() throws Exception {
         String name = "경영대학 학생회 " + UUID.randomUUID().toString().substring(0, 6);
         String url = "/admin/users/" + normal.getId() + "/official";
+        // 공식 계정 신청을 보낸 적 없는 회원에게는 붙일 수 없다.
+        mockMvc.perform(put(url).header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/admin/users/" + normal.getId()).header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.officialRequested").value(false));
+        Feedback request = feedbackRepository.save(new Feedback(normal,
+                "[공식 계정 신청] " + name + "\n회원 번호: " + normal.getMemberCode() + "\n확인 자료: 인스타그램", "a@b.c"));
+        mockMvc.perform(get("/admin/users/" + normal.getId()).header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.officialRequested").value(true));
+        // 관리자 문의 목록에 신청서의 단체 이름이 실린다(공식 이름 칸에 미리 채운다).
+        mockMvc.perform(get("/admin/feedback").header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.feedback[?(@.id == " + request.getId() + ")].officialRequestName").value(name));
         // 관리자만 붙일 수 있다.
         mockMvc.perform(put(url).header("Authorization", bearer(normal))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
@@ -80,6 +97,8 @@ class AdminApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.officialName").value(name))
                 .andExpect(jsonPath("$.displayName").value(name));
+        // 붙이면 그 신청은 처리 완료로 닫힌다.
+        assertThat(feedbackRepository.findById(request.getId()).orElseThrow().getStatus()).isEqualTo(FeedbackStatus.RESOLVED);
         // 같은 공식 이름은 다른 계정에 줄 수 없다.
         mockMvc.perform(put("/admin/users/" + admin.getId() + "/official").header("Authorization", bearer(admin))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
@@ -101,6 +120,7 @@ class AdminApiIntegrationTest {
                 .andExpect(jsonPath("$.reports[0].authorOfficial").value(false))
                 .andExpect(jsonPath("$.reports[0].authorDisplayName").value("학*"));
         reportRepository.delete(report);
+        feedbackRepository.delete(request);
     }
 
     private String bearer(User user) {
