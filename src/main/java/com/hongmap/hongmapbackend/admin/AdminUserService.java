@@ -4,6 +4,7 @@ import com.hongmap.hongmapbackend.admin.dto.AdminUserListResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserPriorHistory;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserPriorHistoryResponse;
 import com.hongmap.hongmapbackend.admin.dto.AdminUserResponse;
+import com.hongmap.hongmapbackend.feedback.FeedbackService;
 import com.hongmap.hongmapbackend.user.MemberCodes;
 import com.hongmap.hongmapbackend.user.User;
 import com.hongmap.hongmapbackend.user.UserRepository;
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** 회원 조회와 이용 정지·해제(약관 제10조, App Store 가이드라인 1.2). */
 @Service
@@ -32,6 +34,7 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final WithdrawRetentionService withdrawRetentionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final FeedbackService feedbackService;
 
     /**
      * q 로 회원을 찾는다. q 가 비어 있으면 정지된 회원 목록. 아래에 해당하는 것을 모두 모아 이 순서로 돌려준다.
@@ -65,10 +68,12 @@ public class AdminUserService {
 
     /** 탈퇴 기록이 남은 재가입 회원이면 그 요약을 함께 싣는다. */
     private AdminUserListResponse withPriorHistory(List<User> users) {
-        Map<Long, WithdrawRetention> priorById =
-                withdrawRetentionService.findActiveForUsers(users.stream().map(User::getId).toList());
+        List<Long> ids = users.stream().map(User::getId).toList();
+        Map<Long, WithdrawRetention> priorById = withdrawRetentionService.findActiveForUsers(ids);
+        Set<Long> requested = feedbackService.usersWithOfficialRequest(ids);
         return new AdminUserListResponse(users.stream()
-                .map(user -> AdminUserResponse.of(user, AdminUserPriorHistory.of(priorById.get(user.getId()))))
+                .map(user -> AdminUserResponse.of(user, AdminUserPriorHistory.of(priorById.get(user.getId())),
+                        requested.contains(user.getId())))
                 .toList());
     }
 
@@ -104,6 +109,8 @@ public class AdminUserService {
     /**
      * 공식 계정으로 인증해 공식 이름을 붙인다(학생회 등, 문의로 신청받아 운영진이 확인한 뒤). 이름은 앞뒤 공백을 지우고 2~30자,
      * 다른 계정의 공식 이름과 겹치면 409. 이미 붙어 있으면 새 이름으로 바꾼다.
+     * 공식 계정 신청(OfficialRequests)을 보낸 적 없는 회원은 400 — 회원 번호를 잘못 옮겨 적어 엉뚱한 계정의 이름이 바뀌지 않게
+     * (11-12 운영진). 이미 공식 계정이면 이름만 바꾸는 것이라 신청이 없어도 된다. 붙인 뒤 그 회원의 열린 신청은 처리 완료로 닫는다.
      */
     @Transactional
     public AdminUserResponse setOfficialName(Long userId, String rawName) {
@@ -116,7 +123,12 @@ public class AdminUserService {
         if (userRepository.existsByOfficialNameAndIdNot(name, userId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "같은 공식 이름을 쓰는 계정이 이미 있습니다.");
         }
+        if (!user.isOfficial() && !feedbackService.hasOfficialRequest(userId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "공식 계정 신청을 보낸 회원에게만 공식 이름을 붙일 수 있어요. 앱의 '공식 계정 신청'으로 먼저 신청을 받아 주세요.");
+        }
         user.changeOfficialName(name);
+        feedbackService.resolveOfficialRequests(userId);
         return toResponse(user);
     }
 
@@ -171,7 +183,8 @@ public class AdminUserService {
 
     private AdminUserResponse toResponse(User user) {
         return AdminUserResponse.of(user,
-                withdrawRetentionService.findActiveForUser(user.getId()).map(AdminUserPriorHistory::of).orElse(null));
+                withdrawRetentionService.findActiveForUser(user.getId()).map(AdminUserPriorHistory::of).orElse(null),
+                feedbackService.hasOfficialRequest(user.getId()));
     }
 
     private User find(Long userId) {
