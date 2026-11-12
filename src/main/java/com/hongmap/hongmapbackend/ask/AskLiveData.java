@@ -56,11 +56,15 @@ public class AskLiveData {
      * 맞은 낱말이 많은 순. 참조는 `facility:{id}`(앱이 위치 버튼으로 그린다).
      */
     public List<Reference> searchFacilities(String query, StringBuilder text) {
+        JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
+        List<String> kinds = AskFacilityKinds.kinds(query);
+        if (!kinds.isEmpty()) {
+            return facilitiesOfKinds(facilities, kinds, AskFacilityKinds.narrowingWords(query), text);
+        }
         List<String> words = queryWords(query);
         if (words.isEmpty()) {
             return List.of();
         }
-        JsonNode facilities = jsonMapper.readTree(mapDataService.current().body()).path("facilities");
         record Hit(JsonNode node, String line, int score) {
         }
         List<Hit> hits = new ArrayList<>();
@@ -77,6 +81,54 @@ public class AskLiveData {
             String ref = "facility:" + hit.node().path("id").asString("");
             text.append(ref).append(" · ").append(hit.line()).append('\n');
             references.add(new Reference(ref, hit.line(), null, null));
+        }
+        return references;
+    }
+
+    /** 종류 전체 목록 상한 — '공부할 곳'(열람실·스터디룸·라운지)이 지도에 23곳(11-12). 표 행 상한(40)보다 작게. */
+    static final int FACILITY_KIND_LIMIT = 25;
+
+    /**
+     * 한 종류(또는 묶음 — 공부: 열람실·스터디룸·라운지) 시설 전부를 건물별로(11-12 '프린터 9곳 중 2곳만'). 질문에 건물·시간 같은 낱말이 있고
+     * 그 낱말이 맞는 시설이 있으면 그것만('K동 열람실', '24시간 열람실'), 없으면 그 종류 전부. 머리줄로 모두 보이라고 알린다.
+     */
+    List<Reference> facilitiesOfKinds(JsonNode facilities, List<String> kinds, List<String> narrowing, StringBuilder text) {
+        List<JsonNode> ofKinds = new ArrayList<>();
+        for (JsonNode facility : facilities) {
+            if (kinds.contains(facility.path("kind").asString(""))) {
+                ofKinds.add(facility);
+            }
+        }
+        List<JsonNode> narrowed = narrowing.isEmpty() ? List.of()
+                : ofKinds.stream().filter(facility -> score(facilityLine(facility), narrowing) > 0).toList();
+        boolean all = narrowed.isEmpty();
+        List<JsonNode> shown = new ArrayList<>(all ? ofKinds : narrowed);
+        // 건물별로 묶고(지도 데이터에 처음 나온 건물 순), 건물 안에서는 위층부터.
+        List<String> buildingOrder = new ArrayList<>();
+        shown.forEach(facility -> {
+            String building = facility.path("buildingName").asString("");
+            if (!buildingOrder.contains(building)) {
+                buildingOrder.add(building);
+            }
+        });
+        shown.sort(Comparator.comparingInt((JsonNode facility) -> buildingOrder.indexOf(facility.path("buildingName").asString("")))
+                .thenComparingInt(facility -> facility.path("floor").isNumber() ? -facility.path("floor").asInt() : Integer.MAX_VALUE));
+        if (shown.isEmpty()) {
+            return List.of();
+        }
+        String label = String.join("·", kinds);
+        text.append(all
+                ? "[종류별 전체 목록] 지도에 있는 " + label + " " + shown.size() + "곳 전부다. 건물별로 묶어 빠짐없이 모두 보인다(안내 원문에 몇 곳만 있어도 이 목록을 다 넣고, 안내 원문에만 있는 곳도 함께 넣는다).\n"
+                : "[" + label + " 중 질문 낱말(" + String.join(" ", narrowing) + ")에 맞는 곳] " + shown.size() + "곳.\n");
+        List<Reference> references = new ArrayList<>();
+        for (JsonNode facility : shown.subList(0, Math.min(FACILITY_KIND_LIMIT, shown.size()))) {
+            String ref = "facility:" + facility.path("id").asString("");
+            String line = facilityLine(facility);
+            text.append(ref).append(" · ").append(line).append('\n');
+            references.add(new Reference(ref, line, null, null));
+        }
+        if (shown.size() > FACILITY_KIND_LIMIT) {
+            text.append("(").append(shown.size() - FACILITY_KIND_LIMIT).append("곳 더 있어요 — 건물 이름을 붙여 다시 찾는다)\n");
         }
         return references;
     }
@@ -545,6 +597,10 @@ public class AskLiveData {
         StringBuilder text = new StringBuilder();
         boolean any = false;
         for (CafeteriaRestaurantResponse restaurant : response.restaurants()) {
+            // 문 닫은 식당(교직원식당, 10-31)은 메뉴가 없으면 뺀다 — '이날 메뉴 없음' 줄이 운영 중인 식당처럼 읽혔다(11-12).
+            if (restaurant.meals().isEmpty() && AskClosedPlaces.mentions(restaurant.name())) {
+                continue;
+            }
             text.append("[").append(restaurant.name()).append("]\n");
             if (restaurant.meals().isEmpty()) {
                 text.append("- 이날 메뉴 없음\n");

@@ -378,6 +378,8 @@ public class AskRouteService {
             message.append('\n');
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
+                .append(AskFacilityKinds.contextLine(request.question()))
+                .append(AskClosedPlaces.contextLine())
                 .append(departmentLine(request.question()))
                 .append(AskCourses.aliasLine(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
