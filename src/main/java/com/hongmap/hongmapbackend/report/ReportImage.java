@@ -53,6 +53,11 @@ public class ReportImage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** 사진 순서를 바꾼다(작성자 수정, Report.replaceImages). */
+    void moveTo(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
     ReportImage(Report report, String imageKey, int sortOrder) {
         this.report = report;
         this.imageKey = imageKey;

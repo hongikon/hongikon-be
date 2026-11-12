@@ -68,6 +68,14 @@ public class Building {
     @Column(name = "basement_floors")
     private Integer basementFloors;
 
+    /**
+     * 고를 수 있는 층 목록 JSON (예: [-6,-5,-4,-3,-2,0,1,2]) — 길찾기 층 다이얼. floors·basement_floors 범위로 못 적는 건물
+     * (홍문관: B1 없이 L=0)도 그대로 적는다. 0 은 로비층 L. NULL 이면 floors·basement_floors(그것도 없으면 출입구 층)로 만든다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "floor_levels")
+    private String floorLevels;
+
     @Column(name = "hours", length = 100)
     private String hours;
 

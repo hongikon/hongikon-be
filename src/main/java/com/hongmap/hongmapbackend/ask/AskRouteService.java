@@ -201,8 +201,10 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.references())
-                    .withSections(AskQuestionIntent.filter(request.question(), answer.sections()));
+                    answer.found(), catalog.version(), links), answer.map())
+                    .withSections(answer.found()
+                            ? fillConsequences(AskQuestionIntent.filter(request.question(), answer.sections()), answer.text(), related.consequences())
+                            : AskQuestionIntent.filter(request.question(), answer.sections()));
         } catch (AskUnavailableException e) {
             log.warn("물어보기 답 쓰기 실패({}) — 고른 안내를 원문 그대로 보낸다: {}", e.getMessage(), answerIds);
             if (answerIds.isEmpty()) {
@@ -269,7 +271,7 @@ public class AskRouteService {
         if (known(request.hint())) {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
-        return message.append(AskBoards.hint(request.question()))
+        return message.append(AskBoards.hint(request.question())).append(AskCourses.aliasLine(request.question()))
                 .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
@@ -279,10 +281,11 @@ public class AskRouteService {
         if (question.replaceAll("\\s+", "").length() <= FOLLOW_UP_CHARS && request.history() != null && !request.history().isEmpty()) {
             AskRouteRequest.Turn last = request.history().get(request.history().size() - 1);
             if (last.question() != null && !last.question().isBlank()) {
-                return oneLine(last.question()) + " " + question;
+                return AskCourses.expand(oneLine(last.question()) + " " + question);
             }
         }
-        return question;
+        // 줄임말(중동·컴프 …)은 정식 이름을 붙여 찾는다.
+        return AskCourses.expand(question);
     }
 
     /** 답 쓰기용 — 직전 대화(질문과 그때 답)와 이번 질문. 안내 원문은 LlmClient 가 앞에 붙인다. */
@@ -344,9 +347,21 @@ public class AskRouteService {
                 + " 것은 섞지 않는다(원문에 학부 전체 것이라고 적힌 것만 그렇다고 밝혀 함께 보일 수 있다).\n\n";
     }
 
+    static final String NO_DATE_LINE = "[오늘] (질문에 시점이 없어 날짜를 주지 않는다 — 규칙대로 언제·어떻게 하는지 답하고, 기간이 지났는지는 말하지 않는다)\n\n";
+
     String answerContext(AskRouteRequest request) {
         // 답 쓰기는 캐시하지 않으니 날짜를 넣어도 된다(분류 프롬프트에는 넣지 않는다 — 캐시가 깨진다).
-        StringBuilder message = new StringBuilder("[오늘] ").append(LocalDate.now(clock.withZone(KST))).append(" (한국 시간)\n\n");
+        // 요일·시각까지(11-09) — '지금 열려 있어?', '오늘 몇 시까지'를 운영시간과 견주게.
+        // 질문이 시점을 말하지 않으면 날짜를 주지 않는다(11-10 평가: '신청 기간이 지났다' 단정이 손해 오류의 가장 큰 원인).
+        StringBuilder message = new StringBuilder();
+        if (AskSituation.mentionsTime(request.question())) {
+            java.time.LocalDateTime now = java.time.LocalDateTime.now(clock.withZone(KST));
+            message.append("[오늘] ").append(now.toLocalDate()).append(" (")
+                    .append(now.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)).append(") ")
+                    .append(String.format("%02d:%02d", now.getHour(), now.getMinute())).append(" (한국 시간)\n\n");
+        } else {
+            message.append(NO_DATE_LINE);
+        }
         if (request.history() != null && !request.history().isEmpty()) {
             message.append("[직전 대화]\n");
             for (AskRouteRequest.Turn turn : request.history()) {
@@ -364,6 +379,7 @@ public class AskRouteService {
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
                 .append(departmentLine(request.question()))
+                .append(AskCourses.aliasLine(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
@@ -463,8 +479,11 @@ public class AskRouteService {
         return message.toString().stripTrailing();
     }
 
-    /** 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3), 처음 나온 위치. */
-    private AskRouteResponse withButtons(AskRouteResponse response, List<AskLiveData.Reference> references) {
+    /**
+     * 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3),
+     * 그리고 장소를 물은 질문일 때만(map 이 있을 때) 위치 카드·지도 버튼.
+     */
+    private AskRouteResponse withButtons(AskRouteResponse response, AskLlmClient.MapTarget map) {
         List<AskRouteResponse.Link> pages = new ArrayList<>();
         List<AskRouteResponse.Phone> phones = new ArrayList<>();
         String facilityId = null;
@@ -490,13 +509,130 @@ public class AskRouteService {
                 facilityId = meta.facilityId();
             }
         }
-        if (facilityId == null) {
-            // 안내에 위치가 없으면 답에 쓴 지도 시설의 위치(facility:{id}).
-            facilityId = references.stream().map(AskLiveData.Reference::ref).filter(ref -> ref.startsWith("facility:"))
-                    .map(ref -> ref.substring("facility:".length())).findFirst().orElse(null);
+        AskLiveData.Reference place = map == null ? null : map.place();
+        if (map == null) {
+            // 장소를 묻지 않은 질문(운영시간·규정·신청 방법 …)이면 건물·시설 이름이 나와도 위치 카드·지도를 붙이지 않는다(11-09 운영진).
+            facilityId = null;
+        } else if (place != null) {
+            facilityId = place.ref().startsWith("facility:") ? place.ref().substring("facility:".length()) : null;
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
-                response.catalogVersion(), response.references(), pages, phones, facilityId);
+                response.catalogVersion(), response.references(), pages, phones, facilityId)
+                .withActions(map == null ? List.of() : withRoute(mapActions(place, facilityId, response.answer()), map.route()));
+    }
+
+    static final int MAX_FILLED_CONSEQUENCES = 2;
+
+    /**
+     * 그래프가 짚은 결과(1단계 결과 선)가 답에 빠졌으면 '꼭 확인할 점'에 선의 사실 문장을 서버가 붙인다(11-10 평가 — Haiku 실패의 가장 큰 몫이
+     * '결과 누락'이었다. 모델을 한 번 더 부르지 않고, 검토된 선 문장만 쓴다). 결과 점 이름(성적경고·제적 …)이 답 어디에도 없을 때만, 최대 2개.
+     */
+    static List<AskRouteResponse.Section> fillConsequences(List<AskRouteResponse.Section> sections, String answer,
+                                                           List<AskRuleGraph.Consequence> consequences) {
+        if (consequences == null || consequences.isEmpty()) {
+            return sections;
+        }
+        StringBuilder all = new StringBuilder(answer == null ? "" : answer);
+        for (AskRouteResponse.Section section : sections) {
+            all.append(section.title()).append(String.join("", section.items()));
+            if (section.table() != null) {
+                section.table().rows().forEach(row -> all.append(String.join("", row)));
+            }
+        }
+        String text = all.toString().replaceAll("\\s+", "");
+        List<String> missing = new ArrayList<>();
+        for (AskRuleGraph.Consequence consequence : consequences) {
+            String target = consequence.target().replaceAll("\\s+", "");
+            if (!target.isEmpty() && !text.contains(target) && !alreadySaid(text, consequence.fact())
+                    && !missing.contains(consequence.fact()) && missing.size() < MAX_FILLED_CONSEQUENCES) {
+                missing.add(consequence.fact());
+            }
+        }
+        if (missing.isEmpty()) {
+            return sections;
+        }
+        List<AskRouteResponse.Section> out = new ArrayList<>(sections);
+        for (int i = 0; i < out.size(); i++) {
+            AskRouteResponse.Section section = out.get(i);
+            if (AskLlmClient.CAUTION_TITLE.equals(section.title())) {
+                List<String> items = new ArrayList<>(section.items());
+                items.addAll(missing);
+                out.set(i, new AskRouteResponse.Section(section.title(), items, section.ordered(), section.table()));
+                return out;
+            }
+        }
+        out.add(new AskRouteResponse.Section(AskLlmClient.CAUTION_TITLE, missing, false, null));
+        return out;
+    }
+
+    /**
+     * 답이 그 결과를 다른 말로 이미 했는지 — 선 문장의 2글자 이상 낱말(앞 3글자로 줄여 조사 차이를 넘긴다) 중 60% 이상이 답에 있으면 했다고 본다.
+     * 결과 점 이름(예: '등록금 이연')이 답에 글자 그대로 없어도 '등록금을 더 낼 수 있어요'로 이미 말했는데 같은 문장을 또 붙이던 것(11-10 3회차).
+     */
+    static boolean alreadySaid(String squashedAnswer, String fact) {
+        List<String> words = java.util.Arrays.stream(fact.split("[\\s,·()—.\\-]+"))
+                .map(String::strip).filter(word -> word.length() >= 2).map(word -> word.substring(0, Math.min(3, word.length()))).distinct().toList();
+        if (words.isEmpty()) {
+            return false;
+        }
+        long hit = words.stream().filter(squashedAnswer::contains).count();
+        return hit * 10 >= words.size() * 6L;
+    }
+
+    /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
+    private static final List<String> PLACE_PREFIXES = List.of("building:", "facility:", "partner:");
+    static final int ACTION_SUMMARY_MAX = 90;
+
+    /**
+     * '지도에서 보기' 버튼(11-07). 모델이 고른 장소(place, 이번에 도구로 찾은 것만), 없으면 근거 안내의 위치(facilityId).
+     * 대상 id 는 지도 데이터에 있는 것만(도구 결과·카탈로그) — 모델이 좌표나 id 를 만들지 않는다. 버튼은 하나만.
+     * 장소를 묻는 질문일 때만 부른다(11-09).
+     */
+    static List<AskRouteResponse.Action> mapActions(AskLiveData.Reference place, String facilityId, String answer) {
+        String summary = summaryOf(answer);
+        if (place != null) {
+            String ref = place.ref();
+            if (PLACE_PREFIXES.stream().anyMatch(prefix -> ref.startsWith(prefix) && ref.length() > prefix.length())) {
+                // 시설 참조 제목은 설명 한 줄(이름·층·시간…)이라 앱이 지도 데이터 이름을 쓴다. 건물·제휴는 이름 그대로.
+                String label = ref.startsWith("facility:") || place.title() == null || place.title().isBlank()
+                        ? null : place.title();
+                return List.of(new AskRouteResponse.Action("map", ref, label, summary));
+            }
+        }
+        if (facilityId != null && !facilityId.isBlank()) {
+            return List.of(new AskRouteResponse.Action("map", "facility:" + facilityId, null, summary));
+        }
+        return List.of();
+    }
+
+    /**
+     * 가는 길을 물었으면(11-09 'Q동 어떻게 가') 지도 버튼 뒤에 '여기서 가는 길'(route) 버튼을 하나 더 — 건물·시설만(제휴처는 캠퍼스 밖이라 경로망에 없다).
+     * 출발(내 위치)은 앱이 휴대폰 안에서 정한다 — 서버는 위치를 받지 않는다. 옛 앱은 모르는 type 이라 그리지 않는다.
+     */
+    static List<AskRouteResponse.Action> withRoute(List<AskRouteResponse.Action> actions, boolean route) {
+        if (!route || actions.isEmpty() || actions.get(0).target().startsWith("partner:")) {
+            return actions;
+        }
+        AskRouteResponse.Action map = actions.get(0);
+        return List.of(map, new AskRouteResponse.Action("route", map.target(), map.label(), map.summary()));
+    }
+
+    /** 답의 첫 문장(마크다운 굵게 표시는 뗀다), 최대 ACTION_SUMMARY_MAX 자. */
+    static String summaryOf(String answer) {
+        if (answer == null || answer.isBlank()) {
+            return null;
+        }
+        String text = answer.replace("**", "").strip();
+        int end = -1;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || ((c == '.' || c == '?' || c == '!') && (i + 1 == text.length() || Character.isWhitespace(text.charAt(i + 1))))) {
+                end = c == '\n' ? i : i + 1;
+                break;
+            }
+        }
+        String first = (end > 0 ? text.substring(0, end) : text).strip();
+        return first.length() > ACTION_SUMMARY_MAX ? first.substring(0, ACTION_SUMMARY_MAX - 1).stripTrailing() + "…" : first;
     }
 
     /** 고른 안내가 걸리는 주제의 고정 근거(카탈로그에 있는 것만). */

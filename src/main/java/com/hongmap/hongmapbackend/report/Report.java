@@ -164,6 +164,13 @@ public class Report {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * 작성자가 마지막으로 내용(제목·글·카테고리·장소·사진·시간)을 고친 시각(UTC, 11-09). 고친 적 없으면 null.
+     * 승인된 제보도 고치면 바로 반영되므로(사용자 결정 11-09) 앱·관리자 화면에 '수정됨'으로 드러낸다.
+     */
+    @Column(name = "edited_at")
+    private LocalDateTime editedAt;
+
     /** 사진 키를 순서대로(없으면 빈 목록). */
     public List<String> getImageKeys() {
         return images.stream().map(ReportImage::getImageKey).toList();
@@ -191,6 +198,49 @@ public class Report {
         if (this.publishedAt == null) {
             this.publishedAt = publishedAt;
         }
+    }
+
+    /**
+     * 작성자 수정(ReportService.update 가 규칙을 본 뒤). 건물·좌표는 그대로 두고 층·장소 설명·카테고리·제목·글·시간을 바꾼다.
+     * 상태(승인 대기·공개)는 그대로다.
+     */
+    public void editByAuthor(Integer floor, ReportCategory category, String customCategoryLabel, String placeLabel,
+                             String title, String content, LocalDateTime startsAt, LocalDateTime endsAt,
+                             List<ReportDay> days, LocalDateTime editedAt) {
+        this.floor = floor;
+        this.category = category;
+        this.customCategoryLabel = customCategoryLabel;
+        this.placeLabel = placeLabel;
+        this.title = title;
+        this.content = content;
+        this.startsAt = startsAt;
+        this.endsAt = endsAt;
+        this.days = days;
+        this.editedAt = editedAt;
+    }
+
+    /**
+     * 사진을 다시 맞춘다: keepIndexes(지금 사진 번호, 이 순서대로) 를 남기고 newKeys(검증·정리를 마친 새 키)를 뒤에 붙인다.
+     * 빠진 사진의 키를 돌려준다 — 호출한 쪽이 커밋 뒤 S3 에서 지운다. 같은 키를 지웠다 다시 넣지 않아 image_key UNIQUE 와 부딪치지 않는다.
+     */
+    public List<String> replaceImages(List<Integer> keepIndexes, List<String> newKeys) {
+        List<ReportImage> kept = new ArrayList<>();
+        for (Integer index : keepIndexes) {
+            kept.add(images.get(index));
+        }
+        List<String> removed = new ArrayList<>();
+        for (ReportImage image : images) {
+            if (!kept.contains(image)) {
+                removed.add(image.getImageKey());
+            }
+        }
+        images.retainAll(kept);
+        images.sort(java.util.Comparator.comparingInt(kept::indexOf));
+        for (int i = 0; i < images.size(); i++) {
+            images.get(i).moveTo(i);
+        }
+        addImages(newKeys);
+        return removed;
     }
 
     /** 시작·종료 시각을 고친다(공식 계정 작성자, ReportService.updateSchedule 이 규칙을 본 뒤). */

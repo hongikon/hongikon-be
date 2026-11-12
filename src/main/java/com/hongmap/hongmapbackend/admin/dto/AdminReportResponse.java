@@ -32,6 +32,8 @@ public record AdminReportResponse(
         LocalDateTime startsAt,
         LocalDateTime endsAt,
         LocalDateTime createdAt,
+        /** 작성자가 마지막으로 내용을 고친 시각(UTC, 11-09). 고친 적 없으면 null. */
+        LocalDateTime editedAt,
         Long authorId,
         /**
          * 구버전 관리자 화면 호환용 — 예전엔 로그인 닉네임 원문이었지만 이제 authorDisplayName 과 같은 값이다.
@@ -68,6 +70,7 @@ public record AdminReportResponse(
                 report.getStartsAt(),
                 report.getEndsAt(),
                 report.getCreatedAt(),
+                report.getEditedAt(),
                 report.getUser().getId(),
                 report.getUser().getDisplayName(),
                 flagCount,
