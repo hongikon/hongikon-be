@@ -272,6 +272,7 @@ public class AskRouteService {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
         return message.append(AskBoards.hint(request.question())).append(AskCourses.aliasLine(request.question()))
+                .append(AskClubs.hint(request.question()))
                 .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
@@ -382,6 +383,7 @@ public class AskRouteService {
                 .append(AskClosedPlaces.contextLine())
                 .append(departmentLine(request.question()))
                 .append(AskCourses.aliasLine(request.question()))
+                .append(AskClubs.hint(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
