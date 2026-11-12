@@ -221,6 +221,8 @@ public class AskLlmClient {
               학과·학년 과목은 표(학기 | 과목 | 학점 | 이수구분)로 원문 줄을 모두 넣고, '2026 교과과정책자 기준'과 '이번 학기 개설·분반은 수강신청 시스템에서 확인'을 밝힌다.
               '책자 합계 검산 안 됨'이 붙은 줄이 있으면 '책자 원문 확인'을 한 줄 덧붙인다. 입학연도에 따라 교육과정이 다를 수 있다는 점도 짧게.
               courses:2026 을 sourceIds 에 넣는다. [질문 속 줄임말]에 '여러 과목'으로 적힌 줄임말이면 후보 과목을 보이고 어느 과목인지 묻는다.
+              '4학년 1학기에 전공필수 있는 학과', '전필이 가장 많은 학과'처럼 학과를 가리지 않거나 세고 더하는 질문은 search_courses 를
+              mode 'count_by_dept'(category·grade·term 채움)로 부르고, 결과의 학과 수·과목 수·학점을 그대로 쓴다(직접 세거나 더하지 않는다).
             - 중앙동아리 질문(목록·분야별 동아리·특정 동아리의 동방·정기 모임·모집·인스타그램 같은 링크·소개)은 search_clubs 로 찾는다 —
               [안내 원문]에 동아리 안내가 있어도 먼저 부른다. search_clubs(clubs:hongikunion, 총학생회 중앙동아리 안내)가 동아리 이름·분과·동방·
               정기 모임·모집 안내·링크의 기준이다: [안내 원문](학교 홈페이지 옛 동아리 안내)과 다르면 search_clubs 를 따르고 옛 호실·이름은 쓰지 않는다.
@@ -368,11 +370,16 @@ public class AskLlmClient {
                                 + "같은 건물이면 '같은 건물'과 층, 아니면 위치 사이 직선거리(m). "
                                 + "예: from 'T동', query '편의점' / from '중앙도서관', query '프린터' / from 'R동', query '카페 제휴'.",
                         Map.of("from", Map.of("type", "string"), "query", Map.of("type", "string")), List.of("from", "query")),
-                tool("search_courses", "2026 교과과정책자의 학과별 교과과정(과목명·학수번호·학년·학기·학점·이수구분)을 찾는다. query 는 과목명·줄임말(컴프·선대·운체 …)·학수번호, "
-                                + "비우고 dept·grade 를 주면 그 학과·학년 과목 목록. dept 는 학과·전공 이름(컴퓨터공학과·화학공학전공 …), grade·term 은 숫자, campus 는 세종일 때만 '세종'. "
+                tool("search_courses", "2026 교과과정책자의 학과별 교과과정(과목명·학수번호·학년·학기·학점·이수구분)을 서버가 거르고 센다 — 칸만 채운다. "
+                                + "query 는 과목명·줄임말(컴프·선대·운체 …)·학수번호(없으면 빈 문자열), dept 는 학과·전공 이름(컴퓨터공학과·화학공학전공 …), "
+                                + "grade·term 은 숫자, category 는 이수구분(전공필수·전필·전공선택·전선·전공기초·교양·교양필수·MSC·일반선택), campus 는 세종일 때만 '세종'. "
+                                + "mode 'list'(기본)는 과목 줄, 'count_by_dept' 는 책자 모든 행을 세어 학과별 과목 수·학점 합과 예시 과목 — "
+                                + "'학과 상관없이·어느 학과·가장 많은 학과·○○ 있는 학과' 질문이나 '○○과 3학년 전공필수 몇 학점'처럼 세거나 더하는 질문에 쓴다. "
                                 + "참조는 courses:2026 하나.",
                         Map.of("query", Map.of("type", "string"), "dept", Map.of("type", "string"),
-                                "grade", Map.of("type", "integer"), "term", Map.of("type", "integer"), "campus", Map.of("type", "string")),
+                                "grade", Map.of("type", "integer"), "term", Map.of("type", "integer"), "campus", Map.of("type", "string"),
+                                "category", Map.of("type", "string"),
+                                "mode", Map.of("type", "string", "enum", List.of("list", "count_by_dept"))),
                         List.of("query")),
                 tool("search_clubs", "총학생회가 올린 홍익대 중앙동아리 66개(이름·분과·소개·동방·정기 모임·모집 안내·링크)를 찾는다. "
                                 + "query 는 동아리 이름('뚜라미', 'HIUC')이나 분야 낱말('밴드', '축구', '봉사'), 비우면 분과별 전체 목록. "
@@ -784,8 +791,10 @@ public class AskLlmClient {
             Integer grade = input.get("grade") instanceof Number n ? n.intValue() : null;
             Integer term = input.get("term") instanceof Number n ? n.intValue() : null;
             String campus = input.get("campus") instanceof String text ? text : null;
+            String category = input.get("category") instanceof String text ? text : null;
+            AskCourses.Mode mode = AskCourses.Mode.of(input.get("mode") instanceof String text ? text : null);
             progress.searching(query.isBlank() ? (dept == null ? "과목" : dept + " 과목") : query);
-            String out = AskCourses.search(query, dept, grade, term, campus, AskCourses.data());
+            String out = AskCourses.search(query, dept, grade, term, category, campus, mode, AskCourses.data());
             if (out.startsWith(AskCourses.SOURCE_REF)) {
                 references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, AskCourses.SOURCE_URL, null));
             }
