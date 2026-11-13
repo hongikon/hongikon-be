@@ -201,7 +201,7 @@ public class AskRouteService {
                     .map(reference -> new AskRouteResponse.Link(reference.title(), reference.url(), reference.date()))
                     .toList();
             return withButtons(new AskRouteResponse(sources.isEmpty() ? AskCatalog.NONE : sources.get(0), sources, answer.text(),
-                    answer.found(), catalog.version(), links), answer.map())
+                    answer.found(), catalog.version(), links), answer.map(), request.question())
                     .withSections(answer.found()
                             ? fillConsequences(AskQuestionIntent.filter(request.question(), answer.sections()), answer.text(), related.consequences())
                             : AskQuestionIntent.filter(request.question(), answer.sections()));
@@ -272,6 +272,7 @@ public class AskRouteService {
             message.append("앱 낱말 찾기 후보: ").append(request.hint()).append('\n');
         }
         return message.append(AskBoards.hint(request.question())).append(AskCourses.aliasLine(request.question()))
+                .append(AskClubs.hint(request.question()))
                 .append("이번 질문: ").append(oneLine(request.question())).toString();
     }
 
@@ -378,8 +379,11 @@ public class AskRouteService {
             message.append('\n');
         }
         return message.append(AskQuestionIntent.contextLine(request.question()))
+                .append(AskFacilityKinds.contextLine(request.question()))
+                .append(AskClosedPlaces.contextLine())
                 .append(departmentLine(request.question()))
                 .append(AskCourses.aliasLine(request.question()))
+                .append(AskClubs.hint(request.question()))
                 .append("[이번 질문]\n").append(oneLine(request.question())).toString();
     }
 
@@ -483,7 +487,7 @@ public class AskRouteService {
      * 답 카드 아래 버튼 — 근거 안내의 첫 학교 페이지(같은 주소는 한 번), 담당 전화(같은 번호는 한 번, 최대 3),
      * 그리고 장소를 물은 질문일 때만(map 이 있을 때) 위치 카드·지도 버튼.
      */
-    private AskRouteResponse withButtons(AskRouteResponse response, AskLlmClient.MapTarget map) {
+    private AskRouteResponse withButtons(AskRouteResponse response, AskLlmClient.MapTarget map, String question) {
         List<AskRouteResponse.Link> pages = new ArrayList<>();
         List<AskRouteResponse.Phone> phones = new ArrayList<>();
         String facilityId = null;
@@ -515,6 +519,11 @@ public class AskRouteService {
             facilityId = null;
         } else if (place != null) {
             facilityId = place.ref().startsWith("facility:") ? place.ref().substring("facility:".length()) : null;
+        }
+        if (map != null) {
+            MapPick checked = crossCheck(AskFacilityKinds.kinds(question), place, facilityId, liveData::facilityKind);
+            place = checked.place();
+            facilityId = checked.facilityId();
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId)
@@ -577,6 +586,29 @@ public class AskRouteService {
         }
         long hit = words.stream().filter(squashedAnswer::contains).count();
         return hit * 10 >= words.size() * 6L;
+    }
+
+    record MapPick(AskLiveData.Reference place, String facilityId) {
+    }
+
+    /**
+     * 지도 버튼 교차 확인(11-12 사용자 피드백 — '열람실 어디'의 지도 버튼이 G동 '행정·지원' 부서를 열었다). 안내의 facilityId 는
+     * 그 안내를 맡은 부서 위치(397개 중 395개가 학생처 종류)라, 시설 종류를 묻는 질문에서 모델이 장소를 고르지 않았을 때(여러 곳 목록) 그 부서로
+     * 빠지면 엉뚱한 곳을 연다. 종류 질문이면: 모델이 고른 장소가 없으면 부서 위치를 쓰지 않고, 고른 시설이 물은 종류가 아니면 버튼을 뺀다.
+     * 건물·제휴 대상과 종류를 묻지 않는 질문('학생지원팀 어디')은 그대로다.
+     */
+    static MapPick crossCheck(List<String> askedKinds, AskLiveData.Reference place, String facilityId,
+                              java.util.function.Function<String, java.util.Optional<String>> kindOf) {
+        if (askedKinds.isEmpty()) {
+            return new MapPick(place, facilityId);
+        }
+        if (place == null) {
+            return new MapPick(null, null);
+        }
+        if (place.ref().startsWith("facility:") && !kindOf.apply(facilityId).map(askedKinds::contains).orElse(false)) {
+            return new MapPick(null, null);
+        }
+        return new MapPick(place, facilityId);
     }
 
     /** 지도 대상이 되는 장소 — 건물·편의시설·제휴. */
