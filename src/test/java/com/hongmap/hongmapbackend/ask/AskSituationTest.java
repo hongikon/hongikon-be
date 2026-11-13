@@ -12,7 +12,9 @@ class AskSituationTest {
         assertThat(AskSituation.from("4학년인데 재수강 선삭제 하고 싶어")).containsEntry("학년", 4);
         assertThat(AskSituation.from("신입생인데 휴학 돼?")).containsEntry("학년", 1);
         assertThat(AskSituation.from("장학생인데 휴학하면?")).containsEntry("장학생", true);
-        assertThat(AskSituation.from("분할납부 중에 입대해")).containsEntry("분할납부", true).containsEntry("군복무", true);
+        // '입대해'(앞으로 갈 학생)는 군복무가 아니다 — 전역 뒤 복학 규정이 붙지 않게(11-10 R15). 복무 중·전역은 군복무.
+        assertThat(AskSituation.from("분할납부 중에 입대해")).containsEntry("분할납부", true).doesNotContainKey("군복무");
+        assertThat(AskSituation.from("9월 10일에 전역하는데 2학기 복학 돼?")).containsEntry("군복무", true);
         assertThat(AskSituation.from("졸업유예 중인데 재수강 돼?")).containsEntry("졸업유예", true);
         assertThat(AskSituation.from("지금 휴학 중인데 전과 가능해?")).containsEntry("휴학중", true);
         assertThat(AskSituation.from("3학기 마쳤는데 전과")).containsEntry("이수학기", 3);

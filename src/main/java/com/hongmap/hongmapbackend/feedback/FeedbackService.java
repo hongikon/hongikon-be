@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import com.hongmap.hongmapbackend.report.image.ReportImageService;
 
 @Service
@@ -71,14 +73,39 @@ public class FeedbackService {
     public FeedbackResponse changeStatus(Long id, String status) {
         Feedback feedback = feedbackRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 문의입니다."));
-        FeedbackStatus next = parse(status);
+        apply(feedback, parse(status));
+        return toResponse(feedback);
+    }
+
+    /** 이 회원이 공식 계정 신청(OfficialRequests)을 보낸 적이 있는지. 처리 완료된 신청도 센다. */
+    @Transactional(readOnly = true)
+    public boolean hasOfficialRequest(Long userId) {
+        return feedbackRepository.existsByUser_IdAndContentStartingWith(userId, OfficialRequests.PREFIX);
+    }
+
+    /** userIds 중 공식 계정 신청을 보낸 회원 id. */
+    @Transactional(readOnly = true)
+    public Set<Long> usersWithOfficialRequest(Collection<Long> userIds) {
+        if (userIds.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(feedbackRepository.findUserIdsByContentPrefix(userIds, OfficialRequests.PREFIX));
+    }
+
+    /** 공식 이름을 붙인 뒤 그 회원의 열린 신청을 처리 완료로 닫는다(확인 자료 사진도 이때 지운다). */
+    @Transactional
+    public void resolveOfficialRequests(Long userId) {
+        feedbackRepository.findByUser_IdAndStatusAndContentStartingWith(userId, FeedbackStatus.OPEN, OfficialRequests.PREFIX)
+                .forEach(feedback -> apply(feedback, FeedbackStatus.RESOLVED));
+    }
+
+    private void apply(Feedback feedback, FeedbackStatus next) {
         feedback.changeStatus(next, LocalDateTime.now());
         // 처리가 끝나면 참고 사진은 남기지 않는다(확인용으로만 받았다 — 최소 보관).
         if (next == FeedbackStatus.RESOLVED && !feedback.getImageKeyList().isEmpty()) {
             reportImageService.deleteAfterCommit(feedback.getImageKeyList());
             feedback.clearImages();
         }
-        return toResponse(feedback);
     }
 
     private FeedbackResponse toResponse(Feedback feedback) {

@@ -54,7 +54,7 @@ class AskLlmClientTimingTest {
         AskCatalog catalog = new AskCatalog(mapper);
         AskRetriever retriever = new AskRetriever(new AskRetrieverTest.FakeEmbed(Map.of()), null, false);
         AskRuleGraph graphOff = new AskRuleGraph(catalog, (AskRuleGraph.GraphFile) null, false, 8, 2);
-        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "5m", "low");
+        AskLlmClient client = new AskLlmClient(catalog, null, retriever, graphOff, mapper, "", "claude-haiku-5-5", 20, "5m", "low", 6000, "", "");
         List<String> events = new ArrayList<>();
         AskProgress progress = new AskProgress() {
             @Override

@@ -53,6 +53,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 길찾기 비교 테스트(walkroute)가 그래프 결과를 많이 들고 있어 기본 512MB 에선 다른 테스트의 스프링 컨텍스트와 겹쳐 느려진다(11-09).
+	maxHeapSize = '1g'
 	// 운영(main() 전에 HongmapBackendApplication 정적 초기화로 UTC)과 같게 테스트 JVM 도 처음부터 UTC 로 띄운다.
 	// 안 그러면 컨텍스트가 뜨기 전에 읽힌 기본 시간대(KST)가 @CreationTimestamp·H2 쪽에 남아
 	// LocalDateTime.now() 로 찍은 값(UTC)과 9시간 어긋난다(신고 created_at vs 제보 reviewed_at 비교 등).

@@ -66,6 +66,7 @@ public class AskRouteController {
     private final AskCatalog askCatalog;
     private final AskConversationRecorder recorder;
     private final AskPublicQuota publicQuota;
+    private final AskPopularGuides popularGuides;
     private final AdminAccessChecker adminAccessChecker;
     private final boolean adminPreview;
     private final byte[] devKeySha256;
@@ -82,10 +83,12 @@ public class AskRouteController {
 
     public AskRouteController(AskRouteService askRouteService, AskRateLimiter askRateLimiter, AskTranscript askTranscript,
                               AskCatalog askCatalog, AskConversationRecorder recorder, AskPublicQuota publicQuota,
+                              AskPopularGuides popularGuides,
                               AdminAccessChecker adminAccessChecker,
                               @Value("${ask.public.admin-preview:true}") boolean adminPreview,
                               @Value("${ask.dev-key-sha256:}") String devKeySha256) {
         this.publicQuota = publicQuota;
+        this.popularGuides = popularGuides;
         this.adminAccessChecker = adminAccessChecker;
         this.adminPreview = adminPreview;
         this.askCatalog = askCatalog;
@@ -206,6 +209,16 @@ public class AskRouteController {
     @GetMapping("/ask/status")
     public AskPublicQuota.Status status(@AuthenticationPrincipal Long userId) {
         return publicQuota.status(userId, appOpen(userId));
+    }
+
+    @Operation(summary = "요즘 많이 찾는 안내(BETA)", description = "앱 물어보기 탭이 인사에 답할 때 보이는 안내 id(최대 6개). "
+            + "최근 7일 동안 서로 다른 대화 5개 이상에서 답에 쓴 안내만, 많은 순. 건수·질문은 주지 않는다. 한 시간마다 다시 센다. 로그인 필요 없음.")
+    @GetMapping("/ask/popular")
+    public PopularGuides popular() {
+        return new PopularGuides(popularGuides.ids());
+    }
+
+    public record PopularGuides(List<String> ids) {
     }
 
     /** 앱 탭 경로가 이 사용자에게 열려 있는지 — 스위치가 켜졌거나, 꺼져 있어도 운영진 미리보기. 게스트는 스위치만 본다. */

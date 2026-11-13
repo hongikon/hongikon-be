@@ -185,8 +185,11 @@ public class AskRuleGraph {
             }
         }
         List<Edge> ordered = new ArrayList<>(found.keySet());
-        // 같은 단계·종류 안에서는 파일 순서 그대로(정렬이 안정적이다).
-        ordered.sort(Comparator.comparingInt((Edge edge) -> found.get(edge)).thenComparingInt(edge -> TYPES.indexOf(edge.type())));
+        // 같은 단계 안에서는 학생이 말한 상황에 맞은 조건 선이 먼저(11-10 평가 R07 — '졸업유예생 재수강' 제한 선이 결과 선에 밀려 잘렸다),
+        // 그다음 종류 순. 같은 단계·종류 안에서는 파일 순서 그대로(정렬이 안정적이다).
+        ordered.sort(Comparator.comparingInt((Edge edge) -> found.get(edge))
+                .thenComparingInt(edge -> situation != null && edge.condition() != null && !edge.condition().isEmpty() ? 0 : 1)
+                .thenComparingInt(edge -> TYPES.indexOf(edge.type())));
         List<Edge> used = ordered.subList(0, Math.min(maxEdges, ordered.size()));
         List<String> guides = new ArrayList<>();
         for (Edge edge : used) {
@@ -199,7 +202,11 @@ public class AskRuleGraph {
         for (Edge edge : used) {
             block.append('\n').append(line(edge, situation != null));
         }
-        return new Related(used.stream().map(Edge::id).toList(), guides, block.toString());
+        // 1단계 결과 선 — 답에 그 결과가 빠졌는지 서버가 확인한다(AskRouteService.fillConsequences).
+        List<Consequence> consequences = used.stream()
+                .filter(edge -> found.get(edge) == 1 && edge.type().equals("결과"))
+                .map(edge -> new Consequence(name(edge.to()), edge.fact().trim())).toList();
+        return new Related(used.stream().map(Edge::id).toList(), guides, block.toString(), consequences);
     }
 
     /** "- 학기재수강 ->(결과) 성적경고: 사실 문장 (근거: 안내 id)" - 조건이 있으면 뒤에 조건과 되묻기 기준. */
@@ -239,12 +246,20 @@ public class AskRuleGraph {
      * @param guides  answerIds 뒤에 더할 이웃 안내 id(원문을 함께 넘긴다)
      * @param block   context 끝에 붙일 [함께 볼 규정] 블록(앞 빈 줄 포함, 없으면 "")
      */
-    public record Related(List<String> edgeIds, List<String> guides, String block) {
-        static final Related EMPTY = new Related(List.of(), List.of(), "");
+    public record Related(List<String> edgeIds, List<String> guides, String block, List<Consequence> consequences) {
+        static final Related EMPTY = new Related(List.of(), List.of(), "", List.of());
+
+        public Related(List<String> edgeIds, List<String> guides, String block) {
+            this(edgeIds, guides, block, List.of());
+        }
 
         public boolean isEmpty() {
             return edgeIds.isEmpty();
         }
+    }
+
+    /** 답에 들어가야 할 결과 하나 — target: 결과 점 이름(예: 성적경고), fact: 선의 사실 문장. */
+    public record Consequence(String target, String fact) {
     }
 
     record GraphFile(String version, String catalogVersion, List<Node> nodes, List<Edge> edges) {
