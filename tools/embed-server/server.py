@@ -3,10 +3,13 @@
 - POST /embed  {"texts": ["…", …]}  → {"model": "BAAI/bge-m3", "vectors": [[…], …]}   (한 번에 최대 32문장, 문장당 최대 2000자)
 - GET  /health → {"ok": true, "model": …}
 - 키: 요청 머리 X-Embed-Key 가 환경변수 EMBED_SERVER_KEY 와 같아야 한다(비어 있으면 서버가 뜨지 않는다). 질문 글은 기록하지 않는다.
+- 기록: 한 줄에 시각·출처·요청·결과 코드·문장 수·걸린 시간만 남긴다. 출처는 요청 머리 Host 로 가른다 — localhost·127.0.0.1 이면 local(이 맥의 개발 서버·평가),
+  그 밖(터널 주소)이면 tunnel(운영 서버). 터널은 사용자 모드라 접속 주소가 둘 다 127.0.0.1 이어서 주소로는 못 가른다.
 - 주소: EMBED_SERVER_HOST(기본 127.0.0.1)·EMBED_SERVER_PORT(기본 8090). 운영 서버와는 사설 터널(Tailscale 등) 주소에만 연다 — 공인 포트로 열지 않는다.
 실행: python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && EMBED_SERVER_KEY=… ./venv/bin/python server.py
 """
-import hmac, json, os, sys, threading
+import hmac, json, os, sys, threading, time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_ID = os.environ.get('EMBED_MODEL', 'BAAI/bge-m3')
@@ -36,8 +39,22 @@ def embed(texts):
 class Handler(BaseHTTPRequestHandler):
     server_version = 'hongikon-embed'
 
-    def log_message(self, fmt, *args):  # 요청 줄만 남긴다(본문·질문 글은 남기지 않는다)
-        sys.stderr.write('%s %s\n' % (self.command, self.path))
+    def setup(self):
+        super().setup()
+        self._t0 = time.monotonic()
+        self._n = 0
+
+    def _source(self):
+        host = (self.headers.get('Host') or '').rsplit(':', 1)[0].strip('[]').lower() if self.headers else ''
+        return 'local' if host in ('localhost', '127.0.0.1', '::1', '') else 'tunnel'
+
+    def log_request(self, code='-', size='-'):  # 본문·질문 글은 남기지 않는다
+        sys.stderr.write('%s %s %s %s %s n=%d %dms\n' % (
+            datetime.now().astimezone().isoformat(timespec='seconds'), self._source(), self.command, self.path,
+            code, self._n, (time.monotonic() - self._t0) * 1000))
+
+    def log_message(self, fmt, *args):  # 오류 등 나머지 기록도 시각만 붙이고 본문은 남기지 않는다
+        sys.stderr.write('%s %s\n' % (datetime.now().astimezone().isoformat(timespec='seconds'), fmt % args))
 
     def _send(self, code, payload):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
@@ -71,6 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, {'error': 'json'})
         if not isinstance(texts, list) or not texts or len(texts) > MAX_TEXTS or not all(isinstance(t, str) for t in texts):
             return self._send(400, {'error': 'texts'})
+        self._n = len(texts)
         self._send(200, {'model': MODEL_ID, 'vectors': embed([t[:MAX_CHARS] for t in texts])})
 
 
