@@ -223,6 +223,11 @@ public class AskLlmClient {
               courses:2026 을 sourceIds 에 넣는다. [질문 속 줄임말]에 '여러 과목'으로 적힌 줄임말이면 후보 과목을 보이고 어느 과목인지 묻는다.
               '4학년 1학기에 전공필수 있는 학과', '전필이 가장 많은 학과'처럼 학과를 가리지 않거나 세고 더하는 질문은 search_courses 를
               mode 'count_by_dept'(category·grade·term 채움)로 부르고, 결과의 학과 수·과목 수·학점을 그대로 쓴다(직접 세거나 더하지 않는다).
+            - 교직 이수(교직과정·교원자격증·교직과목·교과교육) 질문은 [안내 원문]의 '교직과정 교원자격증 무시험검정 요건·교직과목'(교과과정책자 사-2·3)과
+              '교직과정'(학교 홈페이지, 신청·선발)으로 답한다 — search_courses 의 교직 행은 사범대학 교육학과 과목뿐이다.
+              학과를 말했으면('디경융 교직 이수') 그 안내의 '교과교육' 줄에서 그 학과 이름을 찾아 그 학과가 들을 교과교육 과목(학수번호·학년·학기·학점)을 쓰고,
+              교직이론·교직소양·교육실습·교과논리 및 논술은 모든 비사범계 학과가 같다고 쓴다. 학과 이름이 교과교육 줄에 없으면 지어내지 않고
+              '교과과정책자 교직과목 일람표에는 이 학과의 교과교육 과목이 없어요 — 교직과정이 있는지와 인원은 사범대학 교직과에 확인해야 해요'라고 한다.
             - 중앙동아리 질문(목록·분야별 동아리·특정 동아리의 동방·정기 모임·모집·인스타그램 같은 링크·소개)은 search_clubs 로 찾는다 —
               [안내 원문]에 동아리 안내가 있어도 먼저 부른다. search_clubs(clubs:hongikunion, 총학생회 중앙동아리 안내)가 동아리 이름·분과·동방·
               정기 모임·모집 안내·링크의 기준이다: [안내 원문](학교 홈페이지 옛 동아리 안내)과 다르면 search_clubs 를 따르고 옛 호실·이름은 쓰지 않는다.
@@ -794,11 +799,12 @@ public class AskLlmClient {
             String category = input.get("category") instanceof String text ? text : null;
             AskCourses.Mode mode = AskCourses.Mode.of(input.get("mode") instanceof String text ? text : null);
             progress.searching(query.isBlank() ? (dept == null ? "과목" : dept + " 과목") : query);
-            String out = AskCourses.search(query, dept, grade, term, category, campus, mode, AskCourses.data());
-            if (out.startsWith(AskCourses.SOURCE_REF)) {
-                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, AskCourses.SOURCE_URL, null));
+            AskCourses.Found found = AskCourses.find(query, dept, grade, term, category, campus, mode, AskCourses.data());
+            if (found.text().startsWith(AskCourses.SOURCE_REF)) {
+                // 책자 링크는 찾은 학과의 쪽(학교 전자책) — 학과를 가리지 않으면 책자 첫 쪽.
+                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, found.url(), null));
             }
-            return out;
+            return found.text();
         }
         if ("search_clubs".equals(use.name()) && input != null) {
             String query = input.get("query") instanceof String text ? text : "";

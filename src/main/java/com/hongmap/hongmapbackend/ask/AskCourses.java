@@ -27,7 +27,12 @@ final class AskCourses {
     private static final Logger log = LoggerFactory.getLogger(AskCourses.class);
     static final String SOURCE_REF = "courses:2026";
     static final String SOURCE_TITLE = "2026 교과과정책자(학과 교과과정)";
-    static final String SOURCE_URL = "https://wwwce.hongik.ac.kr/wwwce/0302.do?mode=view&articleNo=149240";
+    /** 학교 전자책(ibook) 의 같은 책자 — 쪽 번호가 PDF 와 같다(237쪽). 학과 쪽은 {@link #pageUrl(int)}. 옛 링크(컴퓨터공학과 게시판 첨부)는 쓰지 않는다. */
+    static final String SOURCE_URL = "https://ibook.hongik.ac.kr/Viewer/2026curriculum";
+    /** 비사범계 교직과목·학과별 교과교육 과목은 과목 DB 가 아니라 안내 원문(교과과정책자 사-2·3)에 있다. */
+    static final String TEACHING_NOTE = "교직과정(비사범계 학과 학생)의 교직이론·교직소양·교육실습 과목과 학과별 교과교육 과목(공업·상업정보·외국어·일반사회·미술·디자인 교과교육론 등)은"
+            + " 이 과목 DB 에 없고 안내 원문 '교직과정 교원자격증 무시험검정 요건·교직과목'(교과과정책자 사-2·3)에 있다 — 그 안내로 답한다.";
+    private static final java.util.regex.Pattern SRC_PAGE = java.util.regex.Pattern.compile("PDF\\s*(\\d+)\\s*쪽");
     static final int MAX_LINES = 45;
     /** 줄임말 뒤에 붙는 조사 — '컴프는', '중동에서'. */
     private static final List<String> JOSA = List.of("", "은", "는", "이", "가", "을", "를", "에", "에서", "도", "랑", "이랑", "하고", "의",
@@ -152,7 +157,66 @@ final class AskCourses {
     }
 
     private static String deptStem(String dept) {
-        return squash(dept).replaceAll("(학과|학부|전공|과)$", "");
+        return deptKey(dept).replaceAll("(학과|학부|전공|과)$", "");
+    }
+
+    /** 학과 이름 비교용 — 띄어쓰기·가운뎃점을 뺀다('산업·데이터공학과' = '산업데이터공학과', 11-14: 산데 질문이 과목 0개라 모델이 산업디자인으로 짐작했다). */
+    static String deptKey(String dept) {
+        return squash(dept).replaceAll("[·ㆍ・.\\-]", "");
+    }
+
+    /**
+     * 게시판 이름(AskBoards) 하나가 책자의 여러 학과 칸에 걸치는 경우 — 1학년은 학부, 2학년부터 전공 이름으로 실린다.
+     * 앞부분 이름으로 맞추면 '디자인학부'(→ '디자인')가 디자인엔지니어링·건축디자인까지 잡으므로 칸 이름을 정해 둔다.
+     */
+    private static final Map<String, List<String>> COURSE_DEPTS = Map.of(
+            "디자인예술경영학부", List.of("디자인·예술경영학부", "디자인경영전공", "예술경영전공", "디자인경영융합학부"),
+            "디자인학부", List.of("디자인학부", "산업디자인전공", "시각디자인전공"));
+    /** 학부 게시판으로 묶이는 줄임말 중 전공 하나를 가리키는 말 — '산디'는 산업디자인전공만(시각디자인과 섞지 않는다). */
+    private static final Map<String, String> MAJOR_WORDS = Map.of(
+            "산디", "산업디자인전공", "산업디자인", "산업디자인전공", "시디", "시각디자인전공", "시각디자인", "시각디자인전공",
+            "디자인경영", "디자인경영전공", "예술경영", "예술경영전공");
+
+    /** 질문에 전공을 가리키는 줄임말이 있으면 그 전공으로 좁힌다(게시판 이름이 학부일 때만). */
+    static String refineMajor(String dept, String question) {
+        List<String> group = dept == null ? null : COURSE_DEPTS.get(dept);
+        if (group == null || question == null) {
+            return dept;
+        }
+        String q = squash(question);
+        for (Map.Entry<String, String> e : MAJOR_WORDS.entrySet()) {
+            if (q.contains(e.getKey()) && group.contains(e.getValue()) && !q.contains("산업데이터")) {
+                return e.getValue();
+            }
+        }
+        return dept;
+    }
+
+    /** 책자 칸의 학과(courseDept)가 찾는 학과(dept)인가. 전공 하나로 좁혔으면 그 전공과 학부 공통 칸(1학년, 묶음 맨 앞)만. */
+    static boolean deptMatches(String dept, String courseDept) {
+        if (dept == null || dept.isBlank()) {
+            return true;
+        }
+        List<String> group = COURSE_DEPTS.get(dept);
+        if (group != null) {
+            return group.contains(courseDept);
+        }
+        for (List<String> g : COURSE_DEPTS.values()) {
+            if (g.contains(dept)) {
+                return courseDept.equals(dept) || courseDept.equals(g.get(0));
+            }
+        }
+        return deptKey(courseDept).contains(deptStem(dept));
+    }
+
+    /** 링크를 한 쪽으로 모을 때의 학과 묶음 — 학부·전공 칸이 한 묶음이면 같은 학과로 본다. */
+    private static String deptGroup(String courseDept) {
+        for (Map.Entry<String, List<String>> e : COURSE_DEPTS.entrySet()) {
+            if (e.getValue().contains(courseDept)) {
+                return e.getKey();
+            }
+        }
+        return courseDept;
     }
 
     /** 이수구분 낱말(줄임말 포함) → 정규 이름. 모르면 null. '교양'·'전공'은 묶음(교양필수·교양선택 …, 전공필수·전공선택·전공기초). */
@@ -220,6 +284,24 @@ final class AskCourses {
      * query 에 섞여 온 학년·학기·학과·이수구분 낱말은 칸으로 옮긴다. 이름 조건도 학과도 없고 이수구분·학년만 있으면 COUNT_BY_DEPT 로 답한다.
      */
     static String search(String query, String dept, Integer grade, Integer term, String category, String campus, Mode mode, Data d) {
+        return find(query, dept, grade, term, category, campus, mode, d).text();
+    }
+
+    /** 찾은 결과와 책자 링크 — 한 학과만 나왔으면 그 학과 쪽(학교 전자책), 아니면 책자 첫 쪽. */
+    record Found(String text, String url) {
+    }
+
+    static String pageUrl(int page) {
+        return SOURCE_URL + "/" + page;
+    }
+
+    /** 원문 쪽('2026 교과과정책자 PDF 62쪽') → 전자책 쪽 링크. 쪽을 모르면 책자 첫 쪽. */
+    static String pageUrl(Course c) {
+        java.util.regex.Matcher m = SRC_PAGE.matcher(c.src() == null ? "" : c.src());
+        return m.find() ? pageUrl(Integer.parseInt(m.group(1))) : SOURCE_URL;
+    }
+
+    static Found find(String query, String dept, Integer grade, Integer term, String category, String campus, Mode mode, Data d) {
         // 검색어에 학년·학기·학과가 섞여 오면 칸으로 옮긴다(11-10 실제 모델: '컴공 1학년 과목'을 query 에 그대로 넣었다).
         String rest = query == null ? "" : query;
         boolean countQuestion = COUNT_QUESTION.matcher(rest).find();
@@ -258,17 +340,23 @@ final class AskCourses {
         } else {
             dept = AskBoards.find(dept).map(AskBoards.Match::name).orElse(dept);
         }
+        dept = refineMajor(dept, query);
         rest = rest.replaceAll("(과목|교과과정|커리큘럼|수업|뭐|들어|듣는|들어야|목록|알려줘|있어)", " ").strip();
         rest = dropCountWords(rest);
         boolean noDept = dept == null || dept.isBlank();
         boolean noName = squash(rest).isEmpty();
+        Found result;
         if (mode == Mode.COUNT_BY_DEPT || (noName && countQuestion) || (noDept && noName && (cat != null || grade != null))) {
-            return countByDept(rest, dept, grade, term, cat, campus, d);
+            result = new Found(countByDept(rest, dept, grade, term, cat, campus, d), SOURCE_URL);
+        } else {
+            result = searchOnce(rest, dept, grade, term, cat, campus, d);
+            // 이름으로 못 찾았는데 학과는 있으면 그 학과(학년) 과목 목록으로.
+            if (!result.text().startsWith(SOURCE_REF) && !squash(rest).isEmpty() && !noDept) {
+                result = searchOnce("", dept, grade, term, cat, campus, d);
+            }
         }
-        String result = searchOnce(rest, dept, grade, term, cat, campus, d);
-        // 이름으로 못 찾았는데 학과는 있으면 그 학과(학년) 과목 목록으로.
-        if (!result.startsWith(SOURCE_REF) && !squash(rest).isEmpty() && !noDept) {
-            result = searchOnce("", dept, grade, term, cat, campus, d);
+        if ("교직".equals(cat)) {
+            result = new Found(result.text() + "\n" + TEACHING_NOTE + "\n", result.url());
         }
         return result;
     }
@@ -354,12 +442,11 @@ final class AskCourses {
     /** 조건에 맞는 과목을 모든 행에서 세어 학과별로(과목 수 많은 순). 같은 학년의 같은 과목이 두 학기에 다 있으면 한 번만 센다. */
     static String countByDept(String query, String dept, Integer grade, Integer term, String cat, String campus, Data d) {
         String wantCampus = campus != null && campus.contains("세종") ? "세종" : "서울";
-        String stem = dept == null ? "" : deptStem(dept);
         Set<String> names = nameKeys(query, d);
         Map<String, Map<String, Course>> byDept = new LinkedHashMap<>();
         Set<String> deptsInScope = new LinkedHashSet<>();
         for (Course c : d.courses()) {
-            if (!c.campus().equals(wantCampus) || (!stem.isEmpty() && !squash(c.dept()).contains(stem))
+            if (!c.campus().equals(wantCampus) || !deptMatches(dept, c.dept())
                     || (grade != null && c.grade() != grade) || (term != null && c.term() != term)) {
                 continue;
             }
@@ -407,18 +494,18 @@ final class AskCourses {
         return out.toString();
     }
 
-    private static String searchOnce(String query, String dept, Integer grade, Integer term, String cat, String campus, Data d) {
+    private static Found searchOnce(String query, String dept, Integer grade, Integer term, String cat, String campus, Data d) {
         Set<String> names = nameKeys(query, d);
         String stem = dept == null ? "" : deptStem(dept);
         if (names.isEmpty() && stem.isEmpty()) {
-            return "과목명·줄임말·학수번호나 학과를 주세요.";
+            return new Found("과목명·줄임말·학수번호나 학과를 주세요.", SOURCE_URL);
         }
         String wantCampus = campus != null && campus.contains("세종") ? "세종" : "서울";
         List<Course> hits = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Course c : d.courses()) {
             if (!c.campus().equals(wantCampus)
-                    || (!stem.isEmpty() && !squash(c.dept()).contains(stem))
+                    || !deptMatches(dept, c.dept())
                     || (grade != null && c.grade() != grade)
                     || (term != null && c.term() != term)
                     || !categoryMatches(cat, c)) {
@@ -429,8 +516,8 @@ final class AskCourses {
             }
         }
         if (hits.isEmpty()) {
-            return "2026 교과과정책자(" + wantCampus + ")에서 맞는 과목을 찾지 못했어요"
-                    + (cat == null ? "." : "(조건: " + conditions(wantCampus, dept, grade, term, cat, query) + ").");
+            return new Found("2026 교과과정책자(" + wantCampus + ")에서 맞는 과목을 찾지 못했어요"
+                    + (cat == null ? "." : "(조건: " + conditions(wantCampus, dept, grade, term, cat, query) + ")."), SOURCE_URL);
         }
         hits.sort(Comparator.comparing(Course::dept).thenComparingInt(Course::grade).thenComparingInt(Course::term).thenComparing(Course::name));
         StringBuilder out = new StringBuilder(SOURCE_REF).append(" · ").append(SOURCE_TITLE).append(" 기준(").append(wantCampus)
@@ -446,6 +533,8 @@ final class AskCourses {
                     .append(c.category() == null ? "" : " · " + c.category() + (c.categoryDetail() == null ? "" : "(" + c.categoryDetail() + ")"))
                     .append(c.checked() ? "" : " · 책자 합계 검산 안 됨(원문 " + c.src().replace("2026 교과과정책자 PDF ", "") + " 확인)").append('\n');
         }
-        return out.toString();
+        // 한 학과만 나왔으면 그 학과의 첫 쪽(학년·학기 순으로 맨 앞 줄)으로 잇는다 — 다른 학과 쪽으로 잇지 않게.
+        boolean oneDept = hits.stream().map(c -> deptGroup(c.dept())).distinct().count() == 1;
+        return new Found(out.toString(), oneDept ? pageUrl(hits.get(0)) : SOURCE_URL);
     }
 }
