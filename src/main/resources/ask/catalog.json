@@ -1,5 +1,5 @@
 {
- "version": "c154b1eb3f29",
+ "version": "42c3ba1dba63",
  "entries": [
   {
    "id": "leave-of-absence/start",
@@ -587,6 +587,11 @@
    "id": "exchange/start",
    "kind": "answer",
    "line": "국외학점교류는 협약된 해외 자매대학에서 공부하고 딴 학점을 본교 학점으로 인정받는 제도예요(교환·방문·복수학위). 본교 내부선발 → 상대교 지원… #교환학생 #교류학생 #국외 #해외 #학점교류 #교류"
+  },
+  {
+   "id": "exchange-partners/more",
+   "kind": "answer",
+   "line": "국제협력본부 홈페이지 '자매대학현황' 안내예요."
   },
   {
    "id": "exchange-partners/start",
