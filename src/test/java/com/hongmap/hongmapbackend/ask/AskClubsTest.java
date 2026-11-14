@@ -6,7 +6,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 중앙동아리(11-12) — 실제 ask/clubs.json(총학생회 중앙동아리 66개)으로. */
+/** 중앙동아리(11-12) — 실제 ask/clubs.json(총학생회 중앙동아리 66개) + ask/clubs-extra.json(가동아리)으로. */
 class AskClubsTest {
 
     private static final AskClubs.Data DATA = AskClubs.data();
@@ -17,9 +17,9 @@ class AskClubsTest {
 
     @Test
     void 데이터를_읽는다() {
-        assertThat(DATA.clubs()).hasSize(66);
+        assertThat(DATA.clubs().stream().filter(AskClubs.Club::central)).hasSize(66);
         assertThat(DATA.fetchedAt()).matches("\\d{4}-\\d{2}-\\d{2}");
-        assertThat(DATA.clubs()).allSatisfy(club -> {
+        assertThat(DATA.clubs().stream().filter(AskClubs.Club::central)).allSatisfy(club -> {
             assertThat(AskClubs.CATEGORIES).contains(club.category());
             assertThat(club.room()).isNotBlank();
             assertThat(club.detailUrl()).startsWith(AskClubs.SOURCE_URL);
@@ -29,7 +29,7 @@ class AskClubsTest {
     @Test
     void 화면에_나갈_글에_이모지와_연락처가_없다() {
         for (AskClubs.Club club : DATA.clubs()) {
-            String text = club.text() + club.recruiting() + club.schedule();
+            String text = club.text() + club.recruiting() + club.schedule() + club.links();
             assertThat(text.codePoints().filter(cp -> cp >= 0x1F000 && cp <= 0x1FAFF || cp >= 0x2600 && cp <= 0x27BF))
                     .as(club.name()).isEmpty();
             assertThat(text).doesNotContainPattern("[\\w.+-]+@[\\w-]+\\.[\\w.]+").doesNotContainPattern("01[016789]-?\\d{3,4}-?\\d{4}");
@@ -81,8 +81,9 @@ class AskClubsTest {
         for (String category : AskClubs.CATEGORIES) {
             assertThat(all).contains("[" + category);
         }
-        assertThat(all.lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(66);
-        assertThat(AskClubs.search("중동 뭐 있어", null, DATA).text().lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(66);
+        assertThat(all.lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(DATA.clubs().size());
+        assertThat(all).contains("[가동아리 ");
+        assertThat(AskClubs.search("중동 뭐 있어", null, DATA).text().lines().filter(l -> l.startsWith("- ")).count()).isEqualTo(DATA.clubs().size());
         String sports = AskClubs.search("스포츠 동아리 목록", null, DATA).text();
         assertThat(sports).contains("[스포츠분과 12개]").doesNotContain("[공연분과");
         assertThat(AskClubs.search("", "종교분과", DATA).text()).contains("[종교분과 4개]");
@@ -111,5 +112,30 @@ class AskClubsTest {
         // 줄임말 '중동'은 그대로 과목 DB 줄임말로 풀린다(동아리 이름으로 잡지 않는다).
         assertThat(AskCourses.aliasesIn("중동 뭐 있어", AskCourses.data())).containsKey("중동");
         assertThat(AskClubs.hint("중동 뭐 있어")).isEmpty();
+    }
+
+    @Test
+    void 가동아리_홍복실은_인스타_카카오_링크와_가동아리_출처를_보인다() {
+        AskClubs.Result result = AskClubs.search("홍복실 어떤 동아리야", null, DATA);
+        assertThat(names(result.shown())).containsExactly("홍복실");
+        AskClubs.Club club = result.shown().get(0);
+        assertThat(club.central()).isFalse();
+        assertThat(club.sourceTitle()).isEqualTo(AskClubs.EXTRA_TITLE);
+        assertThat(result.text())
+                .contains("홍복실 · 가동아리")
+                .contains("인스타그램: https://www.instagram.com/hongboksil/").contains("[참조 club:1001:link0]")
+                .contains("카카오톡 채널: https://pf.kakao.com/_wskwX").contains("[참조 club:1001:link1]")
+                .contains("동방: 안내에 없음")
+                .contains("가동아리)").doesNotContain("총학생회 소개 쪽");
+        assertThat(AskClubs.linkTitle(club, 1)).isEqualTo("홍복실 카카오톡 채널");
+        assertThat(AskClubs.search("캐릭터 굿즈 동아리", null, DATA).text()).contains("홍복실");
+        assertThat(AskClubs.hint("홍복실 인스타 있어?")).contains("홍복실(가동아리)");
+    }
+
+    @Test
+    void 자세히_보인_동아리마다_직접_문의_안내() {
+        String text = AskClubs.search("뚜라미", null, DATA).text();
+        assertThat(text).contains("- 문의: 모집·활동·회비 같은 자세한 내용은 동아리에 직접 문의");
+        assertThat(AskClubs.search("예수전도단 동방", null, DATA).text()).contains("직접 문의");
     }
 }
