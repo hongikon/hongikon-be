@@ -166,6 +166,9 @@ public class AskLlmClient {
             - 질문이 특정 학과·단과대학이나 이름이 붙은 장학금·프로그램·행사(예: '컴퓨터공학과 동문장학금', '○○장학금')를 말하면,
               [안내 원문]에 그 이름이 없을 때 학교 전체 안내로 대신 답하지 않는다 — 먼저 search_notices 로 그 이름(학과 이름도 함께)을 찾고
               맞는 공지를 read_notice 로 읽어 답한다. 학과 게시판 공지면 어느 학과 공지인지와 게시일을 밝힌다. 찾아도 없을 때만 "확인되지 않아요"라고 한다.
+            - 단, 학교 전체에 한 가지로 정해진 제도(예비군·민방위·휴학·복학·등록·학생증·기숙사·수강신청 절차·학칙 등)는 학과 이름이 붙어도('컴공 예비군')
+              학과마다 다르지 않다 — 학과 게시판·학과 홈페이지로 좁히지 말고 [안내 원문]의 학교 전체 안내로 답한다. 학과 공지에 그 학과만의 따로 안내
+              (학과 일정·추가 서류)가 실제로 있을 때만 그 학과 것이라고 밝혀 덧붙이고, 없으면 '학과와 상관없이 같아요'라고 한 줄 쓴다.
             - [안내 원문]에 학과 홈페이지(page:…) 원문이 있으면 학과 고유 내용(졸업 요건·교과과정·시설·연락처 등)의 근거로 쓰고,
               어느 학과 홈페이지 내용인지 밝힌다. 질문한 학과와 다른 학과 홈페이지면 쓰지 않는다.
             - [안내 원문]에 재학생 팁(page:tip-…)이 있으면 공식 안내(안내 원문·공지·도구 결과)와 다를 때 공식 안내만 따르고 팁은 쓰지 않는다.
@@ -587,6 +590,21 @@ public class AskLlmClient {
     /** menus: 학식 질문이면 서버가 미리 꺼낸 메뉴(날짜순). 첫 요청에 넣고 근거(cafeteria:날짜)로 등록한다. */
     public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
                          AskProgress progress) {
+        return answer(initialIds, pageIds, contextMessage, menus, List.of(), progress);
+    }
+
+    /** 질문한 학과 게시판에서 서버가 미리 읽은 공지(제목이 질문 낱말과 맞는 것) 앞머리 — 학과 공지가 바로 답일 때(11-14 '컴공 중간고사 일정'). */
+    static final String DEPT_NOTICE_BLOCK = """
+
+            [질문한 학과의 공지 원문] 질문 속 학과 게시판에서 제목이 질문과 맞는 공지를 서버가 미리 읽었다.
+            - 질문이 그 학과 일정·안내(시험 일정, 학과 행사·장학 등)를 묻고 이 공지가 그 답이면 학교 전체 안내보다 이 공지로 답하고, 어느 학과 공지인지와 게시일을 밝히며 notice:id 를 sourceIds 맨 앞에 넣는다.
+            - 게시일이 이번 학기가 아니면(지난 학기·지난해 공지) 그 공지 내용과 게시일을 쓰고 '이번 학기 공지는 아직 확인되지 않아요'라고 밝힌다.
+            - 학교 전체에 한 가지인 제도(예비군·휴학 등)를 물었거나 질문과 맞지 않는 공지면 이 블록은 무시한다.
+            """;
+    static final int DEPT_NOTICE_CHARS = 3_000;
+
+    public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
+                         List<AskLiveData.NoticeBody> deptNotices, AskProgress progress) {
         Set<String> read = new LinkedHashSet<>();
         Map<String, AskLiveData.Reference> references = new LinkedHashMap<>();
         StringBuilder first = new StringBuilder("[안내 원문]\n");
@@ -599,6 +617,17 @@ public class AskLlmClient {
                 AskLiveData.Reference reference = menu.reference();
                 first.append(reference.ref()).append(" · ").append(AskLiveData.dayLabel(reference.date())).append('\n')
                         .append(menu.text()).append('\n');
+                references.put(reference.ref(), reference);
+            }
+        }
+        if (!deptNotices.isEmpty()) {
+            first.append(DEPT_NOTICE_BLOCK);
+            for (AskLiveData.NoticeBody notice : deptNotices) {
+                AskLiveData.Reference reference = notice.reference();
+                String body = notice.content().length() > DEPT_NOTICE_CHARS
+                        ? notice.content().substring(0, DEPT_NOTICE_CHARS) + "\n(이하 생략 — 더 필요하면 read_notice)" : notice.content();
+                first.append(reference.ref()).append(" · ").append(reference.date()).append(" · ").append(boardLabel(notice.board()))
+                        .append(" · ").append(reference.title()).append('\n').append(body).append('\n');
                 references.put(reference.ref(), reference);
             }
         }
