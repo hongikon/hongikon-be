@@ -166,6 +166,9 @@ public class AskLlmClient {
             - 질문이 특정 학과·단과대학이나 이름이 붙은 장학금·프로그램·행사(예: '컴퓨터공학과 동문장학금', '○○장학금')를 말하면,
               [안내 원문]에 그 이름이 없을 때 학교 전체 안내로 대신 답하지 않는다 — 먼저 search_notices 로 그 이름(학과 이름도 함께)을 찾고
               맞는 공지를 read_notice 로 읽어 답한다. 학과 게시판 공지면 어느 학과 공지인지와 게시일을 밝힌다. 찾아도 없을 때만 "확인되지 않아요"라고 한다.
+            - 단, 학교 전체에 한 가지로 정해진 제도(예비군·민방위·휴학·복학·등록·학생증·기숙사·수강신청 절차·학칙 등)는 학과 이름이 붙어도('컴공 예비군')
+              학과마다 다르지 않다 — 학과 게시판·학과 홈페이지로 좁히지 말고 [안내 원문]의 학교 전체 안내로 답한다. 학과 공지에 그 학과만의 따로 안내
+              (학과 일정·추가 서류)가 실제로 있을 때만 그 학과 것이라고 밝혀 덧붙이고, 없으면 '학과와 상관없이 같아요'라고 한 줄 쓴다.
             - [안내 원문]에 학과 홈페이지(page:…) 원문이 있으면 학과 고유 내용(졸업 요건·교과과정·시설·연락처 등)의 근거로 쓰고,
               어느 학과 홈페이지 내용인지 밝힌다. 질문한 학과와 다른 학과 홈페이지면 쓰지 않는다.
             - [안내 원문]에 재학생 팁(page:tip-…)이 있으면 공식 안내(안내 원문·공지·도구 결과)와 다를 때 공식 안내만 따르고 팁은 쓰지 않는다.
@@ -223,6 +226,11 @@ public class AskLlmClient {
               courses:2026 을 sourceIds 에 넣는다. [질문 속 줄임말]에 '여러 과목'으로 적힌 줄임말이면 후보 과목을 보이고 어느 과목인지 묻는다.
               '4학년 1학기에 전공필수 있는 학과', '전필이 가장 많은 학과'처럼 학과를 가리지 않거나 세고 더하는 질문은 search_courses 를
               mode 'count_by_dept'(category·grade·term 채움)로 부르고, 결과의 학과 수·과목 수·학점을 그대로 쓴다(직접 세거나 더하지 않는다).
+            - 교직 이수(교직과정·교원자격증·교직과목·교과교육) 질문은 [안내 원문]의 '교직과정 교원자격증 무시험검정 요건·교직과목'(교과과정책자 사-2·3)과
+              '교직과정'(학교 홈페이지, 신청·선발)으로 답한다 — search_courses 의 교직 행은 사범대학 교육학과 과목뿐이다.
+              학과를 말했으면('디경융 교직 이수') 그 안내의 '교과교육' 줄에서 그 학과 이름을 찾아 그 학과가 들을 교과교육 과목(학수번호·학년·학기·학점)을 쓰고,
+              교직이론·교직소양·교육실습·교과논리 및 논술은 모든 비사범계 학과가 같다고 쓴다. 학과 이름이 교과교육 줄에 없으면 지어내지 않고
+              '교과과정책자 교직과목 일람표에는 이 학과의 교과교육 과목이 없어요 — 교직과정이 있는지와 인원은 사범대학 교직과에 확인해야 해요'라고 한다.
             - 중앙동아리 질문(목록·분야별 동아리·특정 동아리의 동방·정기 모임·모집·인스타그램 같은 링크·소개)은 search_clubs 로 찾는다 —
               [안내 원문]에 동아리 안내가 있어도 먼저 부른다. search_clubs(clubs:hongikunion, 총학생회 중앙동아리 안내)가 동아리 이름·분과·동방·
               정기 모임·모집 안내·링크의 기준이다: [안내 원문](학교 홈페이지 옛 동아리 안내)과 다르면 search_clubs 를 따르고 옛 호실·이름은 쓰지 않는다.
@@ -582,6 +590,21 @@ public class AskLlmClient {
     /** menus: 학식 질문이면 서버가 미리 꺼낸 메뉴(날짜순). 첫 요청에 넣고 근거(cafeteria:날짜)로 등록한다. */
     public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
                          AskProgress progress) {
+        return answer(initialIds, pageIds, contextMessage, menus, List.of(), progress);
+    }
+
+    /** 질문한 학과 게시판에서 서버가 미리 읽은 공지(제목이 질문 낱말과 맞는 것) 앞머리 — 학과 공지가 바로 답일 때(11-14 '컴공 중간고사 일정'). */
+    static final String DEPT_NOTICE_BLOCK = """
+
+            [질문한 학과의 공지 원문] 질문 속 학과 게시판에서 제목이 질문과 맞는 공지를 서버가 미리 읽었다.
+            - 질문이 그 학과 일정·안내(시험 일정, 학과 행사·장학 등)를 묻고 이 공지가 그 답이면 학교 전체 안내보다 이 공지로 답하고, 어느 학과 공지인지와 게시일을 밝히며 notice:id 를 sourceIds 맨 앞에 넣는다.
+            - 게시일이 이번 학기가 아니면(지난 학기·지난해 공지) 그 공지 내용과 게시일을 쓰고 '이번 학기 공지는 아직 확인되지 않아요'라고 밝힌다.
+            - 학교 전체에 한 가지인 제도(예비군·휴학 등)를 물었거나 질문과 맞지 않는 공지면 이 블록은 무시한다.
+            """;
+    static final int DEPT_NOTICE_CHARS = 3_000;
+
+    public Answer answer(List<String> initialIds, List<String> pageIds, String contextMessage, List<AskLiveData.DayMenu> menus,
+                         List<AskLiveData.NoticeBody> deptNotices, AskProgress progress) {
         Set<String> read = new LinkedHashSet<>();
         Map<String, AskLiveData.Reference> references = new LinkedHashMap<>();
         StringBuilder first = new StringBuilder("[안내 원문]\n");
@@ -594,6 +617,17 @@ public class AskLlmClient {
                 AskLiveData.Reference reference = menu.reference();
                 first.append(reference.ref()).append(" · ").append(AskLiveData.dayLabel(reference.date())).append('\n')
                         .append(menu.text()).append('\n');
+                references.put(reference.ref(), reference);
+            }
+        }
+        if (!deptNotices.isEmpty()) {
+            first.append(DEPT_NOTICE_BLOCK);
+            for (AskLiveData.NoticeBody notice : deptNotices) {
+                AskLiveData.Reference reference = notice.reference();
+                String body = notice.content().length() > DEPT_NOTICE_CHARS
+                        ? notice.content().substring(0, DEPT_NOTICE_CHARS) + "\n(이하 생략 — 더 필요하면 read_notice)" : notice.content();
+                first.append(reference.ref()).append(" · ").append(reference.date()).append(" · ").append(boardLabel(notice.board()))
+                        .append(" · ").append(reference.title()).append('\n').append(body).append('\n');
                 references.put(reference.ref(), reference);
             }
         }
@@ -794,11 +828,12 @@ public class AskLlmClient {
             String category = input.get("category") instanceof String text ? text : null;
             AskCourses.Mode mode = AskCourses.Mode.of(input.get("mode") instanceof String text ? text : null);
             progress.searching(query.isBlank() ? (dept == null ? "과목" : dept + " 과목") : query);
-            String out = AskCourses.search(query, dept, grade, term, category, campus, mode, AskCourses.data());
-            if (out.startsWith(AskCourses.SOURCE_REF)) {
-                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, AskCourses.SOURCE_URL, null));
+            AskCourses.Found found = AskCourses.find(query, dept, grade, term, category, campus, mode, AskCourses.data());
+            if (found.text().startsWith(AskCourses.SOURCE_REF)) {
+                // 책자 링크는 찾은 학과의 쪽(학교 전자책) — 학과를 가리지 않으면 책자 첫 쪽.
+                references.put(AskCourses.SOURCE_REF, new AskLiveData.Reference(AskCourses.SOURCE_REF, AskCourses.SOURCE_TITLE, found.url(), null));
             }
-            return out;
+            return found.text();
         }
         if ("search_clubs".equals(use.name()) && input != null) {
             String query = input.get("query") instanceof String text ? text : "";

@@ -94,4 +94,34 @@ class AskCoursesTest {
         assertThat(most).contains("맞는 학과");
         assertThat(AskCourses.search("", null, null, null, "전필", "세종", AskCourses.Mode.COUNT_BY_DEPT, DATA)).contains("세종");
     }
+
+    @Test
+    void 가운뎃점_학과와_줄임말_산데는_산업데이터공학과_과목() {
+        AskCourses.Found found = AskCourses.find("산데 전공필수 뭐야", null, null, null, null, null, AskCourses.Mode.LIST, DATA);
+        assertThat(found.text()).startsWith(AskCourses.SOURCE_REF).contains("산업·데이터공학과").doesNotContain("산업디자인전공");
+        assertThat(found.url()).startsWith(AskCourses.SOURCE_URL + "/").doesNotContain("wwwce");
+        assertThat(AskCourses.search("", "산업데이터공학과", 2, null, null, DATA)).contains("산업·데이터공학과 2학년");
+    }
+
+    @Test
+    void 산디는_산업디자인전공만_시디는_시각디자인전공만() {
+        String id = AskCourses.search("산디 2학년 과목", null, null, null, null, DATA);
+        assertThat(id).contains("산업디자인전공").doesNotContain("시각디자인전공").doesNotContain("디자인엔지니어링").doesNotContain("산업·데이터");
+        String vd = AskCourses.search("시디 2학년 과목", null, null, null, null, DATA);
+        assertThat(vd).contains("시각디자인전공").doesNotContain("산업디자인전공");
+    }
+
+    @Test
+    void 디경융은_디자인예술경영학부_쪽으로_잇는다() {
+        AskCourses.Found found = AskCourses.find("디경융 전공필수", null, null, null, null, null, AskCourses.Mode.LIST, DATA);
+        assertThat(found.text()).startsWith(AskCourses.SOURCE_REF).containsAnyOf("디자인경영전공", "예술경영전공", "디자인·예술경영학부");
+        AskCourses.Found one = AskCourses.find("디자인경영 1학년", null, null, null, null, null, AskCourses.Mode.LIST, DATA);
+        assertThat(one.url()).isEqualTo(AskCourses.pageUrl(119));
+    }
+
+    @Test
+    void 교직_이수의_이수는_과목_줄임말이_아니고_교직은_안내로_보낸다() {
+        assertThat(AskCourses.aliasLine("산데 교직 이수 가능해?")).doesNotContain("이산수학");
+        assertThat(AskCourses.search("교직 과목", null, null, null, "교직", null, AskCourses.Mode.LIST, DATA)).contains(AskCourses.TEACHING_NOTE);
+    }
 }

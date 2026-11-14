@@ -180,7 +180,9 @@ public class AskRouteService {
         try {
             String context = answerContext(request) + missingContext(request, answerIds, progress)
                     + retrievedContext(withHint(request, retrieved), answerIds) + related.block();
-            AskLlmClient.Answer answer = !menus.isEmpty() ? llmClient.answer(answerIds, pages, context, menus, progress)
+            List<AskLiveData.NoticeBody> deptNotices = departmentNotices(request.question());
+            AskLlmClient.Answer answer = !deptNotices.isEmpty() ? llmClient.answer(answerIds, pages, context, menus, deptNotices, progress)
+                    : !menus.isEmpty() ? llmClient.answer(answerIds, pages, context, menus, progress)
                     : pages.isEmpty()
                     ? llmClient.answer(answerIds, context, progress)
                     : llmClient.answer(answerIds, pages, context, progress);
@@ -422,6 +424,55 @@ public class AskRouteService {
      * 질문 낱말 중 고른 안내 원문에 없는 것으로 공지·안내를 미리 찾아 후보로 넘긴다({@link AskMissingTerms}).
      * 고른 안내가 비슷한 학교 전체 안내일 때 학과 공지·다른 안내에만 있는 답을 놓치지 않게 한다. 놓친 낱말은 기록에도 남는다.
      */
+    /** 학과 게시판에서 미리 읽을 공지 수(학부면 전공마다 하나). */
+    static final int DEPT_NOTICES_MAX = 2;
+
+    /**
+     * 질문 속 학과 게시판에서 제목이 질문 낱말과 맞는 공지를 미리 읽는다 — 후보 제목만 넘기면 모델이 학교 전체 안내(학사일정의 시험 기간)로
+     * 답하고 학과 공지를 열지 않았다(11-14 '컴공 중간고사 일정': 컴공 게시판 '[필독] 2026-2학기 중간고사 일정 안내'를 놓침).
+     * 제목에 질문 낱말이 모두(세 개 이상이면 하나 빼고) 들어 있는 가장 앞 공지만. 학교 전체 제도면 답 쓰기가 무시한다(블록 지시).
+     */
+    List<AskLiveData.NoticeBody> departmentNotices(String question) {
+        Optional<AskBoards.Match> board = AskBoards.find(question);
+        if (board.isEmpty()) {
+            return List.of();
+        }
+        List<String> words = AskMissingTerms.words(board.get().strip(question), AskMissingTerms.MAX_TERMS);
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        int need = words.size() >= 3 ? words.size() - 1 : words.size();
+        List<AskLiveData.NoticeBody> out = new ArrayList<>();
+        for (String id : board.get().boards()) {
+            try {
+                liveData.searchNotices(String.join(" ", words), id).stream()
+                        .filter(hit -> titleMatches(hit.reference().title(), words) >= need)
+                        .findFirst()
+                        .flatMap(hit -> noticeId(hit.reference().ref()).flatMap(liveData::readNotice))
+                        .ifPresent(out::add);
+            } catch (RuntimeException e) {
+                log.warn("물어보기 학과 공지 미리 읽기 실패({}): {}", id, e.toString());
+            }
+            if (out.size() >= DEPT_NOTICES_MAX) {
+                break;
+            }
+        }
+        return out;
+    }
+
+    static int titleMatches(String title, List<String> words) {
+        String t = title == null ? "" : title.replaceAll("[\\s·‧・]+", "").toLowerCase();
+        return (int) words.stream().filter(w -> t.contains(w.toLowerCase())).count();
+    }
+
+    static Optional<Long> noticeId(String ref) {
+        try {
+            return ref != null && ref.startsWith("notice:") ? Optional.of(Long.parseLong(ref.substring("notice:".length()))) : Optional.empty();
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
     String missingContext(AskRouteRequest request, List<String> answerIds, AskProgress progress) {
         StringBuilder sources = new StringBuilder();
         for (String id : answerIds) {
@@ -467,7 +518,8 @@ public class AskRouteService {
         StringBuilder message = new StringBuilder("\n\n");
         board.ifPresent(match -> message.append("[질문 속 학과·기관] ").append(match.group()
                         ? match.name() + "(" + String.join("·", match.boards()) + ")" : match.board())
-                .append(" — 그 게시판 공지를 먼저 보고, 학교 전체 안내와 다르면 학과 공지 내용을 그 학과 것으로 밝혀 답한다.\n"));
+                .append(" — 학과마다 다른 내용이면 그 게시판 공지를 먼저 보고, 학교 전체 안내와 다르면 학과 공지 내용을 그 학과 것으로 밝혀 답한다. "
+                        + "학교 전체에 한 가지인 제도(예비군·휴학 등)면 학교 전체 안내를 따르고, 학과 공지는 그 학과만의 따로 안내가 있을 때만 덧붙인다.\n"));
         if (!terms.isEmpty()) {
             message.append("[고른 안내 원문에 없는 질문 낱말] ").append(String.join(", ", terms)).append('\n');
         }
