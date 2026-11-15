@@ -80,7 +80,7 @@ class AskCafeteriaQuestionTest {
             LocalDate date = call.getArgument(0);
             return day(date, date.getDayOfWeek().getValue() <= 5);
         });
-        return new AskLiveData(null, service, null, null);
+        return new AskLiveData(null, service, null, null, null);
     }
 
     @Test

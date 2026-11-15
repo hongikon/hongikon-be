@@ -35,7 +35,7 @@ class AskNearestPlacesTest {
         when(map.current()).thenReturn(new MapDataService.Snapshot("v", DATA.getBytes(StandardCharsets.UTF_8)));
         CafeteriaMenuService cafeteria = mock(CafeteriaMenuService.class);
         when(cafeteria.today()).thenReturn(LocalDate.of(2026, 11, 9));
-        return new AskLiveData(null, cafeteria, map, JsonMapper.builder().build());
+        return new AskLiveData(null, cafeteria, map, JsonMapper.builder().build(), null);
     }
 
     @Test
@@ -74,7 +74,7 @@ class AskNearestPlacesTest {
         when(map.current()).thenReturn(new MapDataService.Snapshot("v", data.getBytes(StandardCharsets.UTF_8)));
         CafeteriaMenuService cafeteria = mock(CafeteriaMenuService.class);
         when(cafeteria.today()).thenReturn(LocalDate.of(2026, 11, 9));
-        AskLiveData live = new AskLiveData(null, cafeteria, map, JsonMapper.builder().build());
+        AskLiveData live = new AskLiveData(null, cafeteria, map, JsonMapper.builder().build(), null);
         assertThat(live.searchBuildings("공학관", new StringBuilder())).extracting(AskLiveData.Reference::ref)
                 .containsExactlyInAnyOrder("building:k", "building:p", "building:j", "building:t");
         assertThat(live.searchBuildings("제4공학관", new StringBuilder())).extracting(AskLiveData.Reference::ref)

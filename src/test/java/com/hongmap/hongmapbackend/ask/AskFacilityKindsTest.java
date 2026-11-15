@@ -94,7 +94,7 @@ class AskFacilityKindsTest {
     private static AskLiveData liveData() {
         MapDataService map = mock(MapDataService.class);
         when(map.current()).thenReturn(new MapDataService.Snapshot("v", data().getBytes(StandardCharsets.UTF_8)));
-        return new AskLiveData(null, mock(CafeteriaMenuService.class), map, JsonMapper.builder().build());
+        return new AskLiveData(null, mock(CafeteriaMenuService.class), map, JsonMapper.builder().build(), null);
     }
 
     @Test
@@ -180,7 +180,7 @@ class AskFacilityKindsTest {
                 new CafeteriaRestaurantResponse("dorm2-student", null, "학생식당",
                         List.of(new CafeteriaMealResponse("점심A", "11:30~14:00", "5,800원", List.of("백미밥"), false))),
                 new CafeteriaRestaurantResponse("mh-staff", null, "교직원식당", List.of()))));
-        AskLiveData.DayMenu menu = new AskLiveData(null, cafeteria, null, null).cafeteria(day, false);
+        AskLiveData.DayMenu menu = new AskLiveData(null, cafeteria, null, null, null).cafeteria(day, false);
         assertThat(menu.text()).contains("[학생식당]").doesNotContain("교직원식당");
     }
 }

@@ -205,6 +205,7 @@ public class AskLlmClient {
             - sourceIds 에는 답에 실제로 쓴 내용의 출처만 중요한 순서로 넣는다(안내 id·학과 홈페이지 page:…·공지 notice:…·학식 cafeteria:…·시설 facility:…·건물 building:…·제휴 partner:…). 답의 날짜·마감·절차를 공지에서 가져왔으면 그 공지를 반드시 넣는다.
               읽기만 하고 답에 쓰지 않은 것은 넣지 않는다. found=false 면 담당 부서를 가져온 안내 id 하나.
             - '○○에서 제일 가까운 △△', '○○ 근처 △△', '△△ 어디가 가까워'처럼 가까운 곳을 물으면 nearest_places(from, query)로 찾아 가까운 순으로 답한다.
+              (두 건물 사이 걷는 시간·길을 물으면 nearest_places 의 직선거리 대신 walk_route.)
               거리는 위치 사이 직선거리라 '직선으로 약 ○○m'처럼 '약'을 붙이고, 같은 건물이면 층을 밝힌다. 결과에 운영시간이 있으면 함께 쓴다.
               출발 장소를 못 찾았으면 어느 건물 기준인지 되묻는다. 결과에 없는 장소·거리는 지어내지 않는다.
             - mapTarget(지도 버튼): 학생이 장소를 물을 때만 채운다 — 어디 있는지·몇 층인지·어떻게 가는지·가장 가까운 곳·근처 장소처럼
@@ -213,8 +214,15 @@ public class AskLlmClient {
               빈 문자열('')이다(예: 'Q동 프린터 몇 시까지 돼?' → '', 'Q동 프린터 어디 있어?' → 그 facility 참조,
               '학생회관 출력센터 몇 층이야?' → 그 facility 참조 — 층을 묻는 것도 위치를 묻는 것이다).
               mapMode 는 '어떻게 가', '가는 길', '여기서 ○○까지', '길 알려줘'처럼 가는 길을 물으면 'route', 아니면 'show'.
-              'route' 면 앱이 학생의 지금 위치에서 그곳까지 길찾기 버튼을 붙인다 — 답에는 건물 위치·들어가는 입구·층처럼 원문에 있는 것만 짧게 쓰고,
-              학생이 지금 어디 있는지는 모르니 '지금 계신 곳에서 몇 분'처럼 지어내지 않는다('아래 길찾기 버튼으로 지금 위치에서 가는 길을 볼 수 있어요').
+              'route' 면 앱이 길찾기 버튼을 붙인다. 출발을 말하지 않았으면 학생의 지금 위치에서 출발한다 — 답에는 건물 위치·들어가는 입구·층처럼
+              원문·도구 결과에 있는 것만 짧게 쓰고, 학생이 지금 어디 있는지는 모르니 '지금 계신 곳에서 몇 분'처럼 지어내지 않는다('아래 길찾기 버튼으로 지금 위치에서 가는 길을 볼 수 있어요').
+              위치·길 답의 첫 문장은 '안내에 없어요'로 시작하지 않는다(지도 위 카드에 첫 문장이 뜬다) — 아는 것(건물 이름·위치·걸리는 시간)부터 쓴다.
+            - '○○에서 △△ 가는 길', '○○에서 △△까지 몇 분·얼마나 걸려·거리'처럼 출발과 도착 건물을 둘 다 말하면 walk_route(from, to)로 찾는다.
+              첫 문장은 '○○에서 △△까지 걸어서 약 N분(약 Mm)이에요.'이고, 길 1의 길 흐름을 순서 있는 섹션('가는 길', 최대 5단계)으로 쓰고
+              계단·엘리베이터·안으로 지나는 건물이 있으면 짧게 밝힌다. 직선 어림이면 그렇다고 밝힌다. 결과에 없는 길·시간·입구는 지어내지 않는다.
+              mapTarget 은 도착 건물 참조, mapMode 는 'route'(앱이 그 출발 건물에서 같은 길을 그린다).
+              출발이 정문·후문·역·제휴업체처럼 건물이 아니면 walk_route 를 쓸 수 없다 — 도착 건물 위치를 답하고 길찾기 버튼(지금 위치 출발)을 안내한다.
+              출발이나 도착 건물이 여럿에 맞으면(공학관) 어느 건물인지 물어본다.
             - '공학관', '인문사회관', '강의동'처럼 같은 이름의 건물이 여럿이면(제1·2·3·4공학관 등) 하나만 골라 답하지 않는다 — 결과에 나온 건물을
               모두 짧게(이름·별칭·무엇이 있는지) 보이고, 어느 건물이 궁금한지 물어 본다. 학생이 번호·동을 말했으면 그 건물만 답한다.
             - 과목·교과과정 질문('○○과 1학년 때 뭐 들어?', '컴프 몇 학년 과목이야?', '화공 2학년 2학기 전공필수')은 search_courses 로 찾는다.
@@ -370,6 +378,9 @@ public class AskLlmClient {
                                 + "같은 건물이면 '같은 건물'과 층, 아니면 위치 사이 직선거리(m). "
                                 + "예: from 'T동', query '편의점' / from '중앙도서관', query '프린터' / from 'R동', query '카페 제휴'.",
                         Map.of("from", Map.of("type", "string"), "query", Map.of("type", "string")), List.of("from", "query")),
+                tool("walk_route", "건물에서 건물까지 걷는 길(지도 탭 길찾기와 같은 경로망) — 걷는 시간(분)·거리·계단·안으로 지나는 건물·길 흐름. "
+                                + "from·to 는 건물 이름·별칭(예: from '제4공학관', to '홍문관' / from 'K동', to 'Q동'). 정문·후문·제휴업체는 안 된다. 참조 building:code 둘.",
+                        Map.of("from", Map.of("type", "string"), "to", Map.of("type", "string")), List.of("from", "to")),
                 tool("search_courses", "2026 교과과정책자의 학과별 교과과정(과목명·학수번호·학년·학기·학점·이수구분)을 서버가 거르고 센다 — 칸만 채운다. "
                                 + "query 는 과목명·줄임말(컴프·선대·운체 …)·학수번호(없으면 빈 문자열), dept 는 학과·전공 이름(컴퓨터공학과·화학공학전공 …), "
                                 + "grade·term 은 숫자, category 는 이수구분(전공필수·전필·전공선택·전선·전공기초·교양·교양필수·MSC·일반선택), campus 는 세종일 때만 '세종'. "
@@ -785,6 +796,18 @@ public class AskLlmClient {
             hits.forEach(hit -> references.put(hit.ref(), hit));
             return out.toString();
         }
+        if ("walk_route".equals(use.name()) && input != null && input.get("from") instanceof String from
+                && input.get("to") instanceof String to) {
+            progress.searchingFacilities(from + "에서 " + to + " 가는 길");
+            StringBuilder out = new StringBuilder();
+            List<AskLiveData.Reference> places = liveData.walkRoute(from, to, out);
+            places.forEach(place -> references.put(place.ref(), place));
+            if (places.size() == 2) {
+                // 지도 버튼이 이 도착 건물이면 앱이 이 출발 건물에서 길을 그린다(mapTarget 참고).
+                references.put(ROUTE_FROM_PREFIX + places.get(1).ref(), places.get(0));
+            }
+            return out.toString();
+        }
         if ("search_courses".equals(use.name()) && input != null) {
             String query = input.get("query") instanceof String text ? text : "";
             String dept = input.get("dept") instanceof String text ? text : null;
@@ -949,14 +972,26 @@ public class AskLlmClient {
             return new MapTarget(null, route);
         }
         AskLiveData.Reference place = references.get(target);
-        return place != null && MAP_PREFIXES.stream().anyMatch(target::startsWith) ? new MapTarget(place, route) : null;
+        if (place == null || MAP_PREFIXES.stream().noneMatch(target::startsWith)) {
+            return null;
+        }
+        // walk_route 로 길을 찾은 도착 건물이면 그 출발 건물에서 길을 그린다('몇 분 걸려'처럼 mapMode 가 show 여도).
+        AskLiveData.Reference from = references.get(ROUTE_FROM_PREFIX + target);
+        return new MapTarget(place, route || from != null, from);
     }
+
+    /** references 안에서 walk_route 의 '도착 참조 → 출발 참조'를 기억하는 키 앞머리(참조 id 와 겹치지 않는다 — 출처로는 쓰지 않는다). */
+    static final String ROUTE_FROM_PREFIX = "walk_route_from:";
 
     /**
      * @param place 지도에 보일 장소. null 이면 근거 안내의 위치(facilityId).
-     * @param route 가는 길을 물었다(앱이 '여기서 가는 길' 버튼 — 출발은 휴대폰의 내 위치).
+     * @param route 가는 길을 물었다(앱이 길찾기 버튼을 붙인다).
+     * @param from  길의 출발 건물(walk_route 로 찾은 것). null 이면 앱이 휴대폰의 내 위치에서 출발한다.
      */
-    public record MapTarget(AskLiveData.Reference place, boolean route) {
+    public record MapTarget(AskLiveData.Reference place, boolean route, AskLiveData.Reference from) {
+        public MapTarget(AskLiveData.Reference place, boolean route) {
+            this(place, route, null);
+        }
     }
 
     /** 휴대폰 폭에 맞춘 상한 — 구조화 출력이 개수 제한을 못 걸어 여기서 자른다(docs/ask-scope-policy.md 5장). */

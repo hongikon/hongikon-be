@@ -56,8 +56,12 @@ public record AskRouteResponse(String nodeId, List<String> nodeIds, String answe
      * @param target  'building:{건물 code}' | 'facility:{편의시설 id}' | 'partner:{제휴 id}' — 앱 지도 데이터에 있는 id 만(좌표를 만들지 않는다)
      * @param label   버튼·카드 제목(장소 이름). 서버가 모르면 null — 앱이 지도 데이터 이름을 쓴다
      * @param summary 지도 위 카드의 짧은 설명(답 첫 문장, 최대 90자). 없으면 null
+     * @param from    'route' 의 출발 건물('building:{code}', 11-15 '제4공학관에서 홍문관'). null 이면 앱이 내 위치에서 출발 — 옛 앱은 이 칸을 모른 채 내 위치에서 출발한다
      */
-    public record Action(String type, String target, String label, String summary) {
+    public record Action(String type, String target, String label, String summary, String from) {
+        public Action(String type, String target, String label, String summary) {
+            this(type, target, label, summary, null);
+        }
     }
 
     public record Phone(String label, String phone) {
