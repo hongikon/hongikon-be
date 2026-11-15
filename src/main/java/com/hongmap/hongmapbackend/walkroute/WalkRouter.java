@@ -35,8 +35,8 @@ final class WalkRouter {
     static final double ELEVATOR_WAIT_SECONDS = 30;
     /** 엘리베이터가 한 층 움직이는 시간(초). */
     static final double ELEVATOR_SECONDS_PER_FLOOR = 4;
-    /** 바깥 계단 구간 시간 = 평지 걷는 시간 × 이 값. */
-    private static final double STAIRS_TIME_FACTOR = 3;
+    /** 바깥 계단 구간 시간 = 평지 걷는 시간 × 이 값. 11-16 3 → 1.5(사용자 요청 — 계단을 너무 피했다). */
+    static final double STAIRS_TIME_FACTOR = 1.5;
     /** 계단 끝에서 이만큼 안의 출입구로 그 자리 높이를 어림한다. */
     private static final double STAIR_ENTRANCE_METERS = 35;
     /** 경로망 밖 건물의 출입구를 이을 가까운 길 점 수와 최대 거리. */
@@ -66,6 +66,7 @@ final class WalkRouter {
     /** 서버 건물 code → 건물. */
     private final Map<String, CampusBuilding> byCode = new HashMap<>();
     private final Graph base;
+    private final double stairsTimeFactor;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
@@ -134,6 +135,12 @@ final class WalkRouter {
     }
 
     WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings) {
+        this(survey, buildings, STAIRS_TIME_FACTOR);
+    }
+
+    /** 계단 배수를 정해 만든다 — 앱 예전 계산(배수 3)과 맞춰 보는 비교 테스트용. */
+    WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor) {
+        this.stairsTimeFactor = stairsTimeFactor;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -197,7 +204,7 @@ final class WalkRouter {
         notes.addAll(route.notes());
         return new WalkRoute(route.points(), route.distanceMeters(), route.totalSeconds(), route.minutes(), route.hasIndoorTransit(),
                 route.hasStairs(), route.hasLinkSegment(), route.isEstimate(), route.usesElevator(), route.indoorMeters(),
-                route.viaBuildings(), List.copyOf(notes), List.copyOf(steps), route.indoorSegments());
+                route.viaBuildings(), List.copyOf(notes), List.copyOf(steps), route.indoorSegments(), route.markers());
     }
 
     private static String levelText(Level level) {
@@ -285,7 +292,7 @@ final class WalkRouter {
     private static WalkRoute withoutPoints(WalkRoute r) {
         return new WalkRoute(null, r.distanceMeters(), r.totalSeconds(), r.minutes(), r.hasIndoorTransit(), r.hasStairs(),
                 r.hasLinkSegment(), r.isEstimate(), r.usesElevator(), r.indoorMeters(), r.viaBuildings(), r.notes(), r.steps(),
-                r.indoorSegments());
+                r.indoorSegments(), r.markers());
     }
 
     /** 출입구 간 직선거리 + 층 이동 시간 어림. */
@@ -297,7 +304,7 @@ final class WalkRouter {
         double totalSeconds = walkSeconds + Floors.entranceTransitSeconds(fromBuilding, fromFloor)
                 + Floors.entranceTransitSeconds(toBuilding, toFloor);
         return new WalkRoute(List.of(fromPoint, toPoint), Math.round(meters), totalSeconds, Math.max(1, Math.round(totalSeconds / 60)),
-                fromFloor != null || toFloor != null, false, false, true, null, null, null, null, null, null);
+                fromFloor != null || toFloor != null, false, false, true, null, null, null, null, null, null, null);
     }
 
     // ---- 경로망 검사(조사 도구 '서버에 올리기') ----
@@ -495,7 +502,8 @@ final class WalkRouter {
         return survey.edgeMemos().get(x.compareTo(y) <= 0 ? x + "|" + y : y + "|" + x);
     }
 
-    private record Step(String text, String kind, String building, Double floor) {
+    /** at: 그 일이 일어나는 경로 점 id(지도 표시 자리). mark: 지도 말풍선 글. */
+    private record Step(String text, String kind, String building, Double floor, String at, String mark) {
     }
 
     private static final Pattern ENTRANCE_NAME_TAIL = Pattern.compile(" (지하 \\d+층|L층|[\\d.]+층) 출입구$");
@@ -509,8 +517,20 @@ final class WalkRouter {
         return m.find() ? Double.valueOf(m.group(1)) : null;
     }
 
-    /** 길 흐름: 건물을 나가고 들어가는 출입구, 건물 안 층 이동, 실외 계단을 순서대로. 중간 건물을 바로 지나가면 '○동 2층 → 3층 통과'. */
-    private List<String> routeSteps(Graph graph, List<String> nodeIds, Function<String, String> nameOf) {
+    /** 길 흐름 글과 지도 표시(같은 순서). */
+    private record Directions(List<String> steps, List<WalkRoute.Marker> markers) {
+    }
+
+    /** 층 이동 말풍선: '엘리베이터 5층 ↑', '계단 지하 1층 ↓'. */
+    private static String floorMark(String via, double from, double to) {
+        return via + " " + floorText(to) + (to > from ? " ↑" : " ↓");
+    }
+
+    /**
+     * 길 흐름: 건물을 나가고 들어가는 출입구, 건물 안 층 이동, 실외 계단을 순서대로. 중간 건물을 바로 지나가면 '○동 2층 → 3층 통과'.
+     * 같은 자리를 지도 표시로도 낸다(11-16 — 길찾기 지도에 층 바뀌는 곳을 보여 달라는 사용자 요청).
+     */
+    private Directions routeSteps(Graph graph, List<String> nodeIds, Function<String, String> nameOf) {
         int n = nodeIds.size();
         java.util.function.IntFunction<GraphEdge> edgeAt = i -> i < 0 || i >= n - 1 ? null : graph.edge(nodeIds.get(i), nodeIds.get(i + 1));
         Function<String, String> entranceName = id -> {
@@ -534,7 +554,8 @@ final class WalkRouter {
             Double f = vertexFloors.get(id);
             if (startFloor != null && f != null) {
                 if (!f.equals(startFloor)) {
-                    steps.add(new Step("계단·엘리베이터로 " + floorText(f) + " " + (f > startFloor ? "올라가기" : "내려가기"), "move", null, null));
+                    steps.add(new Step("계단·엘리베이터로 " + floorText(f) + " " + (f > startFloor ? "올라가기" : "내려가기"), "floor", null, f,
+                            id, floorMark("계단·엘리베이터", startFloor, f)));
                 }
                 startFloor = null;
             }
@@ -544,10 +565,11 @@ final class WalkRouter {
                 Double floor = vertexFloors.get(id);
                 boolean before = isOutdoorId(i > 0 ? nodeIds.get(i - 1) : null);
                 boolean after = isOutdoorId(i + 1 < n ? nodeIds.get(i + 1) : null);
+                String at = building + (floor == null ? "" : " " + floorText(floor));
                 if (before && !after) {
-                    steps.add(new Step(name, "enter", building, floor));
+                    steps.add(new Step(name, "enter", building, floor, id, at + " 입구"));
                 } else if (after && !before) {
-                    steps.add(new Step(name.replaceFirst("출입구$", "출구"), "exit", building, floor));
+                    steps.add(new Step(name.replaceFirst("출입구$", "출구"), "exit", building, floor, id, at + " 출구"));
                 }
             }
             if (f != null) {
@@ -570,7 +592,7 @@ final class WalkRouter {
                 Double to = j < n ? vertexFloors.get(nodeIds.get(j)) : null;
                 if (from != null && to != null && !to.equals(from)) {
                     steps.add(new Step((stairs ? "계단으로" : "엘리베이터로") + " " + floorText(to) + " " + (to > from ? "올라가기" : "내려가기"),
-                            "move", null, null));
+                            "floor", null, to, id, floorMark(stairs ? "계단" : "엘리베이터", from, to)));
                 }
                 i = j - 1;
                 continue;
@@ -608,7 +630,8 @@ final class WalkRouter {
                         }
                     }
                 }
-                steps.add(new Step(rise > 0 ? "계단 올라가기" : rise < 0 ? "계단 내려가기" : "계단 이용", "move", null, null));
+                steps.add(new Step(rise > 0 ? "계단 올라가기" : rise < 0 ? "계단 내려가기" : "계단 이용", "stairs", null, null, id,
+                        rise > 0 ? "계단 ↑" : rise < 0 ? "계단 ↓" : "계단"));
                 i = j - 1;
             }
         }
@@ -616,10 +639,17 @@ final class WalkRouter {
         Double targetFloor = n > 0 ? floorNodeFloor(nodeIds.get(n - 1)) : null;
         if (targetFloor != null && lastFloor != null && !targetFloor.equals(lastFloor)) {
             steps.add(new Step("계단·엘리베이터로 " + floorText(targetFloor) + " " + (targetFloor > lastFloor ? "올라가기" : "내려가기"),
-                    "move", null, null));
+                    "floor", null, targetFloor, lastIndoorId(nodeIds), floorMark("계단·엘리베이터", lastFloor, targetFloor)));
         }
 
         List<String> out = new ArrayList<>();
+        List<WalkRoute.Marker> markers = new ArrayList<>();
+        java.util.function.BiConsumer<Step, String> mark = (step, label) -> {
+            Point p = step.at() == null ? null : graph.nodes.get(step.at());
+            if (p != null) {
+                markers.add(new WalkRoute.Marker(p.lat(), p.lng(), step.kind(), label, step.floor()));
+            }
+        };
         for (int k = 0; k < steps.size(); k++) {
             Step s = steps.get(k);
             Step next = k + 1 < steps.size() ? steps.get(k + 1) : null;
@@ -628,14 +658,27 @@ final class WalkRouter {
                 String outFloor = next.floor() == null ? "" : floorText(next.floor());
                 String text = s.building() + " " + inFloor + (!outFloor.isEmpty() && !outFloor.equals(inFloor) ? " → " + outFloor : "") + " 통과";
                 out.add(WHITESPACE.matcher(text).replaceAll(" "));
+                String label = s.building() + " " + inFloor + (!outFloor.isEmpty() && !outFloor.equals(inFloor) ? "→" + outFloor : "") + " 통과";
+                mark.accept(new Step(text, "pass", s.building(), s.floor(), s.at(), null), WHITESPACE.matcher(label).replaceAll(" "));
                 k++;
                 continue;
             }
             if (out.isEmpty() || !out.get(out.size() - 1).equals(s.text())) {
                 out.add(s.text());
+                mark.accept(s, s.mark());
             }
         }
-        return out;
+        return new Directions(List.copyOf(out), List.copyOf(markers));
+    }
+
+    /** 경로 끝 쪽에서 마지막 실내 정점(도착 층 이동을 찍을 자리). 없으면 마지막 점. */
+    private static String lastIndoorId(List<String> nodeIds) {
+        for (int i = nodeIds.size() - 1; i >= 0; i--) {
+            if (nodeIds.get(i).contains("@")) {
+                return nodeIds.get(i);
+            }
+        }
+        return nodeIds.isEmpty() ? null : nodeIds.get(nodeIds.size() - 1);
     }
 
     // ---- 그래프 ----
@@ -670,11 +713,11 @@ final class WalkRouter {
         return best;
     }
 
-    private static void addEdge(Graph graph, String aId, Point a, String bId, Point b, boolean stairs) {
+    private void addEdge(Graph graph, String aId, Point a, String bId, Point b, boolean stairs) {
         graph.nodes.put(aId, a);
         graph.nodes.put(bId, b);
         double meters = Geo.haversineMeters(a.lat(), a.lng(), b.lat(), b.lng());
-        double seconds = (meters / WALKING_METERS_PER_MINUTE) * 60 * (stairs ? STAIRS_TIME_FACTOR : 1);
+        double seconds = (meters / WALKING_METERS_PER_MINUTE) * 60 * (stairs ? stairsTimeFactor : 1);
         graph.push(aId, new GraphEdge(bId, seconds, meters, stairs, false, false));
         graph.push(bId, new GraphEdge(aId, seconds, meters, stairs, false, false));
     }
@@ -1329,11 +1372,12 @@ final class WalkRouter {
             }
         }
 
+        Directions directions = routeSteps(graph, ids, nameOf);
         List<String> allNotes = new ArrayList<>(startFloorNote(ids));
         allNotes.addAll(notes);
         return new WalkRoute(List.copyOf(points), Math.round(distanceMeters), path.seconds(), Math.max(1, Math.round(path.seconds() / 60)),
                 hasIndoorTransit, hasStairs, hasLinkSegment, false, usesElevator, Math.round(indoorMeters), viaCodes,
-                allNotes, routeSteps(graph, ids, nameOf), indoorSegmentsOf(graph, ids));
+                allNotes, directions.steps(), indoorSegmentsOf(graph, ids), directions.markers());
     }
 
     /** 건물 안(실내 정점·건물 가운데 합성 노드 사이) 구간들. 이어진 구간은 하나로 잇는다. */
@@ -1410,6 +1454,6 @@ final class WalkRouter {
         }
         return new WalkRoute(route.points(), route.distanceMeters(), route.totalSeconds(), route.minutes(), route.hasIndoorTransit(),
                 route.hasStairs(), route.hasLinkSegment(), route.isEstimate(), route.usesElevator(), route.indoorMeters(),
-                List.copyOf(names), route.notes(), route.steps(), route.indoorSegments());
+                List.copyOf(names), route.notes(), route.steps(), route.indoorSegments(), route.markers());
     }
 }
