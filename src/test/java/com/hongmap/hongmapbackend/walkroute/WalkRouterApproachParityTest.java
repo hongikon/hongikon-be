@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WalkRouterApproachParityTest {
 
+    /** 비교 자료(앱 예전 계산, 11-09·11-10)를 만들 때의 바깥 계단 배수. 서버는 11-16부터 1.5. */
+    static final double APP_STAIRS_FACTOR = 3;
+
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     static final double MY_LOCATION_MAX_METERS = 150;
     static final int MY_LOCATION_LINKS = 3;
@@ -74,7 +77,7 @@ class WalkRouterApproachParityTest {
             double seconds = walkSeconds + r.totalSeconds();
             out.add(new WalkRoute(points, Math.round(best.meters() + r.distanceMeters()), seconds, Math.max(1, Math.round(seconds / 60)),
                     r.hasIndoorTransit(), r.hasStairs(), r.hasLinkSegment(), false, r.usesElevator(), r.indoorMeters(), r.viaBuildings(),
-                    r.notes(), r.steps(), r.indoorSegments()));
+                    r.notes(), r.steps(), r.indoorSegments(), r.markers()));
         }
         return out;
     }
@@ -91,7 +94,7 @@ class WalkRouterApproachParityTest {
                 byId.put(building.id(), building);
             }
         }
-        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings);
+        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR);
         Map<String, List<JsonNode>> byTarget = new java.util.LinkedHashMap<>();
         for (JsonNode c : read("walkroute/approach-parity.json.gz").get("cases")) {
             byTarget.computeIfAbsent(c.get("to").asLong() + "|" + c.get("toFloor"), k -> new ArrayList<>()).add(c);

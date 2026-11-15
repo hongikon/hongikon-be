@@ -20,6 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WalkRouterParityTest {
 
+    /** 비교 자료(앱 예전 계산, 11-09·11-10)를 만들 때의 바깥 계단 배수. 서버는 11-16부터 1.5. */
+    static final double APP_STAIRS_FACTOR = 3;
+
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private static WalkRouter router;
     private static Map<Long, CampusBuilding> byId;
@@ -41,7 +44,7 @@ class WalkRouterParityTest {
                 byId.put(building.id(), building);
             }
         }
-        router = new WalkRouter(SurveyGraph.load(MAPPER), buildings);
+        router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR);
         cases = fixture.get("cases");
     }
 
