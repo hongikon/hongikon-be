@@ -229,10 +229,14 @@ public class AskLlmClient {
               search_clubs 에서 찾지 못한 동아리는 '총학생회 중앙동아리 목록에는 없어요(가동아리·학과 소모임·연합동아리일 수 있어요)'라고 하고,
               [안내 원문]에 그 동아리의 옛 동방 호실이 있어도 쓰지 않는다(옛 호실을 지금 다른 동아리가 쓰기도 한다).
               전체 목록('중동 뭐 있어', '중앙동아리 목록')은 query 를 비워 부르고, 표 하나(분과 | 동아리)에 분과마다 한 행씩 그 분과 동아리 이름을
-              쉼표로 모두 적는다(66개 전부 — 일부만 고르지 않는다). 한 분과 목록이면 표(이름 | 소개 | 동방). 분야('밴드 동아리', '봉사 동아리')는
+              쉼표로 모두 적는다(결과의 동아리 전부 — 일부만 고르지 않는다. 가동아리는 따로 한 행). 한 분과 목록이면 표(이름 | 소개 | 동방). 분야('밴드 동아리', '봉사 동아리')는
               query 에 분야 낱말을 넣고, 결과 후보의 소개를 읽어 그 분야에 맞는 동아리만 표(이름 | 소개 | 동방)로 보인다.
-              동방은 결과의 '동방' 그대로(건물·층 포함) 쓴다. 인스타그램·유튜브 같은 링크를 물으면 주소는 답 글에 쓰지 않고(규칙 6)
-              '아래 링크 버튼'이라고 한 뒤 그 링크의 참조(club:번호:link…)를 sourceIds 맨 앞에 넣는다 — 앱이 그 주소로 버튼을 붙인다.
+              동방은 결과의 '동방' 그대로(건물·층 포함) 쓴다. 링크 주소는 답 글에 쓰지 않고(규칙 6) 그 링크의 참조(club:번호:link…)를
+              sourceIds 맨 앞에 넣는다 — 앱이 그 주소로 버튼을 붙인다. 특정 동아리 한두 곳을 자세히 답할 때는 링크를 묻지 않았어도
+              그 동아리의 인스타그램·카카오톡 채널·오픈채팅 링크 참조를 sourceIds 맨 앞에 넣고 '인스타그램·카카오톡 채널은 아래 버튼으로 볼 수 있어요'라고
+              쓴다(결과에 있는 링크만 — 없으면 '링크 안내는 없어요'). 동아리를 안내한 답은 마지막을 '모집·활동 같은 자세한 내용은 동아리에 직접 문의해 주세요'로
+              끝낸다(링크가 있으면 '인스타그램·카카오톡으로'를 붙인다). 분과가 '가동아리'인 동아리는 동아리가 보내온 소개라
+              '총학생회 중앙동아리가 아닌 가동아리예요'라고 한 번 밝히고, 동방·모집이 '안내에 없음'이면 지어내지 않는다.
               sourceIds 에 clubs:hongikunion 과 답에 쓴 동아리의
               club:번호(결과의 [참조 …])를 넣는다 — 참조 id 는 sourceIds 에만 쓰고 답 글·표에는 쓰지 않는다. 동방 위치를 물었고 결과에 '지도 참조'가 있으면 그 building 참조를 mapTarget 에 넣는다.
             - [오늘]에 날짜가 없으면(질문에 시점이 없음) 이번 학기 신청 기간이 지났는지·지금 열려 있는지를 말하지 않는다 — 규칙(언제·어떻게)만 쓴다.
@@ -381,7 +385,7 @@ public class AskLlmClient {
                                 "category", Map.of("type", "string"),
                                 "mode", Map.of("type", "string", "enum", List.of("list", "count_by_dept"))),
                         List.of("query")),
-                tool("search_clubs", "총학생회가 올린 홍익대 중앙동아리 66개(이름·분과·소개·동방·정기 모임·모집 안내·링크)를 찾는다. "
+                tool("search_clubs", "홍익대 동아리(총학생회 중앙동아리 66개 + 동아리가 보내온 가동아리 소개)의 이름·분과·소개·동방·정기 모임·모집 안내·인스타그램·카카오톡 링크를 찾는다. "
                                 + "query 는 동아리 이름('뚜라미', 'HIUC')이나 분야 낱말('밴드', '축구', '봉사'), 비우면 분과별 전체 목록. "
                                 + "category 는 분과(공연·스포츠·레저·학술·사회·전시·종교, 없으면 비움). 참조는 clubs:hongikunion 과 동아리마다 club:번호.",
                         Map.of("query", Map.of("type", "string"), "category", Map.of("type", "string")),
@@ -812,7 +816,7 @@ public class AskLlmClient {
             StringBuilder out = new StringBuilder(result.text());
             Set<String> buildings = new LinkedHashSet<>();
             for (AskClubs.Club club : result.shown()) {
-                references.put(club.ref(), new AskLiveData.Reference(club.ref(), club.name() + " · " + AskClubs.SOURCE_TITLE, club.detailUrl(), null));
+                references.put(club.ref(), new AskLiveData.Reference(club.ref(), club.name() + " · " + club.sourceTitle(), club.detailUrl(), null));
                 for (int i = 0; i < club.links().size(); i++) {
                     String ref = AskClubs.linkRef(club, i);
                     references.put(ref, new AskLiveData.Reference(ref, AskClubs.linkTitle(club, i), club.links().get(i).url(), null));
