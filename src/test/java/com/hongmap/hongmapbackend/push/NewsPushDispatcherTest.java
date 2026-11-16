@@ -329,7 +329,136 @@ class NewsPushDispatcherTest {
         verify(expoPushClient, never()).send(anyList());
     }
 
+    // ---------- 게시판별 묶기 ----------
+
+    @Test
+    void 같은_기기가_같은_게시판_새_글_9건을_받으면_메시지_하나로_묶고_newsId는_최신_글이다() {
+        User user = user();
+        subscribeBoard(user, boardA, true);
+        String token = device(user, TokenType.EXPO, true);
+        List<News> newsList = new java.util.ArrayList<>();
+        LocalDateTime base = LocalDateTime.now().minusDays(1);
+        for (int i = 0; i < 9; i++) {
+            // 4번째(i=3)를 가장 최신 작성일로 둬서 목록 순서가 아니라 작성일로 고르는지 본다.
+            LocalDateTime publishedAt = i == 3 ? base.plusHours(20) : base.plusHours(i);
+            newsList.add(news(boardA, "공지", "공지 " + i, publishedAt));
+        }
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(newsList);
+
+        assertThat(messages).hasSize(1);
+        ExpoPushMessage m = messages.get(0);
+        assertThat(m.to()).isEqualTo(token);
+        assertThat(m.title()).isEqualTo(boardA + " 공지 새 글 9건");
+        assertThat(m.body()).isEqualTo("공지 3 외 8건");
+        assertThat(m.data()).isEqualTo(Map.of("type", "NEWS", "newsId", newsList.get(3).getId()));
+    }
+
+    @Test
+    void 작성일이_같으면_나중에_저장된_글을_최신으로_본다() {
+        User user = user();
+        subscribeBoard(user, boardA, true);
+        device(user, TokenType.EXPO, true);
+        LocalDateTime sameDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        News first = news(boardA, "공지", "먼저 저장", sameDay);
+        News second = news(boardA, "공지", "나중 저장", sameDay);
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(List.of(second, first));
+
+        assertThat(messages).singleElement().satisfies(m -> {
+            assertThat(m.body()).isEqualTo("나중 저장 외 1건");
+            assertThat(m.data()).containsEntry("newsId", second.getId());
+        });
+    }
+
+    @Test
+    void 같은_기기라도_게시판이_다르면_메시지가_따로_간다() {
+        User user = user();
+        subscribeBoard(user, boardA, true);
+        subscribeBoard(user, boardB, true);
+        device(user, TokenType.EXPO, true);
+        News a = news(boardA, "공지", "A 게시판 글");
+        News b = news(boardB, "공지", "B 게시판 글");
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(List.of(a, b));
+
+        assertThat(messages).extracting(ExpoPushMessage::title).containsExactly(boardA + " 공지", boardB + " 공지");
+        assertThat(messages).extracting(ExpoPushMessage::body).containsExactly("A 게시판 글", "B 게시판 글");
+    }
+
+    @Test
+    void 새_글이_1건이면_묶기_전과_같은_메시지다() {
+        User user = user();
+        subscribeBoard(user, boardA, true);
+        String token = device(user, TokenType.EXPO, true);
+        News news = news(boardA, "공지", "단건 공지");
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(List.of(news));
+
+        assertThat(messages).containsExactly(ExpoPushMessage.of(
+                token, boardA + " 공지", "단건 공지", Map.of("type", "NEWS", "newsId", news.getId())));
+    }
+
+    @Test
+    void 기기_두_대는_받은_글에_따라_따로_묶인다() {
+        User both = user();
+        subscribeBoard(both, boardA, true);
+        String boardToken = device(both, TokenType.EXPO, true);
+
+        // 다른 유저는 게시판 구독 없이 키워드로 그중 한 건만 받는다.
+        User keywordOnly = user();
+        subscribeKeyword(keywordOnly, "특강" + run);
+        String keywordToken = device(keywordOnly, TokenType.EXPO, true);
+
+        News lecture = news(boardA, "행사", "특강" + run + " 안내", LocalDateTime.now());
+        News other = news(boardA, "공지", "일반 공지", LocalDateTime.now().minusHours(1));
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(List.of(lecture, other));
+
+        assertThat(messages).hasSize(2);
+        ExpoPushMessage toBoard = messages.stream().filter(m -> m.to().equals(boardToken)).findFirst().orElseThrow();
+        ExpoPushMessage toKeyword = messages.stream().filter(m -> m.to().equals(keywordToken)).findFirst().orElseThrow();
+        assertThat(toBoard.title()).isEqualTo(boardA + " 공지 새 글 2건");
+        assertThat(toBoard.body()).isEqualTo("특강" + run + " 안내 외 1건");
+        assertThat(toKeyword).isEqualTo(ExpoPushMessage.of(
+                keywordToken, boardA + " 공지", "특강" + run + " 안내", Map.of("type", "NEWS", "newsId", lecture.getId())));
+    }
+
+    @Test
+    void 구독하지_않은_게시판의_키워드_알림_글도_그_게시판으로_묶인다() {
+        User user = user();
+        subscribeBoard(user, boardA, true);
+        subscribeKeyword(user, "장학" + run);
+        device(user, TokenType.EXPO, true);
+
+        News subscribed = news(boardA, "공지", "구독 게시판 글");
+        News keyword1 = news(boardB, "장학", "장학" + run + " 1차", LocalDateTime.now().minusHours(2));
+        News keyword2 = news(boardB, "장학", "장학" + run + " 2차", LocalDateTime.now());
+        // 키워드에 안 걸리는 미구독 게시판 글은 받지 않는다.
+        News unrelated = news(boardB, "공지", "관계없는 글");
+
+        List<ExpoPushMessage> messages = dispatchAndCapture(List.of(subscribed, keyword1, keyword2, unrelated));
+
+        assertThat(messages).extracting(ExpoPushMessage::title)
+                .containsExactly(boardA + " 공지", boardB + " 공지 새 글 2건");
+        assertThat(messages.get(1).body()).isEqualTo("장학" + run + " 2차 외 1건");
+        assertThat(messages.get(1).data()).containsEntry("newsId", keyword2.getId());
+    }
+
     // ---------- 픽스처 ----------
+
+    /** dispatch 후 이 테스트가 만든 토큰으로 간 메시지만 보낸 순서대로 모은다. */
+    private List<ExpoPushMessage> dispatchAndCapture(List<News> newsList) {
+        when(expoPushClient.send(anyList())).thenAnswer(inv -> okTickets(inv.getArgument(0)));
+        dispatcher.dispatch(newsList);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ExpoPushMessage>> captor = ArgumentCaptor.forClass(List.class);
+        verify(expoPushClient, org.mockito.Mockito.atLeastOnce()).send(captor.capture());
+        return captor.getAllValues().stream()
+                .flatMap(List::stream)
+                .filter(m -> m.to().contains(run))
+                .toList();
+    }
 
     private List<String> targetTokens(News news) {
         return dispatcher.findTargets(news).stream()
