@@ -26,15 +26,17 @@ public class WalkRouteController {
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
     @Operation(summary = "걷는 길찾기(건물 → 건물)", description = "from·to 는 GET /map/data 의 buildings[].id, fromFloor·toFloor 는 고른 층"
             + "(그 건물 층 다이얼에 있는 층만 — 지상 양수, 지하 음수, 1.5 같은 중간층; 안 고르면 생략, 아니면 400). 경로망 조사 v3 로 후보를 최대 3개(가장 빠른 길이 맨 앞) 낸다. "
-            + "경로망이 그 구간을 못 덮으면 직선 어림 하나(isEstimate=true). 같은 건물이면 400, 없는 건물이면 404.")
+            + "경로망이 그 구간을 못 덮으면 직선 어림 하나(isEstimate=true). 같은 건물이면 400, 없는 건물이면 404. "
+            + "avoidStairs=true 면 계단(실외 계단·건물 안 계단)을 쓰지 않는 길만 낸다(기본 false) — 계단 없는 길이 없으면 routes 가 빈 배열.")
     @GetMapping("/map/routes")
     public ResponseEntity<WalkRoutesResponse> routes(@RequestParam long from,
                                                      @RequestParam(required = false) Double fromFloor,
                                                      @RequestParam long to,
-                                                     @RequestParam(required = false) Double toFloor) {
+                                                     @RequestParam(required = false) Double toFloor,
+                                                     @RequestParam(required = false, defaultValue = "false") boolean avoidStairs) {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
-                .body(new WalkRoutesResponse(walkRouteService.routes(from, fromFloor, to, toFloor)));
+                .body(new WalkRoutesResponse(walkRouteService.routes(from, fromFloor, to, toFloor, avoidStairs)));
     }
 
     @Tag(name = SwaggerConfig.TAG_MAP_NAVIGATION)
