@@ -1985,3 +1985,22 @@
 - 지금 중앙동아리 66개의 링크는 인스타그램 61·유튜브 9 등이고 카카오톡은 총학생회 자료에 없음 — 카카오톡 버튼은 자료에 링크가 있는 동아리(현재 홍복실)만.
 - 개인정보: 받은 메시지에 있던 보낸 사람 전화번호는 넣지 않음. 동아리 공식 계정 링크만. 처리방침 변경 없음.
 - 확인: `AskClubsTest` 11(새 2 — 홍복실 인스타·카카오 참조·가동아리 출처·분야 낱말·hint, 직접 문의 줄), ask 테스트 215 통과. 실제 모델 답(버튼·마무리 문구)은 dev 서버에서 확인 필요.
+
+## 2026-11-16 — 길찾기: 계단 피하기(GET /map/routes avoidStairs)
+
+- 요청: `GET /map/routes` 에 선택 파라미터 `avoidStairs`(기본 false). true 면 계단(실외 `stairs`, 건물 안 `stairs_vertical`)을 쓰지 않는 길만 후보로. 생략/false 는 기존과 같다.
+- `WalkRouter`
+  - `routes(…, boolean avoidStairs)`, `findRoutes(…, int, boolean avoidStairs)` 오버로드. 기존 시그니처는 false 로 위임(패리티 테스트·다른 호출부 그대로).
+  - avoidStairs 면 `base.copy()` 직후, 출발·도착 점을 붙이기 전에 adj 의 모든 목록에서 `stairs()==true` 간선을 뺀다.
+  - `attachFloorNode(…, avoidStairs)`: 고른 층이 조사돼 있으면 다른 층 출입구와의 층 차이 어림 간선(층 차이 × 20초, 수단을 모르는 '계단·엘리베이터' 이동)을 잇지 않는다. 이 어림 간선이 남아 있으면 계단 간선을 지워도 그쪽으로 층을 옮겨, 엘리베이터를 안 쓰고 계단만 있는 위층에도 길이 나왔다. 조사되지 않은 층은 어림 말고 갈 방법이 없어 그대로 잇는다(계단을 피한다고 확인된 길은 아님).
+  - 계단 없이는 못 가는 구간: 계단을 허용하면 길이 있으면 빈 목록(직선 어림으로 대신하지 않음). 계단을 허용해도 없으면(경로망이 못 덮음) 기존대로 직선 어림 하나.
+- `WalkRouteService`: `routes(…, boolean avoidStairs)` 오버로드(기존 4개 인자는 false), 결과 캐시 키 끝에 `|avoidStairs`. 관리자 미리보기(previewRoutes)는 false.
+- `WalkRouteController`: `@RequestParam(required = false, defaultValue = "false") boolean avoidStairs`, Swagger 설명에 '계단 없는 길이 없으면 routes 가 빈 배열'.
+- `WalkRoute.stairFreeUnverified`(Boolean, null 이면 응답에서 빠짐): 계단 없음을 확인하지 못한 길 — avoidStairs 인데 출발·도착 중 조사되지 않은 층을 층 차이 어림으로 오르내려 그 요청의 모든 후보에 true. 기존 15개 인자 생성자는 null 로 위임하는 보조 생성자로 남김(호출부 그대로). `attachFloorNode` 가 층 차이 0 아닌 어림 간선을 붙였는지 `boolean[]` 로 알려 주고, `withLevelNotes`·`nameVia`·`withoutPoints` 가 값을 넘긴다.
+- 손대지 않음: `RouteGraphController`, `AskLiveData`, `/map/routes/approach`.
+- 확인
+  - `WalkRouterAvoidStairsTest`(작은 SurveyGraph, 6; stairFreeUnverified — 조사된 층만이면 null, 조사 안 된 층이면 true, 계단 허용이면 늘 null·JSON 키 없음): 계단·엘리베이터가 둘 다 있는 건물 2층 → 바깥 계단 지름길이 있는 건물로 가면 avoidStairs 결과는 모두 hasStairs=false·usesElevator=true; 계단만 있는 건물 2층은 빈 목록(계단 허용 시엔 길 있음); 조사 안 된 층은 어림으로 감; 경로망 밖 건물은 직선 어림 하나; 기존 시그니처 = false.
+  - `WalkRouteServiceTest` 보강: R동 1층 → T동 3층을 false/true 번갈아 불러도 각자 기억한 결과(isSameAs), true 결과는 계단 없음.
+  - 패리티 fixture(`route-parity*.json.gz`)는 다시 만들지 않음 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
+  - `./gradlew test` 전체 878 통과(실패 0).
+  - 수동: `GET /map/routes?from=…&to=…&toFloor=3&avoidStairs=true` 의 routes[].hasStairs 가 모두 false, 생략하면 기존 응답과 같음.

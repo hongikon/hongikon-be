@@ -32,8 +32,22 @@ public record WalkRoute(
         /* 건물 안 구간. 지도에서 점선으로 겹쳐 그린다. */
         List<List<Point>> indoorSegments,
         /* 지도에 찍는 층 바뀌는 곳(11-16): 건물 출구·입구, 건물 안 계단·엘리베이터 층 이동, 바깥 계단. 지나는 순서. */
-        List<Marker> markers
+        List<Marker> markers,
+        /*
+         * 계단 피하기(avoidStairs)로 찾았지만 조사되지 않은 층을 층 차이 어림(계단·엘리베이터 모름)으로 오르내려,
+         * 계단 없음을 확인하지 못한 길이면 true. 그 밖에는 null(응답에서 빠진다).
+         */
+        Boolean stairFreeUnverified
 ) {
+    /** 계단 없음 확인 표시가 없는 후보(stairFreeUnverified=null). */
+    public WalkRoute(List<Point> points, long distanceMeters, double totalSeconds, long minutes, boolean hasIndoorTransit,
+                     boolean hasStairs, boolean hasLinkSegment, boolean isEstimate, Boolean usesElevator, Long indoorMeters,
+                     List<String> viaBuildings, List<String> notes, List<String> steps, List<List<Point>> indoorSegments,
+                     List<Marker> markers) {
+        this(points, distanceMeters, totalSeconds, minutes, hasIndoorTransit, hasStairs, hasLinkSegment, isEstimate, usesElevator,
+                indoorMeters, viaBuildings, notes, steps, indoorSegments, markers, null);
+    }
+
     public record Point(double lat, double lng) {
     }
 
