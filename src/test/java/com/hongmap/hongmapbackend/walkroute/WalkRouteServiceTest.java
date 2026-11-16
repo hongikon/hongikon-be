@@ -71,6 +71,22 @@ class WalkRouteServiceTest {
     }
 
     @Test
+    void 계단_피하기는_따로_기억해_번갈아_불러도_섞이지_않는다() {
+        List<WalkRoute> normal = service.routes(r, 1.0, t, 3.0);
+        List<WalkRoute> avoid = service.routes(r, 1.0, t, 3.0, true);
+        assertThat(normal).anySatisfy(route -> assertThat(route.hasStairs()).isTrue());
+        assertThat(avoid).isNotEqualTo(normal).allSatisfy(route -> {
+            assertThat(route.hasStairs()).isFalse();
+            assertThat(route.isEstimate()).isFalse();
+        });
+        for (int i = 0; i < 2; i++) {
+            assertThat(service.routes(r, 1.0, t, 3.0, false)).isSameAs(normal);
+            assertThat(service.routes(r, 1.0, t, 3.0, true)).isSameAs(avoid);
+            assertThat(service.routes(r, 1.0, t, 3.0)).isSameAs(normal);
+        }
+    }
+
+    @Test
     void 내_위치_출발용_approach_는_위치를_받지_않고_길_점마다_후보를_준다() throws Exception {
         long started = System.nanoTime();
         byte[] json = service.approachJson(t, 3.0);

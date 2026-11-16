@@ -58,7 +58,12 @@ public class WalkRouteService {
     }
 
     public List<WalkRoute> routes(long fromId, Double fromFloor, long toId, Double toFloor) {
-        return routes(current(), fromId, fromFloor, toId, toFloor);
+        return routes(fromId, fromFloor, toId, toFloor, false);
+    }
+
+    /** avoidStairs 면 계단 없는 길만(없으면 빈 목록 — WalkRouter.routes). */
+    public List<WalkRoute> routes(long fromId, Double fromFloor, long toId, Double toFloor, boolean avoidStairs) {
+        return routes(current(), fromId, fromFloor, toId, toFloor, avoidStairs);
     }
 
     /** 조사 도구 길 시험: 한 버전 경로망으로 찾은 길(결과는 기억하지 않는다 — 초안을 계속 바꿔 올린다). */
@@ -70,10 +75,10 @@ public class WalkRouteService {
             b = new Built(version, new WalkRouter(graphs.graphOf(versionId), buildings.list()), buildings.byId());
             preview = b;
         }
-        return routes(b, fromId, fromFloor, toId, toFloor);
+        return routes(b, fromId, fromFloor, toId, toFloor, false);
     }
 
-    private List<WalkRoute> routes(Built current, long fromId, Double fromFloor, long toId, Double toFloor) {
+    private List<WalkRoute> routes(Built current, long fromId, Double fromFloor, long toId, Double toFloor, boolean avoidStairs) {
         if (fromId == toId) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "출발과 도착이 같은 건물입니다");
         }
@@ -81,12 +86,12 @@ public class WalkRouteService {
         CampusBuilding to = building(current, toId);
         checkFloor(from, fromFloor);
         checkFloor(to, toFloor);
-        String key = current.version() + "|" + fromId + "|" + fromFloor + "|" + toId + "|" + toFloor;
+        String key = current.version() + "|" + fromId + "|" + fromFloor + "|" + toId + "|" + toFloor + "|" + avoidStairs;
         List<WalkRoute> cached = results.get(key);
         if (cached != null) {
             return cached;
         }
-        List<WalkRoute> routes = current.router().routes(from, fromFloor, to, toFloor);
+        List<WalkRoute> routes = current.router().routes(from, fromFloor, to, toFloor, avoidStairs);
         results.put(key, routes);
         return routes;
     }
