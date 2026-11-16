@@ -30,8 +30,17 @@ public record WalkRoute(
         /* 길 흐름: "R동 1층 출구", "Z2동 2층 → 3층 통과", "엘리베이터로 5층 올라가기". */
         List<String> steps,
         /* 건물 안 구간. 지도에서 점선으로 겹쳐 그린다. */
-        List<List<Point>> indoorSegments
+        List<List<Point>> indoorSegments,
+        /* 지도에 찍는 층 바뀌는 곳(11-16): 건물 출구·입구, 건물 안 계단·엘리베이터 층 이동, 바깥 계단. 지나는 순서. */
+        List<Marker> markers
 ) {
     public record Point(double lat, double lng) {
+    }
+
+    /**
+     * kind: exit(건물 나가기)·enter(들어가기)·pass(바로 지나가기)·floor(건물 안 층 이동)·stairs(바깥 계단).
+     * label: 지도 말풍선 글('T동 3층 입구', '엘리베이터 5층 ↑', '계단 ↓'). floor: 그 자리의 층(모르면 null).
+     */
+    public record Marker(double lat, double lng, String kind, String label, Double floor) {
     }
 }
