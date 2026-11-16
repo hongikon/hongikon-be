@@ -174,10 +174,21 @@ final class WalkRouter {
 
     /** 건물(층)에서 건물(층)까지 후보들. 경로망이 못 덮으면 직선 어림 하나. */
     List<WalkRoute> routes(CampusBuilding from, Double fromFloor, CampusBuilding to, Double toFloor) {
+        return routes(from, fromFloor, to, toFloor, false);
+    }
+
+    /**
+     * avoidStairs 면 계단(실외 stairs, 건물 안 stairs_vertical)을 쓰지 않는 길만 낸다. 계단 없이는 못 가는 구간(엘리베이터 없는
+     * 건물의 위층 등)이면 빈 목록 — 직선 어림으로 대신하지 않는다. 계단을 허용해도 길이 없을 때(경로망이 못 덮음)만 직선 어림 하나.
+     */
+    List<WalkRoute> routes(CampusBuilding from, Double fromFloor, CampusBuilding to, Double toFloor, boolean avoidStairs) {
         Level start = sameLevel(from, fromFloor);
         Level end = sameLevel(to, toFloor);
-        List<WalkRoute> found = findRoutes(start.building(), start.floor(), end.building(), end.floor(), MAX_ALTERNATIVES);
+        List<WalkRoute> found = findRoutes(start.building(), start.floor(), end.building(), end.floor(), MAX_ALTERNATIVES, avoidStairs);
         if (found.isEmpty()) {
+            if (avoidStairs && !findRoutes(start.building(), start.floor(), end.building(), end.floor(), 1, false).isEmpty()) {
+                return List.of();
+            }
             return List.of(straightLineFallback(start.building(), start.floor(), end.building(), end.floor()));
         }
         List<WalkRoute> out = new ArrayList<>();
@@ -204,7 +215,8 @@ final class WalkRouter {
         notes.addAll(route.notes());
         return new WalkRoute(route.points(), route.distanceMeters(), route.totalSeconds(), route.minutes(), route.hasIndoorTransit(),
                 route.hasStairs(), route.hasLinkSegment(), route.isEstimate(), route.usesElevator(), route.indoorMeters(),
-                route.viaBuildings(), List.copyOf(notes), List.copyOf(steps), route.indoorSegments(), route.markers());
+                route.viaBuildings(), List.copyOf(notes), List.copyOf(steps), route.indoorSegments(), route.markers(),
+                route.stairFreeUnverified());
     }
 
     private static String levelText(Level level) {
@@ -213,18 +225,38 @@ final class WalkRouter {
 
     /** 실측 경로망을 따라 계산한 후보들. 어느 한쪽 건물이 경로망에 없으면 빈 목록. */
     List<WalkRoute> findRoutes(CampusBuilding from, Double fromFloor, CampusBuilding to, Double toFloor, int maxAlternatives) {
+        return findRoutes(from, fromFloor, to, toFloor, maxAlternatives, false);
+    }
+
+    /**
+     * avoidStairs 면 요청용 그래프에서 계단 간선(stairs()==true)을 모두 뺀 뒤 출발·도착 점을 붙인다. 출발·도착 중 하나라도
+     * 조사되지 않은 층이라 층 차이 어림 간선을 붙였으면 모든 후보에 stairFreeUnverified=true(계단 없음을 확인하지 못함).
+     */
+    List<WalkRoute> findRoutes(CampusBuilding from, Double fromFloor, CampusBuilding to, Double toFloor, int maxAlternatives,
+                               boolean avoidStairs) {
         Graph graph = base.copy();
-        String sourceId = attachFloorNode(graph, from, fromFloor);
-        String targetId = attachFloorNode(graph, to, toFloor);
+        if (avoidStairs) {
+            graph.adj.values().forEach(list -> list.removeIf(GraphEdge::stairs));
+        }
+        boolean[] estimatedTransit = {false};
+        String sourceId = attachFloorNode(graph, from, fromFloor, avoidStairs, estimatedTransit);
+        String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
         if (!graph.nodes.containsKey(sourceId) || !graph.nodes.containsKey(targetId)) {
             return List.of();
         }
         List<String> exclude = List.of(from.name(), to.name());
         List<WalkRoute> out = new ArrayList<>();
         for (PathResult path : routeCandidates(graph, sourceId, targetId, maxAlternatives)) {
-            out.add(nameVia(toRoute(graph, path), exclude));
+            WalkRoute route = nameVia(toRoute(graph, path), exclude);
+            out.add(avoidStairs && estimatedTransit[0] ? stairFreeUnverified(route) : route);
         }
         return out;
+    }
+
+    private static WalkRoute stairFreeUnverified(WalkRoute r) {
+        return new WalkRoute(r.points(), r.distanceMeters(), r.totalSeconds(), r.minutes(), r.hasIndoorTransit(), r.hasStairs(),
+                r.hasLinkSegment(), r.isEstimate(), r.usesElevator(), r.indoorMeters(), r.viaBuildings(), r.notes(), r.steps(),
+                r.indoorSegments(), r.markers(), true);
     }
 
     /**
@@ -292,7 +324,7 @@ final class WalkRouter {
     private static WalkRoute withoutPoints(WalkRoute r) {
         return new WalkRoute(null, r.distanceMeters(), r.totalSeconds(), r.minutes(), r.hasIndoorTransit(), r.hasStairs(),
                 r.hasLinkSegment(), r.isEstimate(), r.usesElevator(), r.indoorMeters(), r.viaBuildings(), r.notes(), r.steps(),
-                r.indoorSegments(), r.markers());
+                r.indoorSegments(), r.markers(), r.stairFreeUnverified());
     }
 
     /** 출입구 간 직선거리 + 층 이동 시간 어림. */
@@ -852,6 +884,15 @@ final class WalkRouter {
      * 그 밖의 출입구와는 층 차이만큼 시간을 더해 잇는다. 건물이 경로망에 없으면 그래프에 없는 id 를 돌려준다.
      */
     private String attachFloorNode(Graph graph, CampusBuilding building, Double floor) {
+        return attachFloorNode(graph, building, floor, false, new boolean[1]);
+    }
+
+    /**
+     * avoidStairs 면, 그 층이 조사돼 있을 때 다른 층 출입구와의 층 차이 어림 간선(계단인지 엘리베이터인지 모르는 이동)을 잇지 않는다 —
+     * 층 이동은 조사된 엘리베이터로만. 조사되지 않은 층은 어림 말고는 갈 방법이 없어 그대로 잇는다. 층 차이가 0이 아닌 어림 간선을
+     * 하나라도 이었으면 estimatedTransit[0] = true.
+     */
+    private String attachFloorNode(Graph graph, CampusBuilding building, Double floor, boolean avoidStairs, boolean[] estimatedTransit) {
         List<FloorEntrance> entrances = graph.entrancesByBuilding.containsKey(building.name())
                 ? graph.entrancesByBuilding.get(building.name())
                 : linkToNearestPaths(graph, building);
@@ -877,8 +918,15 @@ final class WalkRouter {
             if (surveyed.contains(entrance.id())) {
                 continue;
             }
-            linkCenter(graph, floorNodeId, center, entrance.id(),
-                    floor == null ? 0 : Math.abs(Floors.levelIndex(floor) - Floors.levelIndex(entrance.floor())) * FLOOR_TRANSIT_SECONDS);
+            if (avoidStairs && !surveyed.isEmpty() && floor != null && Floors.levelIndex(floor) != Floors.levelIndex(entrance.floor())) {
+                continue;
+            }
+            double transitSeconds = floor == null ? 0
+                    : Math.abs(Floors.levelIndex(floor) - Floors.levelIndex(entrance.floor())) * FLOOR_TRANSIT_SECONDS;
+            if (transitSeconds > 0) {
+                estimatedTransit[0] = true;
+            }
+            linkCenter(graph, floorNodeId, center, entrance.id(), transitSeconds);
         }
         return floorNodeId;
     }
@@ -1454,6 +1502,7 @@ final class WalkRouter {
         }
         return new WalkRoute(route.points(), route.distanceMeters(), route.totalSeconds(), route.minutes(), route.hasIndoorTransit(),
                 route.hasStairs(), route.hasLinkSegment(), route.isEstimate(), route.usesElevator(), route.indoorMeters(),
-                List.copyOf(names), route.notes(), route.steps(), route.indoorSegments(), route.markers());
+                List.copyOf(names), route.notes(), route.steps(), route.indoorSegments(), route.markers(),
+                route.stairFreeUnverified());
     }
 }
