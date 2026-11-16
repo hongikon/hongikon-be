@@ -1,0 +1,36 @@
+{
+ "source": "동아리가 보내온 소개 (총학생회 중앙동아리 목록 밖)",
+ "fetched_at": "2026-11-14",
+ "clubs": [
+  {
+   "id": 1001,
+   "name": "홍복실",
+   "aliases": [
+    "홍복실",
+    "캐릭터창작 동아리"
+   ],
+   "category": "가동아리",
+   "one_line_intro": "홍익대학교 캐릭터창작 가동아리 — 2025년 활동 시작, 2026년 가동아리 인준",
+   "description": "캐릭터 문화·산업 관련 굿즈 제작, 그림, 디자인, 창작, 교류, 연구, 친목 등 다양한 활동을 하는 캐릭터창작 가동아리입니다. 2025년에 활동을 시작해 2026년 가동아리로 인준되었습니다.",
+   "activities": [
+    "디자인 모임, 콘텐츠 감상, 굿즈·회지 제작 같은 창작 활동",
+    "타 학교 동아리와의 교류회, 대형 컨벤션 참여 같은 대외 활동"
+   ],
+   "targets": [],
+   "room": "",
+   "recruiting": "",
+   "meeting_schedule": "",
+   "links": [
+    {
+     "type": "instagram",
+     "url": "https://www.instagram.com/hongboksil/"
+    },
+    {
+     "type": "kakao_channel",
+     "url": "https://pf.kakao.com/_wskwX"
+    }
+   ],
+   "detail_url": "https://www.instagram.com/hongboksil/"
+  }
+ ]
+}
