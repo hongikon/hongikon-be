@@ -25,6 +25,8 @@ class WalkRouterApproachParityTest {
 
     /** 비교 자료(앱 예전 계산, 11-09·11-10)를 만들 때의 바깥 계단 배수. 서버는 11-16부터 1.5. */
     static final double APP_STAIRS_FACTOR = 3;
+    /** 앱 예전 계산의 층당 시간(초). */
+    static final double APP_FLOOR_SECONDS = 20;
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     static final double MY_LOCATION_MAX_METERS = 150;
@@ -94,7 +96,7 @@ class WalkRouterApproachParityTest {
                 byId.put(building.id(), building);
             }
         }
-        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR);
+        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR, APP_FLOOR_SECONDS);
         Map<String, List<JsonNode>> byTarget = new java.util.LinkedHashMap<>();
         for (JsonNode c : read("walkroute/approach-parity.json.gz").get("cases")) {
             byTarget.computeIfAbsent(c.get("to").asLong() + "|" + c.get("toFloor"), k -> new ArrayList<>()).add(c);

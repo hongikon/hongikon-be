@@ -95,13 +95,13 @@ final class Floors {
     }
 
     /** 고른 층과 그 층이 쓰는 출입구 사이를 오르내리는 시간(초). 층을 안 골랐으면 0. */
-    static double entranceTransitSeconds(CampusBuilding building, Double floor) {
+    static double entranceTransitSeconds(CampusBuilding building, Double floor, double secondsPerFloor) {
         if (floor == null) {
             return 0;
         }
         CampusBuilding.Entrance entrance = matchEntrance(building, floor);
         double entranceFloor = entrance != null ? nearestFloorOf(entrance, floor) : 1;
-        return Math.abs(levelIndex(floor) - levelIndex(entranceFloor)) * WalkRouter.FLOOR_TRANSIT_SECONDS;
+        return Math.abs(levelIndex(floor) - levelIndex(entranceFloor)) * secondsPerFloor;
     }
 
     /** 경로 시작·끝 좌표: 고른 층의 출입구, 없으면 건물 대표 좌표. */

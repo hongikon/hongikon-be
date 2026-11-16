@@ -38,7 +38,7 @@ class WalkRouterMarkersTest {
         }
         SurveyGraph graph = SurveyGraph.load(MAPPER);
         router = new WalkRouter(graph, buildings);
-        oldStairs = new WalkRouter(graph, buildings, 3);
+        oldStairs = new WalkRouter(graph, buildings, 3, WalkRouter.FLOOR_TRANSIT_SECONDS);
     }
 
     private static CampusBuilding code(String code) {

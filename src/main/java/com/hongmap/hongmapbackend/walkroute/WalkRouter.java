@@ -29,8 +29,11 @@ final class WalkRouter {
 
     /** 도보 속도(m/분). */
     static final double WALKING_METERS_PER_MINUTE = 80;
-    /** 한 개 층을 오르내리는 시간(초). 계단 수직 간선과 조사되지 않은 층의 출입구 어림에 쓴다. */
-    static final double FLOOR_TRANSIT_SECONDS = 20;
+    /**
+     * 길이 없는 계단(한 정점에서 층만 오가는 stairs_vertical)으로 한 개 층을 오르내리는 시간(초). 조사되지 않은 층의 출입구 어림에도 쓴다.
+     * 11-16 20 → 8(사용자 요청 — 20초면 짧은 계단 한 층이 바깥 계단 길보다 늘 비싸 F동 통과 길이 안 나왔다. 실제 5~10초).
+     */
+    static final double FLOOR_TRANSIT_SECONDS = 8;
     /** 엘리베이터를 한 번 타는 고정 시간(초). */
     static final double ELEVATOR_WAIT_SECONDS = 30;
     /** 엘리베이터가 한 층 움직이는 시간(초). */
@@ -67,6 +70,7 @@ final class WalkRouter {
     private final Map<String, CampusBuilding> byCode = new HashMap<>();
     private final Graph base;
     private final double stairsTimeFactor;
+    private final double floorTransitSeconds;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
@@ -135,12 +139,13 @@ final class WalkRouter {
     }
 
     WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings) {
-        this(survey, buildings, STAIRS_TIME_FACTOR);
+        this(survey, buildings, STAIRS_TIME_FACTOR, FLOOR_TRANSIT_SECONDS);
     }
 
-    /** 계단 배수를 정해 만든다 — 앱 예전 계산(배수 3)과 맞춰 보는 비교 테스트용. */
-    WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor) {
+    /** 계단 배수·층당 시간을 정해 만든다 — 앱 예전 계산(배수 3, 층당 20초)과 맞춰 보는 비교 테스트용. */
+    WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds) {
         this.stairsTimeFactor = stairsTimeFactor;
+        this.floorTransitSeconds = floorTransitSeconds;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -348,8 +353,8 @@ final class WalkRouter {
         Point toPoint = Floors.resolveEntrancePoint(toBuilding, toFloor);
         double meters = Geo.haversineMeters(fromPoint.lat(), fromPoint.lng(), toPoint.lat(), toPoint.lng());
         double walkSeconds = (meters / WALKING_METERS_PER_MINUTE) * 60;
-        double totalSeconds = walkSeconds + Floors.entranceTransitSeconds(fromBuilding, fromFloor)
-                + Floors.entranceTransitSeconds(toBuilding, toFloor);
+        double totalSeconds = walkSeconds + Floors.entranceTransitSeconds(fromBuilding, fromFloor, floorTransitSeconds)
+                + Floors.entranceTransitSeconds(toBuilding, toFloor, floorTransitSeconds);
         return new WalkRoute(List.of(fromPoint, toPoint), Math.round(meters), totalSeconds, Math.max(1, Math.round(totalSeconds / 60)),
                 fromFloor != null || toFloor != null, false, false, true, null, null, null, null, null, null, null);
     }
@@ -806,10 +811,10 @@ final class WalkRouter {
         return code -> byServerCode.getOrDefault(code, viaLabel.get(code));
     }
 
-    private static double verticalSeconds(String kind, double fromFloor, double toFloor) {
+    private double verticalSeconds(String kind, double fromFloor, double toFloor) {
         double floors = Math.abs(Floors.levelIndex(fromFloor) - Floors.levelIndex(toFloor));
         return kind.equals("stairs_vertical")
-                ? floors * FLOOR_TRANSIT_SECONDS
+                ? floors * floorTransitSeconds
                 : ELEVATOR_WAIT_SECONDS + floors * ELEVATOR_SECONDS_PER_FLOOR;
     }
 
@@ -937,7 +942,7 @@ final class WalkRouter {
                 continue;
             }
             double transitSeconds = floor == null ? 0
-                    : Math.abs(Floors.levelIndex(floor) - Floors.levelIndex(entrance.floor())) * FLOOR_TRANSIT_SECONDS;
+                    : Math.abs(Floors.levelIndex(floor) - Floors.levelIndex(entrance.floor())) * floorTransitSeconds;
             if (transitSeconds > 0) {
                 estimatedTransit[0] = true;
             }
