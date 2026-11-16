@@ -32,7 +32,7 @@ class AskWalkRouteTest {
 
     private static WalkRoute route(long minutes, long meters, boolean estimate, List<String> steps) {
         return new WalkRoute(List.of(), meters, minutes * 60.0, minutes, false, true, false, estimate, false, null,
-                List.of("제1공학관 K동"), List.of("비 오면 K동 안으로"), steps, List.of());
+                List.of("제1공학관 K동"), List.of("비 오면 K동 안으로"), steps, List.of(),null);
     }
 
     private static AskLiveData liveData(WalkRouteService routes) {
