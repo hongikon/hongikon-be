@@ -1895,6 +1895,14 @@
   로컬 서버(임베딩 127.0.0.1:8090) FE 시험지 `cases-reason/course.json` 12문항 must 100%·mustNot 0: '4학년 1학기 전공필수 학과' → 10곳 표, '전필 가장 많은 학과' → 건축학전공 26과목·100학점, '컴공 3학년 전공필수' → 12학점.
 - 남은 것: 학부 공통 1학년 쪽('신소재 · 화공시스템공학부'·'경영학부')은 학과와 따로 센다. 운영 반영은 dev/main 머지·배포 때.
 
+## 2026-11-16 — 지도 길찾기: 길이 없는 계단 층당 20초 → 8초 (dev)
+
+- (사용자 요청) I동 → B동이 F동을 지나는 길(Q동 3층 → F동 2층 → 계단 → F동 3층 출입구) 대신 F동 동쪽·남쪽을 돌아 바깥 계단으로 올라가는 길을 냈다. 원인: 같은 한 층을 오르는데 F동 안 계단 정점(532, '2-6' — stairs_vertical)은 층마다 20초 고정, 바깥 계단은 stairs 간선 길이 × 1.5라 몇 초. 거리는 F동 통과가 짧은데(운영 좌표 어림 약 105m vs 112m) 20초 때문에 늘 10초쯤 졌다. 사용자: 그 계단은 5~10초면 오르내린다.
+- `WalkRouter.FLOOR_TRANSIT_SECONDS` 20 → 8. 쓰는 곳: stairs_vertical(`verticalSeconds`), 고른 층이 조사 안 된 건물의 출입구 어림(`attachFloorNode`), 직선 어림(`Floors.entranceTransitSeconds` — 층당 시간을 인자로 받게). 길이 있는 stairs 간선(길이 × 1.5)과 엘리베이터(30초 + 층당 4초)는 그대로.
+- 층당 시간을 인스턴스 값으로(`WalkRouter(survey, buildings, stairsFactor, floorSeconds)`). 비교 테스트(`WalkRouterParityTest`·`WalkRouterApproachParityTest`)는 앱 예전 계산 자료라 배수 3·층당 20초로 만든다.
+- 영향(저장소 경로망 11-10, 건물 쌍 702, 층 안 고름, 가장 빠른 길): 36쌍이 바뀜 — 거의 모두 A동·B동 건물 안 계단을 지나는 길로 1~5초 빨라짐. F동은 저장소 경로망에서 2→3층이 4m stairs 간선이라 여기선 안 바뀜 — 운영 경로망(532 정점)에서는 배포 뒤 I동 → B동으로 확인할 것.
+- 확인: walkroute·AskWalkRoute 테스트 통과.
+
 ## 2026-11-16 — 지도 길찾기: 층 바뀌는 곳 지도 표시(markers), 바깥 계단 배수 3 → 1.5 (dev)
 
 - (사용자 요청) 길찾기 지도에 층 표기가 없어, 건물을 나가고 들어가는 곳과 계단·엘리베이터로 층이 바뀌는 곳을 지도에 보여 달라. 바깥 계단 간선 배수는 3이 너무 커서 1.5로.
@@ -2015,3 +2023,16 @@
   - 패리티 fixture(`route-parity*.json.gz`)는 다시 만들지 않음 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
   - `./gradlew test` 전체 878 통과(실패 0).
   - 수동: `GET /map/routes?from=…&to=…&toFloor=3&avoidStairs=true` 의 routes[].hasStairs 가 모두 false, 생략하면 기존 응답과 같음.
+
+## 2026-11-16 — 길찾기: 내 위치 출발도 계단 피하기(GET /map/routes/approach avoidStairs)
+
+- 요청: `GET /map/routes/approach` 에 `/map/routes` 와 같은 뜻의 선택 파라미터 `avoidStairs`(기본 false). 생략/false 는 기존 응답과 같다.
+- `WalkRouter.approach(…, boolean avoidStairs)` 오버로드(기존 2개 인자는 false 로 위임). `findRoutes` 와 같이 `base.copy()` 직후 계단 간선(`stairs()==true`)을 빼고, `attachFloorNode(…, avoidStairs, estimatedTransit)` 로 도착 점을 붙인다. 층 차이 어림 간선을 붙였으면 모든 후보에 `stairFreeUnverified=true`(`nameVia` 뒤에 감싸고 `withLevelNotes`·`withoutPoints` 가 값을 넘긴다).
+  - 계단 없이 도착에 닿지 않는 실외 길 점은 기존 `dist.containsKey` 조건으로 빠진다. 도착 층이 계단으로만 닿으면 도착 노드는 있어도 닿는 길 점이 없어 nodes·starts 가 빈 결과(경로망이 못 덮을 때와 같은 응답). 직선 어림은 만들지 않는다.
+- `WalkRouteService.approachJson(…, boolean avoidStairs)` 오버로드, approach 캐시 키 끝에 `|avoidStairs`. 한 번에 하나 계산(Semaphore 1)·15초 대기·503 그대로. 실제로 계산했을 때만 `approach 계산 완료 to= floor= avoidStairs= nodes= starts= ms=` info 로그(`router().approach` 구간만, 캐시 적중 시 없음, 사용자 정보 없음). `@Slf4j` 추가.
+- `WalkRouteController.approach`: `@RequestParam(required = false, defaultValue = "false") boolean avoidStairs`, Swagger 설명에 '길이 없으면 nodes/starts 가 빈 결과'.
+- 확인
+  - `WalkRouterAvoidStairsTest` approach 4건: 기존 시그니처 = false(4개 도착), true 면 모든 후보 hasStairs=false(조사된 층은 표시 없음), 조사 안 된 층은 stairFreeUnverified=true, 계단으로만 닿는 층은 빈 nodes·starts(1층은 길 있음).
+  - `WalkRouteServiceTest`: T동 3층 approach 를 false/true 번갈아 불러도 각자 기억한 결과(isSameAs), true 결과는 hasStairs 모두 false.
+  - `WalkRouteControllerTest`(standalone MockMvc, 새 파일): 생략하면 `approachJson(to, null, false)`, true 를 넘기면 true.
+  - 패리티 fixture 는 다시 만들지 않음 — `WalkRouterApproachParityTest`·`WalkRouterParityTest` 그대로.

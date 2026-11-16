@@ -109,6 +109,26 @@ class WalkRouteServiceTest {
     }
 
     @Test
+    void approach_계단_피하기는_따로_기억해_번갈아_불러도_섞이지_않는다() throws Exception {
+        byte[] normal = service.approachJson(t, 3.0, false);
+        byte[] avoid = service.approachJson(t, 3.0, true);
+        assertThat(avoid).isNotEqualTo(normal);
+        assertThat(new String(normal, java.nio.charset.StandardCharsets.UTF_8)).contains("\"hasStairs\":true");
+        JsonNode approach = MAPPER.readTree(avoid);
+        assertThat(approach.get("starts").size()).isGreaterThan(0);
+        for (JsonNode start : approach.get("starts")) {
+            for (JsonNode route : start.get("routes")) {
+                assertThat(route.get("route").get("hasStairs").asBoolean()).isFalse();
+            }
+        }
+        for (int i = 0; i < 2; i++) {
+            assertThat(service.approachJson(t, 3.0, false)).isSameAs(normal);
+            assertThat(service.approachJson(t, 3.0, true)).isSameAs(avoid);
+            assertThat(service.approachJson(t, 3.0)).isSameAs(normal);
+        }
+    }
+
+    @Test
     void 잘못된_요청() {
         assertThatThrownBy(() -> service.routes(r, null, r, null)).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("400");
