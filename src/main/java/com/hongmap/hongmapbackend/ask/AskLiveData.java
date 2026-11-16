@@ -7,6 +7,8 @@ import com.hongmap.hongmapbackend.cafeteria.dto.CafeteriaRestaurantResponse;
 import com.hongmap.hongmapbackend.mapdata.MapDataService;
 import com.hongmap.hongmapbackend.news.News;
 import com.hongmap.hongmapbackend.news.NewsRepository;
+import com.hongmap.hongmapbackend.walkroute.WalkRoute;
+import com.hongmap.hongmapbackend.walkroute.WalkRouteService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
@@ -47,6 +49,7 @@ public class AskLiveData {
     private final CafeteriaMenuService cafeteriaMenuService;
     private final MapDataService mapDataService;
     private final JsonMapper jsonMapper;
+    private final WalkRouteService walkRouteService;
 
     static final int FACILITY_SEARCH_LIMIT = 8;
 
@@ -372,6 +375,107 @@ public class AskLiveData {
             references.add(hit.reference());
         }
         return references;
+    }
+
+    static final int WALK_ROUTE_CANDIDATES = 2;
+    static final int WALK_ROUTE_STEPS = 8;
+    static final int WALK_ROUTE_NOTES = 3;
+
+    /**
+     * 건물에서 건물까지 걷는 길(11-15 '제4공학관에서 홍문관 가는 길'을 못 알려 줬다). 지도 탭 길찾기와 같은 경로망(WalkRouteService)으로
+     * 걷는 시간·거리·계단·지나는 건물·길 흐름을 준다. 출발·도착은 건물 이름·별칭(T동 …)만 — 정문·후문·제휴업체는 경로망에 없다.
+     * 돌려주는 참조는 [출발 건물, 도착 건물](못 찾으면 빈 목록, 이유는 text 에).
+     */
+    public List<Reference> walkRoute(String from, String to, StringBuilder text) {
+        JsonNode data = jsonMapper.readTree(mapDataService.current().body());
+        JsonNode origin = routeBuilding(data, from, "출발", text);
+        JsonNode destination = origin == null ? null : routeBuilding(data, to, "도착", text);
+        if (origin == null || destination == null) {
+            return List.of();
+        }
+        Reference fromRef = buildingReference(origin);
+        Reference toRef = buildingReference(destination);
+        if (fromRef.ref().equals(toRef.ref())) {
+            text.append("출발과 도착이 같은 건물(").append(toRef.title()).append(")이에요.");
+            return List.of();
+        }
+        List<WalkRoute> routes;
+        try {
+            routes = walkRouteService.routes(origin.path("id").asLong(), null, destination.path("id").asLong(), null);
+        } catch (RuntimeException e) {
+            text.append("길을 계산하지 못했어요.");
+            return List.of();
+        }
+        if (routes.isEmpty()) {
+            text.append("두 건물 사이 길을 찾지 못했어요.");
+            return List.of();
+        }
+        text.append("출발: ").append(fromRef.ref()).append(" · ").append(fromRef.title()).append('\n')
+                .append("도착: ").append(toRef.ref()).append(" · ").append(toRef.title()).append('\n');
+        for (int i = 0; i < Math.min(WALK_ROUTE_CANDIDATES, routes.size()); i++) {
+            WalkRoute route = routes.get(i);
+            text.append(i == 0 ? "길 1(가장 빠른 길): " : "길 " + (i + 1) + ": ")
+                    .append("걸어서 약 ").append(Math.max(1, route.minutes())).append("분 · 약 ")
+                    .append(Math.round(route.distanceMeters() / 10.0) * 10).append("m");
+            if (route.isEstimate()) {
+                text.append(" · 경로망이 이 구간을 덮지 못해 직선 거리로 어림한 값(실제 길은 더 길 수 있다)");
+            }
+            if (route.hasStairs()) {
+                text.append(" · 계단 있음");
+            }
+            if (Boolean.TRUE.equals(route.usesElevator())) {
+                text.append(" · 엘리베이터 이용");
+            }
+            if (route.viaBuildings() != null && !route.viaBuildings().isEmpty()) {
+                text.append(" · 안으로 지나는 건물: ").append(String.join(", ", route.viaBuildings()));
+            }
+            text.append('\n');
+            if (route.steps() != null && !route.steps().isEmpty()) {
+                text.append("  - 길 흐름: ").append(String.join(" → ", route.steps().subList(0, Math.min(WALK_ROUTE_STEPS, route.steps().size()))))
+                        .append(route.steps().size() > WALK_ROUTE_STEPS ? " → …" : "").append('\n');
+            }
+            if (route.notes() != null && !route.notes().isEmpty()) {
+                text.append("  - 메모: ").append(String.join(" / ", route.notes().subList(0, Math.min(WALK_ROUTE_NOTES, route.notes().size()))))
+                        .append('\n');
+            }
+        }
+        text.append("(앱 지도에서 이 출발 건물부터 같은 길을 그려 볼 수 있다 — mapTarget 은 도착 건물 참조, mapMode 는 route)\n");
+        return List.of(fromRef, toRef);
+    }
+
+    /** 길찾기 출발·도착 건물: 이름·별칭이 가장 많이 맞은 건물 하나. 여럿이 똑같이 맞으면(공학관) 되묻게 이름을 적고 null. */
+    private static JsonNode routeBuilding(JsonNode data, String query, String role, StringBuilder text) {
+        List<String> words = queryWords(query == null ? "" : query);
+        List<JsonNode> best = new ArrayList<>();
+        int top = 0;
+        for (JsonNode building : data.path("buildings")) {
+            if (!building.path("id").isNumber()) {
+                continue;
+            }
+            int score = score(building.path("name").asString("") + " " + building.path("code").asString(""), words);
+            if (score > top) {
+                top = score;
+                best.clear();
+            }
+            if (score > 0 && score == top) {
+                best.add(building);
+            }
+        }
+        if (best.isEmpty()) {
+            text.append(role).append(" '").append(query).append("'를 지도 건물에서 찾지 못했어요(길찾기는 건물 사이만 — 정문·후문·제휴업체는 안 된다).");
+            return null;
+        }
+        if (best.size() > 1) {
+            text.append(role).append(" '").append(query).append("'에 맞는 건물이 여럿이에요: ")
+                    .append(String.join(", ", best.stream().map(b -> b.path("name").asString("")).toList()))
+                    .append(" — 어느 건물인지 물어본다.");
+            return null;
+        }
+        return best.get(0);
+    }
+
+    private static Reference buildingReference(JsonNode building) {
+        return new Reference("building:" + building.path("code").asString(""), building.path("name").asString(""), null, null);
     }
 
     /** 두 위치(lat·lng) 사이 거리(m) — 캠퍼스 범위라 평면 근사로 충분하다. */

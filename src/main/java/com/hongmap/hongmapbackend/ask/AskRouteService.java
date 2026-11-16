@@ -579,7 +579,8 @@ public class AskRouteService {
         }
         return new AskRouteResponse(response.nodeId(), response.nodeIds(), response.answer(), response.found(),
                 response.catalogVersion(), response.references(), pages, phones, facilityId)
-                .withActions(map == null ? List.of() : withRoute(mapActions(place, facilityId, response.answer()), map.route()));
+                .withActions(map == null ? List.of() : withRoute(mapActions(place, facilityId, response.answer()), map.route(),
+                        map.from() == null || map.place() == null ? null : map.place().ref(), map.from()));
     }
 
     static final int MAX_FILLED_CONSEQUENCES = 2;
@@ -691,14 +692,24 @@ public class AskRouteService {
 
     /**
      * 가는 길을 물었으면(11-09 'Q동 어떻게 가') 지도 버튼 뒤에 '여기서 가는 길'(route) 버튼을 하나 더 — 건물·시설만(제휴처는 캠퍼스 밖이라 경로망에 없다).
-     * 출발(내 위치)은 앱이 휴대폰 안에서 정한다 — 서버는 위치를 받지 않는다. 옛 앱은 모르는 type 이라 그리지 않는다.
+     * 출발은 walk_route 로 찾은 출발 건물(from), 없으면 앱이 휴대폰 안에서 내 위치로 정한다 — 서버는 위치를 받지 않는다. 옛 앱은 모르는 type 이라 그리지 않는다.
      */
     static List<AskRouteResponse.Action> withRoute(List<AskRouteResponse.Action> actions, boolean route) {
+        return withRoute(actions, route, null, null);
+    }
+
+    /**
+     * @param routedTo walk_route 로 길을 찾은 도착 참조 — 지도 버튼이 이 곳일 때만(교차 확인으로 바뀌지 않았을 때) from 을 출발로 붙인다(11-15).
+     * @param from     그 길의 출발 건물. null 이면 앱이 내 위치에서 출발.
+     */
+    static List<AskRouteResponse.Action> withRoute(List<AskRouteResponse.Action> actions, boolean route,
+                                                   String routedTo, AskLiveData.Reference from) {
         if (!route || actions.isEmpty() || actions.get(0).target().startsWith("partner:")) {
             return actions;
         }
         AskRouteResponse.Action map = actions.get(0);
-        return List.of(map, new AskRouteResponse.Action("route", map.target(), map.label(), map.summary()));
+        String origin = from != null && map.target().equals(routedTo) ? from.ref() : null;
+        return List.of(map, new AskRouteResponse.Action("route", map.target(), map.label(), map.summary(), origin));
     }
 
     /** 답의 첫 문장(마크다운 굵게 표시는 뗀다), 최대 ACTION_SUMMARY_MAX 자. */
