@@ -2015,3 +2015,16 @@
   - 패리티 fixture(`route-parity*.json.gz`)는 다시 만들지 않음 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
   - `./gradlew test` 전체 878 통과(실패 0).
   - 수동: `GET /map/routes?from=…&to=…&toFloor=3&avoidStairs=true` 의 routes[].hasStairs 가 모두 false, 생략하면 기존 응답과 같음.
+
+## 2026-11-16 — 길찾기: 내 위치 출발도 계단 피하기(GET /map/routes/approach avoidStairs)
+
+- 요청: `GET /map/routes/approach` 에 `/map/routes` 와 같은 뜻의 선택 파라미터 `avoidStairs`(기본 false). 생략/false 는 기존 응답과 같다.
+- `WalkRouter.approach(…, boolean avoidStairs)` 오버로드(기존 2개 인자는 false 로 위임). `findRoutes` 와 같이 `base.copy()` 직후 계단 간선(`stairs()==true`)을 빼고, `attachFloorNode(…, avoidStairs, estimatedTransit)` 로 도착 점을 붙인다. 층 차이 어림 간선을 붙였으면 모든 후보에 `stairFreeUnverified=true`(`nameVia` 뒤에 감싸고 `withLevelNotes`·`withoutPoints` 가 값을 넘긴다).
+  - 계단 없이 도착에 닿지 않는 실외 길 점은 기존 `dist.containsKey` 조건으로 빠진다. 도착 층이 계단으로만 닿으면 도착 노드는 있어도 닿는 길 점이 없어 nodes·starts 가 빈 결과(경로망이 못 덮을 때와 같은 응답). 직선 어림은 만들지 않는다.
+- `WalkRouteService.approachJson(…, boolean avoidStairs)` 오버로드, approach 캐시 키 끝에 `|avoidStairs`. 한 번에 하나 계산(Semaphore 1)·15초 대기·503 그대로. 실제로 계산했을 때만 `approach 계산 완료 to= floor= avoidStairs= nodes= starts= ms=` info 로그(`router().approach` 구간만, 캐시 적중 시 없음, 사용자 정보 없음). `@Slf4j` 추가.
+- `WalkRouteController.approach`: `@RequestParam(required = false, defaultValue = "false") boolean avoidStairs`, Swagger 설명에 '길이 없으면 nodes/starts 가 빈 결과'.
+- 확인
+  - `WalkRouterAvoidStairsTest` approach 4건: 기존 시그니처 = false(4개 도착), true 면 모든 후보 hasStairs=false(조사된 층은 표시 없음), 조사 안 된 층은 stairFreeUnverified=true, 계단으로만 닿는 층은 빈 nodes·starts(1층은 길 있음).
+  - `WalkRouteServiceTest`: T동 3층 approach 를 false/true 번갈아 불러도 각자 기억한 결과(isSameAs), true 결과는 hasStairs 모두 false.
+  - `WalkRouteControllerTest`(standalone MockMvc, 새 파일): 생략하면 `approachJson(to, null, false)`, true 를 넘기면 true.
+  - 패리티 fixture 는 다시 만들지 않음 — `WalkRouterApproachParityTest`·`WalkRouterParityTest` 그대로.
