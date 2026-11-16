@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
  * `ask/clubs.json` — 이름·별칭·분과·소개·활동·대상·동방·모집 안내·정기 모임·링크. 회장 이름 같은 개인정보는 없다.
  * 처음 쓸 때 한 번 읽는다(없으면 빈 데이터 — 물어보기는 그대로 돈다). 학교 홈페이지 옛 동아리 안내(sources.json clubs/…)보다
  * 새 자료라 동방·모임·링크는 이쪽을 따른다(답 쓰기 지시).
+ * `ask/clubs-extra.json` — 중앙동아리 목록 밖의 가동아리가 직접 보내온 소개(분과 '가동아리'). 같은 꼴로 읽어 뒤에 붙인다.
  */
 final class AskClubs {
 
@@ -30,6 +31,9 @@ final class AskClubs {
     static final String SOURCE_TITLE = "총학생회 중앙동아리 안내";
     static final String SOURCE_URL = "https://hongikunion.com/clubs/central";
     static final String CLUB_PREFIX = "club:";
+    /** 가동아리(clubs-extra.json)의 분과 — 총학생회 중앙동아리가 아니다. */
+    static final String EXTRA_CATEGORY = "가동아리";
+    static final String EXTRA_TITLE = "동아리가 보내온 소개";
     static final List<String> CATEGORIES = List.of("공연분과", "스포츠분과", "레저분과", "학술분과", "사회분과", "전시분과", "종교분과");
     /** 한 번에 자세히(동방·모임·모집·링크까지) 보이는 동아리 수. 더 많으면 한 줄씩 후보로. */
     static final int MAX_DETAIL = 4;
@@ -85,6 +89,15 @@ final class AskClubs {
             return CLUB_PREFIX + id;
         }
 
+        boolean central() {
+            return !EXTRA_CATEGORY.equals(category);
+        }
+
+        /** 참조 제목에 붙일 출처 — 중앙동아리는 총학생회 안내, 가동아리는 동아리가 보내온 소개. */
+        String sourceTitle() {
+            return central() ? SOURCE_TITLE : EXTRA_TITLE;
+        }
+
         /** 찾을 때 쓰는 글 — 이름·소개·활동·대상(소문자). */
         String text() {
             return (name + " " + String.join(" ", aliases) + " " + intro + " " + description + " "
@@ -119,23 +132,39 @@ final class AskClubs {
     }
 
     static Data load(JsonMapper mapper) {
-        try (InputStream in = new ClassPathResource("ask/clubs.json").getInputStream()) {
-            JsonNode root = mapper.readTree(in);
-            List<Club> list = new ArrayList<>();
-            for (JsonNode c : root.path("clubs")) {
-                List<Link> links = new ArrayList<>();
-                c.path("links").forEach(l -> links.add(new Link(l.path("type").asString(""), l.path("url").asString(""))));
-                list.add(new Club(c.path("id").asInt(), c.path("name").asString(""), strings(c.path("aliases")),
-                        c.path("category").asString(""), c.path("one_line_intro").asString(""), c.path("description").asString(""),
-                        strings(c.path("activities")), strings(c.path("targets")), c.path("room").asString(""),
-                        c.path("recruiting").asString(""), c.path("meeting_schedule").asString(""), List.copyOf(links),
-                        c.path("detail_url").asString(SOURCE_URL)));
+        try {
+            JsonNode root = read(mapper, "ask/clubs.json");
+            List<Club> list = new ArrayList<>(clubs(root));
+            try {
+                list.addAll(clubs(read(mapper, "ask/clubs-extra.json")));
+            } catch (Exception e) {
+                log.warn("물어보기 가동아리 자료(ask/clubs-extra.json)를 읽지 못해 뺀다: {}", e.toString());
             }
             return new Data(List.copyOf(list), root.path("fetched_at").asString("").replaceAll("T.*", ""));
         } catch (Exception e) {
             log.warn("물어보기 중앙동아리 자료(ask/clubs.json)를 읽지 못해 끈다: {}", e.toString());
             return Data.EMPTY;
         }
+    }
+
+    private static JsonNode read(JsonMapper mapper, String path) throws Exception {
+        try (InputStream in = new ClassPathResource(path).getInputStream()) {
+            return mapper.readTree(in);
+        }
+    }
+
+    private static List<Club> clubs(JsonNode root) {
+        List<Club> list = new ArrayList<>();
+        for (JsonNode c : root.path("clubs")) {
+            List<Link> links = new ArrayList<>();
+            c.path("links").forEach(l -> links.add(new Link(l.path("type").asString(""), l.path("url").asString(""))));
+            list.add(new Club(c.path("id").asInt(), c.path("name").asString(""), strings(c.path("aliases")),
+                    c.path("category").asString(""), c.path("one_line_intro").asString(""), c.path("description").asString(""),
+                    strings(c.path("activities")), strings(c.path("targets")), c.path("room").asString(""),
+                    c.path("recruiting").asString(""), c.path("meeting_schedule").asString(""), List.copyOf(links),
+                    c.path("detail_url").asString(SOURCE_URL)));
+        }
+        return list;
     }
 
     private static List<String> strings(JsonNode array) {
@@ -238,7 +267,7 @@ final class AskClubs {
         for (Club club : found.subList(0, Math.min(MAX_DETAIL, found.size()))) {
             parts.add(club.name() + "(" + club.category() + ")");
         }
-        return "[질문 속 동아리] 홍익대 중앙동아리 " + String.join(", ", parts)
+        return "[질문 속 동아리] 홍익대 동아리 " + String.join(", ", parts)
                 + " — 학생회·동아리 질문(school)이다. 답은 search_clubs 로 찾는다.\n";
     }
 
@@ -350,12 +379,12 @@ final class AskClubs {
             }
         }
         if (hits.isEmpty()) {
-            String scope = cat == null ? "중앙동아리 " + d.clubs().size() + "개" : cat;
+            String scope = cat == null ? "동아리 " + d.clubs().size() + "개" : cat;
             return new Result("총학생회 중앙동아리 안내(" + scope + ")에서 '" + String.join(" ", words)
                     + "'에 맞는 동아리를 찾지 못했어요. 중앙동아리 목록에 없는 이름이면 가동아리·학과 소모임·연합동아리일 수 있다"
                     + " — 그렇게 알린다. 학교 홈페이지 옛 동아리 안내에 그 이름이 있어도 옛 동방 호실은 지금 다른 동아리가 쓸 수 있으니 알려 주지 않는다."
                     + " 분과(" + String.join("·", CATEGORIES.stream().map(c -> c.replace("분과", "")).toList())
-                    + ")나 다른 낱말로 다시 찾을 수 있다.", List.of(), false);
+                    + ")나 다른 낱말로 다시 찾을 수 있다. 자세한 것은 그 동아리에 직접 문의하라고 안내한다.", List.of(), false);
         }
         hits.sort(Comparator.comparingInt(Hit::score).reversed());
         List<Club> clubs = hits.stream().map(Hit::club).toList();
@@ -375,8 +404,11 @@ final class AskClubs {
     }
 
     private static String header(Data d) {
-        return SOURCE_REF + " · " + SOURCE_TITLE + "(" + SOURCE_URL + ", " + d.fetchedAt() + " 수집, 중앙동아리 " + d.clubs().size()
-                + "개) — 동아리 이름·분과·동방·모임·모집 안내·링크는 이 결과가 기준이다. "
+        long central = d.clubs().stream().filter(Club::central).count();
+        long extra = d.clubs().size() - central;
+        return SOURCE_REF + " · " + SOURCE_TITLE + "(" + SOURCE_URL + ", " + d.fetchedAt() + " 수집, 중앙동아리 " + central
+                + "개" + (extra > 0 ? " + 분과 '" + EXTRA_CATEGORY + "' " + extra + "개는 " + EXTRA_TITLE + "로 중앙동아리가 아니다" : "")
+                + ") — 동아리 이름·분과·동방·모임·모집 안내·링크는 이 결과가 기준이다. "
                 + "'모집 안내'는 동아리가 적어 둔 문구라 지금 모집 중인지는 알 수 없다.\n";
     }
 
@@ -429,7 +461,12 @@ final class AskClubs {
                             .append(" [참조 ").append(linkRef(club, i)).append("]\n");
                 }
             }
-            out.append("- 총학생회 소개 쪽: ").append(club.detailUrl()).append('\n');
+            if (club.central()) {
+                out.append("- 총학생회 소개 쪽: ").append(club.detailUrl()).append('\n');
+            } else {
+                out.append("- 출처: ").append(EXTRA_TITLE).append("(총학생회 중앙동아리 목록 밖의 가동아리)\n");
+            }
+            out.append("- 문의: 모집·활동·회비 같은 자세한 내용은 동아리에 직접 문의(위 인스타그램·카카오톡 채널)\n");
         }
         return out.toString();
     }
@@ -451,6 +488,8 @@ final class AskClubs {
             case "naver_blog" -> "네이버 블로그";
             case "naver_cafe" -> "네이버 카페";
             case "tistory" -> "티스토리";
+            case "kakao_channel" -> "카카오톡 채널";
+            case "kakao_openchat" -> "카카오톡 오픈채팅";
             case "google_play" -> "구글 플레이";
             default -> "홈페이지";
         };
