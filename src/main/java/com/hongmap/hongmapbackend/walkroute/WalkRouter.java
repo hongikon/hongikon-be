@@ -265,12 +265,26 @@ final class WalkRouter {
      * 가장 작은 점을 골라 그 점의 후보를 보여 준다(가장 빠른 길은 예전 앱 계산과 같다). 경로망이 도착 건물을 못 덮으면 빈 결과.
      */
     Approach approach(CampusBuilding chosenTo, Double chosenToFloor) {
+        return approach(chosenTo, chosenToFloor, false);
+    }
+
+    /**
+     * avoidStairs 면 findRoutes 와 같이 계단 간선을 모두 뺀 그래프에서 계산한다. 계단 없이 도착에 닿지 않는 길 점은 빠지고,
+     * 도착 건물(층)이 계단 없이는 닿지 않으면 빈 결과 — 직선 어림으로 대신하지 않는다. 도착이 조사되지 않은 층이라 층 차이
+     * 어림 간선을 붙였으면 모든 후보에 stairFreeUnverified=true.
+     */
+    Approach approach(CampusBuilding chosenTo, Double chosenToFloor, boolean avoidStairs) {
         Level end = sameLevel(chosenTo, chosenToFloor);
         Level chosenEnd = new Level(chosenTo, chosenToFloor);
         CampusBuilding to = end.building();
         Double toFloor = end.floor();
         Graph graph = base.copy();
-        String targetId = attachFloorNode(graph, to, toFloor);
+        if (avoidStairs) {
+            graph.adj.values().forEach(list -> list.removeIf(GraphEdge::stairs));
+        }
+        boolean[] estimatedTransit = {false};
+        String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
+        boolean unverified = avoidStairs && estimatedTransit[0];
         if (!graph.nodes.containsKey(targetId)) {
             return new Approach(List.of(), List.of());
         }
@@ -295,7 +309,8 @@ final class WalkRouter {
                 for (String nodeId : path.nodeIds()) {
                     indices.add(indexOf.apply(nodeId));
                 }
-                WalkRoute route = withLevelNotes(nameVia(toRoute(graph, path), exclude), chosenEnd, chosenEnd, chosenEnd, end);
+                WalkRoute named = nameVia(toRoute(graph, path), exclude);
+                WalkRoute route = withLevelNotes(unverified ? stairFreeUnverified(named) : named, chosenEnd, chosenEnd, chosenEnd, end);
                 routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(route)));
             }
             if (!routes.isEmpty()) {

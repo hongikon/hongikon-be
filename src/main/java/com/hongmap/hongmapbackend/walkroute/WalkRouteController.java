@@ -44,12 +44,14 @@ public class WalkRouteController {
             + "모든 실외 길 점(starts[].node = nodes 번호)에서 도착까지의 후보 최대 3개(routes[].route, points 제외)와 지나는 길 점 번호(routes[].path)를 낸다. "
             + "앱은 내 위치에서 150m 안 가까운 길 점 3곳 중 걷는 시간 + 가장 빠른 길이 가장 작은 점의 후보를 보여 준다. 층은 그 건물에서 고를 수 있는 층만(아니면 400). "
             + "계산이 밀리면 503. "
-            + "경로망이 도착 건물을 못 덮으면 starts 가 비어 있다(앱이 직선 어림).")
+            + "경로망이 도착 건물을 못 덮으면 starts 가 비어 있다(앱이 직선 어림). "
+            + "avoidStairs(기본 false): true 이면 계단 없는 길만. 길이 없으면 nodes/starts 가 빈 결과.")
     @GetMapping(value = "/map/routes/approach", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<byte[]> approach(@RequestParam long to, @RequestParam(required = false) Double toFloor) {
+    public ResponseEntity<byte[]> approach(@RequestParam long to, @RequestParam(required = false) Double toFloor,
+                                           @RequestParam(required = false, defaultValue = "false") boolean avoidStairs) {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(walkRouteService.approachJson(to, toFloor));
+                .body(walkRouteService.approachJson(to, toFloor, avoidStairs));
     }
 }

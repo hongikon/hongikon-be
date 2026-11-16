@@ -134,6 +134,58 @@ class WalkRouterAvoidStairsTest {
         }
     }
 
+    // ---- 내 위치 출발(approach) ----
+
+    @Test
+    void approach_기존_시그니처는_계단_허용과_같다() {
+        for (Object[] target : new Object[][]{{x, 2.0}, {y, 2.0}, {z, 3.0}, {z, null}}) {
+            CampusBuilding to = (CampusBuilding) target[0];
+            Double floor = (Double) target[1];
+            assertThat(router.approach(to, floor)).isEqualTo(router.approach(to, floor, false));
+        }
+        // 계단 허용이면 계단 없음 표시는 늘 없다.
+        assertThat(MAPPER.writeValueAsString(router.approach(z, 3.0))).doesNotContain("stairFreeUnverified");
+    }
+
+    @Test
+    void approach_계단을_피하면_모든_후보가_계단_없음() {
+        WalkRouter.Approach normal = router.approach(x, 2.0);
+        assertThat(normal.starts()).anySatisfy(s -> assertThat(s.routes()).anySatisfy(r -> assertThat(r.route().hasStairs()).isTrue()));
+
+        WalkRouter.Approach avoid = router.approach(x, 2.0, true);
+        assertThat(avoid.starts()).isNotEmpty();
+        for (WalkRouter.ApproachStart start : avoid.starts()) {
+            assertThat(start.routes()).isNotEmpty().allSatisfy(r -> {
+                assertThat(r.route().hasStairs()).isFalse();
+                assertThat(r.route().isEstimate()).isFalse();
+                assertThat(r.route().points()).isNull();
+                // 조사된 층(X관 2층)이라 계단 없음이 확인된 길 — 표시 없음.
+                assertThat(r.route().stairFreeUnverified()).isNull();
+                assertThat(r.path().get(0)).isEqualTo(start.node());
+            });
+        }
+    }
+
+    @Test
+    void approach_조사되지_않은_층은_계단_없음_미확인_표시() {
+        WalkRouter.Approach avoid = router.approach(z, 3.0, true);
+        assertThat(avoid.starts()).isNotEmpty().allSatisfy(s -> assertThat(s.routes()).allSatisfy(r -> {
+            assertThat(r.route().hasStairs()).isFalse();
+            assertThat(r.route().stairFreeUnverified()).isTrue();
+        }));
+    }
+
+    @Test
+    void approach_계단_없이는_못_가는_층이면_빈_결과() {
+        assertThat(router.approach(y, 2.0).starts()).isNotEmpty();
+
+        WalkRouter.Approach avoid = router.approach(y, 2.0, true);
+        assertThat(avoid.nodes()).isEmpty();
+        assertThat(avoid.starts()).isEmpty();
+        // 같은 건물 1층(출입구 층)은 계단 없이 갈 수 있다.
+        assertThat(router.approach(y, 1.0, true).starts()).isNotEmpty();
+    }
+
     @Test
     void 경로망이_못_덮는_구간은_계단을_피해도_직선_어림_하나() {
         List<WalkRoute> avoid = router.routes(x, null, w, null, true);

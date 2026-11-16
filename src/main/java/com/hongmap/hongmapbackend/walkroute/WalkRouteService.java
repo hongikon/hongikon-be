@@ -1,5 +1,6 @@
 package com.hongmap.hongmapbackend.walkroute;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit;
  * <p>층은 그 건물에서 고를 수 있는 층(앱 층 다이얼과 같은 값)만 받는다 — 아무 숫자나 받으면 매번 새로 계산하게 할 수 있다.
  * 내 위치 출발용 approach 는 계산이 무거워(목적지마다 2초 남짓) 한 번에 하나만 계산하고, 만든 응답(JSON)을 기억해 둔다.
  */
+@Slf4j
 @Service
 public class WalkRouteService {
 
@@ -98,10 +100,15 @@ public class WalkRouteService {
 
     /** 내 위치 출발용(위치는 받지 않는다): 도착 건물(층)까지 모든 실외 길 점에서의 후보. 응답 JSON 그대로. */
     public byte[] approachJson(long toId, Double toFloor) {
+        return approachJson(toId, toFloor, false);
+    }
+
+    /** avoidStairs 면 계단 없는 길만(도착에 계단 없이 닿지 않으면 nodes·starts 가 빈 결과 — WalkRouter.approach). */
+    public byte[] approachJson(long toId, Double toFloor, boolean avoidStairs) {
         Built current = current();
         CampusBuilding to = building(current, toId);
         checkFloor(to, toFloor);
-        String key = current.version() + "|" + toId + "|" + toFloor;
+        String key = current.version() + "|" + toId + "|" + toFloor + "|" + avoidStairs;
         byte[] cached = approaches.get(key);
         if (cached != null) {
             return cached;
@@ -117,8 +124,13 @@ public class WalkRouteService {
             if (cached != null) {
                 return cached;
             }
-            byte[] json = jsonMapper.writeValueAsBytes(current.router().approach(to, toFloor));
+            long started = System.nanoTime();
+            WalkRouter.Approach approach = current.router().approach(to, toFloor, avoidStairs);
+            long ms = (System.nanoTime() - started) / 1_000_000;
+            byte[] json = jsonMapper.writeValueAsBytes(approach);
             approaches.put(key, json);
+            log.info("approach 계산 완료 to={} floor={} avoidStairs={} nodes={} starts={} ms={}", toId, toFloor, avoidStairs,
+                    approach.nodes().size(), approach.starts().size(), ms);
             return json;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
