@@ -71,6 +71,8 @@ final class WalkRouter {
     private final Graph base;
     private final double stairsTimeFactor;
     private final double floorTransitSeconds;
+    /** 출발·도착 건물 가운데 점과 출입구 사이를 걷는 시간을 셀지. 11-17 부터 세지 않는다(앱 예전 계산 비교 테스트만 true). */
+    private final boolean walkToCenter;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
@@ -142,10 +144,17 @@ final class WalkRouter {
         this(survey, buildings, STAIRS_TIME_FACTOR, FLOOR_TRANSIT_SECONDS);
     }
 
-    /** 계단 배수·층당 시간을 정해 만든다 — 앱 예전 계산(배수 3, 층당 20초)과 맞춰 보는 비교 테스트용. */
+    /** 계단 배수·층당 시간을 정해 만든다. */
     WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds) {
+        this(survey, buildings, stairsTimeFactor, floorTransitSeconds, false);
+    }
+
+    /** 앱 예전 계산(배수 3, 층당 20초, 건물 가운데까지 걷는 시간 셈)과 맞춰 보는 비교 테스트용. */
+    WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds,
+               boolean walkToCenter) {
         this.stairsTimeFactor = stairsTimeFactor;
         this.floorTransitSeconds = floorTransitSeconds;
+        this.walkToCenter = walkToCenter;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -913,9 +922,10 @@ final class WalkRouter {
      * 하나라도 이었으면 estimatedTransit[0] = true.
      */
     private String attachFloorNode(Graph graph, CampusBuilding building, Double floor, boolean avoidStairs, boolean[] estimatedTransit) {
-        List<FloorEntrance> entrances = graph.entrancesByBuilding.containsKey(building.name())
-                ? graph.entrancesByBuilding.get(building.name())
-                : linkToNearestPaths(graph, building);
+        boolean onGraph = graph.entrancesByBuilding.containsKey(building.name());
+        List<FloorEntrance> entrances = onGraph ? graph.entrancesByBuilding.get(building.name()) : linkToNearestPaths(graph, building);
+        // 경로망에 출입구가 없는 건물은 가운데에서 가까운 길 점(300m 안)까지가 실제로 걷는 길이라 걷는 시간을 그대로 센다.
+        boolean walk = walkToCenter || !onGraph;
         List<String> surveyed = List.of();
         if (floor != null) {
             Map<Double, List<String>> byFloor = graph.levelVertices.get(building.name());
@@ -932,7 +942,7 @@ final class WalkRouter {
         graph.nodes.put(floorNodeId, center);
         graph.floorNodeIds.add(floorNodeId);
         for (String id : surveyed) {
-            linkCenter(graph, floorNodeId, center, id, 0);
+            linkCenter(graph, floorNodeId, center, id, 0, walk);
         }
         for (FloorEntrance entrance : entrances) {
             if (surveyed.contains(entrance.id())) {
@@ -946,15 +956,19 @@ final class WalkRouter {
             if (transitSeconds > 0) {
                 estimatedTransit[0] = true;
             }
-            linkCenter(graph, floorNodeId, center, entrance.id(), transitSeconds);
+            linkCenter(graph, floorNodeId, center, entrance.id(), transitSeconds, walk);
         }
         return floorNodeId;
     }
 
-    private static void linkCenter(Graph graph, String floorNodeId, Point center, String id, double extraSeconds) {
+    /**
+     * 건물 가운데(출발·도착 합성 노드)와 출입구·실내 정점을 잇는다. 시간은 층 이동(extraSeconds)만 — 11-17 사용자 요청: 가운데까지 걷는 시간을
+     * 세면 가운데에서 먼 출입구(P동 지하 2층 등)가 손해를 봐 B동 → P동 1층이 F동 통과 대신 바깥으로 돌았다. 거리(m)는 그림·거리 표시용으로 둔다.
+     */
+    private static void linkCenter(Graph graph, String floorNodeId, Point center, String id, double extraSeconds, boolean walk) {
         Point point = graph.nodes.get(id);
         double meters = point != null ? Geo.haversineMeters(center.lat(), center.lng(), point.lat(), point.lng()) : 0;
-        double seconds = (meters / WALKING_METERS_PER_MINUTE) * 60 + extraSeconds;
+        double seconds = (walk ? (meters / WALKING_METERS_PER_MINUTE) * 60 : 0) + extraSeconds;
         graph.push(floorNodeId, new GraphEdge(id, seconds, meters, false, false, false));
         graph.push(id, new GraphEdge(floorNodeId, seconds, meters, false, false, false));
     }

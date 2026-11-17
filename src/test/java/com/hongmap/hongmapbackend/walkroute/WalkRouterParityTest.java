@@ -46,7 +46,7 @@ class WalkRouterParityTest {
                 byId.put(building.id(), building);
             }
         }
-        router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR, APP_FLOOR_SECONDS);
+        router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR, APP_FLOOR_SECONDS, true);
         cases = fixture.get("cases");
     }
 
