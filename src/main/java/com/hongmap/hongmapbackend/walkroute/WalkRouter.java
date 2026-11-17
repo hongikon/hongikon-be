@@ -57,6 +57,12 @@ final class WalkRouter {
      */
     static final Map<String, String> FACILITY_ONLY_ENTRANCES = Map.of("HI_G_1F_2_ENTER", "건강진료센터");
 
+    /**
+     * 지나가는 길로 쓰지 않는 건물(코드). 출발·도착일 때만 그 안을 쓴다 — 11-17 사용자: Z1동을 1층으로 들어가 2층으로 빠지는 길은
+     * 사람들이 다니는 길이 아니다(T동 → R동이 T동 5층 출구 대신 Z1동 통과를 후보로 냈다).
+     */
+    static final Set<String> NO_PASS_THROUGH = Set.of("hongik_z1");
+
     private static final Pattern ENTRANCE_CODE = Pattern.compile("^HI_([A-Z0-9]+)_(B?)(\\d+(?:\\.\\d+)?)F?(?:_\\d+)?_ENTER$");
     private static final Pattern ELEVATOR_CODE = Pattern.compile("^HI_([A-Z0-9]+)(?:_\\d+)?_ELEVATOR$");
     private static final Pattern LABEL_PREFIX = Pattern.compile("^HI_([A-Z0-9]+)_");
@@ -81,6 +87,8 @@ final class WalkRouter {
     private final boolean walkToCenter;
     /** 건물 출입구로 쓰지 않는 시설 전용 출입구. 앱 예전 계산 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
     private final Map<String, String> facilityOnlyEntrances;
+    /** 지나가는 길로 쓰지 않는 건물 코드. 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
+    private final Set<String> noPassThrough;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
@@ -168,6 +176,7 @@ final class WalkRouter {
         this.floorTransitSeconds = floorTransitSeconds;
         this.walkToCenter = walkToCenter;
         this.facilityOnlyEntrances = walkToCenter ? Map.of() : FACILITY_ONLY_ENTRANCES;
+        this.noPassThrough = walkToCenter ? Set.of() : NO_PASS_THROUGH;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -265,6 +274,7 @@ final class WalkRouter {
         if (avoidStairs) {
             graph.adj.values().forEach(list -> list.removeIf(GraphEdge::stairs));
         }
+        blockPassThrough(graph, Set.of(from.name(), to.name()));
         boolean[] estimatedTransit = {false};
         String sourceId = attachFloorNode(graph, from, fromFloor, avoidStairs, estimatedTransit);
         String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
@@ -315,6 +325,9 @@ final class WalkRouter {
         if (!graph.nodes.containsKey(targetId)) {
             return new Approach(List.of(), List.of(), List.of());
         }
+        // 통과하지 않는 건물에서 나가는 길(buildings)은 그 건물 안을 써야 해서 막기 전 그래프를 둔다.
+        Graph open = graph.copy();
+        blockPassThrough(graph, Set.of(to.name()));
         Map<String, Double> dist = new HashMap<>();
         shortestTree(graph, targetId, dist, new HashMap<>());
         List<String> exclude = List.of(to.name());
@@ -350,7 +363,11 @@ final class WalkRouter {
                     || !graph.entrancesByBuilding.containsKey(from.name())) {
                 continue;
             }
-            Graph withStart = graph.copy();
+            boolean fromNoPass = from.code() != null && noPassThrough.contains(from.code());
+            Graph withStart = fromNoPass ? open.copy() : graph.copy();
+            if (fromNoPass) {
+                blockPassThrough(withStart, Set.of(from.name(), to.name()));
+            }
             boolean[] startTransit = {false};
             String sourceId = attachFloorNode(withStart, from, null, avoidStairs, startTransit);
             if (!withStart.nodes.containsKey(sourceId)) {
@@ -960,6 +977,34 @@ final class WalkRouter {
     private static boolean isOutdoorPathPoint(Graph graph, String id) {
         return graph.mainComponent.contains(id) && !graph.floorNodeIds.contains(id) && !id.contains("@") && !id.contains("#")
                 && !id.contains("::") && !id.equals(MY_LOCATION_NODE);
+    }
+
+    /** 통과하지 않는 건물(출발·도착 건물 빼고)의 실내 정점을 그래프에서 떼어 낸다. 요청마다 복사한 그래프에만. */
+    private void blockPassThrough(Graph graph, Set<String> endNames) {
+        for (CampusBuilding building : buildings) {
+            if (building.code() == null || !noPassThrough.contains(building.code()) || endNames.contains(building.name())) {
+                continue;
+            }
+            Map<Double, List<String>> byFloor = graph.levelVertices.get(building.name());
+            if (byFloor == null) {
+                continue;
+            }
+            Set<String> ids = new HashSet<>();
+            byFloor.values().forEach(ids::addAll);
+            for (String id : ids) {
+                List<GraphEdge> edges = graph.adj.get(id);
+                if (edges == null) {
+                    continue;
+                }
+                for (GraphEdge edge : edges) {
+                    List<GraphEdge> back = graph.adj.get(edge.to());
+                    if (back != null) {
+                        back.removeIf(e -> ids.contains(e.to()));
+                    }
+                }
+                graph.adj.put(id, new ArrayList<>());
+            }
+        }
     }
 
     /**
