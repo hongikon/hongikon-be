@@ -51,6 +51,18 @@ final class WalkRouter {
     static final int MAX_ALTERNATIVES = 3;
     private static final String MY_LOCATION_NODE = "me";
 
+    /**
+     * 그 시설로만 들어가는 출입구(라벨 → 시설). 건물의 다른 곳·다른 층으로 이어지지 않아 건물 출발·도착 출입구로 쓰지 않는다
+     * (11-17 사용자: G동 남쪽 1층 출입구는 건강진료센터 전용). 경로망 정점은 남겨 두지만 건물 가운데와 잇지 않는다.
+     */
+    static final Map<String, String> FACILITY_ONLY_ENTRANCES = Map.of("HI_G_1F_2_ENTER", "건강진료센터");
+
+    /**
+     * 지나가는 길로 쓰지 않는 건물(코드). 출발·도착일 때만 그 안을 쓴다 — 11-17 사용자: Z1동을 1층으로 들어가 2층으로 빠지는 길은
+     * 사람들이 다니는 길이 아니다(T동 → R동이 T동 5층 출구 대신 Z1동 통과를 후보로 냈다).
+     */
+    static final Set<String> NO_PASS_THROUGH = Set.of("hongik_z1");
+
     private static final Pattern ENTRANCE_CODE = Pattern.compile("^HI_([A-Z0-9]+)_(B?)(\\d+(?:\\.\\d+)?)F?(?:_\\d+)?_ENTER$");
     private static final Pattern ELEVATOR_CODE = Pattern.compile("^HI_([A-Z0-9]+)(?:_\\d+)?_ELEVATOR$");
     private static final Pattern LABEL_PREFIX = Pattern.compile("^HI_([A-Z0-9]+)_");
@@ -71,11 +83,21 @@ final class WalkRouter {
     private final Graph base;
     private final double stairsTimeFactor;
     private final double floorTransitSeconds;
+    /** 출발·도착 건물 가운데 점과 출입구 사이를 걷는 시간을 셀지. 11-17 부터 세지 않는다(앱 예전 계산 비교 테스트만 true). */
+    private final boolean walkToCenter;
+    /** 건물 출입구로 쓰지 않는 시설 전용 출입구. 앱 예전 계산 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
+    private final Map<String, String> facilityOnlyEntrances;
+    /** 지나가는 길로 쓰지 않는 건물 코드. 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
+    private final Set<String> noPassThrough;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
 
-    private record GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical) {
+    /** transit: 건물 가운데 연결에 든 그 건물 안 층 이동 어림(초). 그 밖의 간선은 0. */
+    private record GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical, double transit) {
+        GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical) {
+            this(to, seconds, meters, stairs, link, vertical, 0);
+        }
     }
 
     private record FloorEntrance(String id, double floor) {
@@ -142,10 +164,19 @@ final class WalkRouter {
         this(survey, buildings, STAIRS_TIME_FACTOR, FLOOR_TRANSIT_SECONDS);
     }
 
-    /** 계단 배수·층당 시간을 정해 만든다 — 앱 예전 계산(배수 3, 층당 20초)과 맞춰 보는 비교 테스트용. */
+    /** 계단 배수·층당 시간을 정해 만든다. */
     WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds) {
+        this(survey, buildings, stairsTimeFactor, floorTransitSeconds, false);
+    }
+
+    /** 앱 예전 계산(배수 3, 층당 20초, 건물 가운데까지 걷는 시간 셈, 시설 전용 출입구 구분 없음)과 맞춰 보는 비교 테스트용. */
+    WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds,
+               boolean walkToCenter) {
         this.stairsTimeFactor = stairsTimeFactor;
         this.floorTransitSeconds = floorTransitSeconds;
+        this.walkToCenter = walkToCenter;
+        this.facilityOnlyEntrances = walkToCenter ? Map.of() : FACILITY_ONLY_ENTRANCES;
+        this.noPassThrough = walkToCenter ? Set.of() : NO_PASS_THROUGH;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -243,6 +274,7 @@ final class WalkRouter {
         if (avoidStairs) {
             graph.adj.values().forEach(list -> list.removeIf(GraphEdge::stairs));
         }
+        blockPassThrough(graph, Set.of(from.name(), to.name()));
         boolean[] estimatedTransit = {false};
         String sourceId = attachFloorNode(graph, from, fromFloor, avoidStairs, estimatedTransit);
         String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
@@ -291,8 +323,11 @@ final class WalkRouter {
         String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
         boolean unverified = avoidStairs && estimatedTransit[0];
         if (!graph.nodes.containsKey(targetId)) {
-            return new Approach(List.of(), List.of());
+            return new Approach(List.of(), List.of(), List.of());
         }
+        // 통과하지 않는 건물에서 나가는 길(buildings)은 그 건물 안을 써야 해서 막기 전 그래프를 둔다.
+        Graph open = graph.copy();
+        blockPassThrough(graph, Set.of(to.name()));
         Map<String, Double> dist = new HashMap<>();
         shortestTree(graph, targetId, dist, new HashMap<>());
         List<String> exclude = List.of(to.name());
@@ -322,14 +357,59 @@ final class WalkRouter {
                 starts.add(new ApproachStart(indexOf.apply(id), List.copyOf(routes)));
             }
         }
-        return new Approach(List.copyOf(nodes), List.copyOf(starts));
+        List<ApproachBuilding> buildingStarts = new ArrayList<>();
+        for (CampusBuilding from : buildings) {
+            if (from.id() == null || from.name().equals(to.name()) || from.name().equals(chosenTo.name())
+                    || !graph.entrancesByBuilding.containsKey(from.name())) {
+                continue;
+            }
+            boolean fromNoPass = from.code() != null && noPassThrough.contains(from.code());
+            Graph withStart = fromNoPass ? open.copy() : graph.copy();
+            if (fromNoPass) {
+                blockPassThrough(withStart, Set.of(from.name(), to.name()));
+            }
+            boolean[] startTransit = {false};
+            String sourceId = attachFloorNode(withStart, from, null, avoidStairs, startTransit);
+            if (!withStart.nodes.containsKey(sourceId)) {
+                continue;
+            }
+            Point center = withStart.nodes.get(sourceId);
+            List<ApproachRoute> routes = new ArrayList<>();
+            for (PathResult path : routeCandidates(withStart, sourceId, targetId, MAX_ALTERNATIVES)) {
+                List<Integer> indices = new ArrayList<>(path.nodeIds().size());
+                for (String nodeId : path.nodeIds()) {
+                    indices.add(nodeId.equals(sourceId)
+                            ? index.computeIfAbsent(nodeId, k -> {
+                                nodes.add(new ApproachNode(k, center.lat(), center.lng()));
+                                return nodes.size() - 1;
+                            })
+                            : indexOf.apply(nodeId));
+                }
+                WalkRoute named = nameVia(toRoute(withStart, path), List.of(from.name(), to.name()));
+                Level fromLevel = new Level(from, null);
+                WalkRoute route = withLevelNotes(unverified ? stairFreeUnverified(named) : named, fromLevel, fromLevel, chosenEnd, end);
+                routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(route)));
+            }
+            if (!routes.isEmpty()) {
+                buildingStarts.add(new ApproachBuilding(from.id(), List.copyOf(routes)));
+            }
+        }
+        return new Approach(List.copyOf(nodes), List.copyOf(starts), List.copyOf(buildingStarts));
     }
 
     /**
      * 내 위치 출발용: 길 점 목록과, 실외 길 점(nodes 의 번호)마다 도착까지의 후보. 후보의 path 는 지나는 길 점 번호 — 앱이 이것으로
      * 지도 점을 만든다(route 에는 points 가 없다).
      */
-    public record Approach(List<ApproachNode> nodes, List<ApproachStart> starts) {
+    public record Approach(List<ApproachNode> nodes, List<ApproachStart> starts, List<ApproachBuilding> buildings) {
+    }
+
+    /**
+     * 11-17: 내 위치가 건물 경계 안이면 앱이 그 건물에서 나가는 길(층 모름, 어느 층 출구로 나갈지 경로가 고름)을 쓴다 — 실외 길 점에
+     * 직선으로 이으면 벽을 뚫고 나가 몇 층 어디로 나가는지 알 수 없었다. 위치는 여전히 서버로 보내지 않는다(건물마다 미리 계산).
+     * building 은 건물 id, path 의 첫 점은 건물 가운데.
+     */
+    public record ApproachBuilding(long building, List<ApproachRoute> routes) {
     }
 
     public record ApproachNode(String id, double lat, double lng) {
@@ -881,7 +961,7 @@ final class WalkRouter {
                 continue;
             }
             CampusBuilding building = resolveBuilding.apply(v.code());
-            if (building == null) {
+            if (building == null || (v.label() != null && facilityOnlyEntrances.containsKey(v.label()))) {
                 continue;
             }
             graph.levelVertices.computeIfAbsent(building.name(), k -> new LinkedHashMap<>())
@@ -899,6 +979,34 @@ final class WalkRouter {
                 && !id.contains("::") && !id.equals(MY_LOCATION_NODE);
     }
 
+    /** 통과하지 않는 건물(출발·도착 건물 빼고)의 실내 정점을 그래프에서 떼어 낸다. 요청마다 복사한 그래프에만. */
+    private void blockPassThrough(Graph graph, Set<String> endNames) {
+        for (CampusBuilding building : buildings) {
+            if (building.code() == null || !noPassThrough.contains(building.code()) || endNames.contains(building.name())) {
+                continue;
+            }
+            Map<Double, List<String>> byFloor = graph.levelVertices.get(building.name());
+            if (byFloor == null) {
+                continue;
+            }
+            Set<String> ids = new HashSet<>();
+            byFloor.values().forEach(ids::addAll);
+            for (String id : ids) {
+                List<GraphEdge> edges = graph.adj.get(id);
+                if (edges == null) {
+                    continue;
+                }
+                for (GraphEdge edge : edges) {
+                    List<GraphEdge> back = graph.adj.get(edge.to());
+                    if (back != null) {
+                        back.removeIf(e -> ids.contains(e.to()));
+                    }
+                }
+                graph.adj.put(id, new ArrayList<>());
+            }
+        }
+    }
+
     /**
      * 고른 건물·층에서 출발(도착)하는 합성 노드(건물 가운데)를 붙인다. 그 층에 조사된 실내 정점과는 걷는 시간으로,
      * 그 밖의 출입구와는 층 차이만큼 시간을 더해 잇는다. 건물이 경로망에 없으면 그래프에 없는 id 를 돌려준다.
@@ -913,9 +1021,10 @@ final class WalkRouter {
      * 하나라도 이었으면 estimatedTransit[0] = true.
      */
     private String attachFloorNode(Graph graph, CampusBuilding building, Double floor, boolean avoidStairs, boolean[] estimatedTransit) {
-        List<FloorEntrance> entrances = graph.entrancesByBuilding.containsKey(building.name())
-                ? graph.entrancesByBuilding.get(building.name())
-                : linkToNearestPaths(graph, building);
+        boolean onGraph = graph.entrancesByBuilding.containsKey(building.name());
+        List<FloorEntrance> entrances = onGraph ? graph.entrancesByBuilding.get(building.name()) : linkToNearestPaths(graph, building);
+        // 경로망에 출입구가 없는 건물은 가운데에서 가까운 길 점(300m 안)까지가 실제로 걷는 길이라 걷는 시간을 그대로 센다.
+        boolean walk = walkToCenter || !onGraph;
         List<String> surveyed = List.of();
         if (floor != null) {
             Map<Double, List<String>> byFloor = graph.levelVertices.get(building.name());
@@ -932,7 +1041,7 @@ final class WalkRouter {
         graph.nodes.put(floorNodeId, center);
         graph.floorNodeIds.add(floorNodeId);
         for (String id : surveyed) {
-            linkCenter(graph, floorNodeId, center, id, 0);
+            linkCenter(graph, floorNodeId, center, id, 0, walk);
         }
         for (FloorEntrance entrance : entrances) {
             if (surveyed.contains(entrance.id())) {
@@ -946,17 +1055,21 @@ final class WalkRouter {
             if (transitSeconds > 0) {
                 estimatedTransit[0] = true;
             }
-            linkCenter(graph, floorNodeId, center, entrance.id(), transitSeconds);
+            linkCenter(graph, floorNodeId, center, entrance.id(), transitSeconds, walk);
         }
         return floorNodeId;
     }
 
-    private static void linkCenter(Graph graph, String floorNodeId, Point center, String id, double extraSeconds) {
+    /**
+     * 건물 가운데(출발·도착 합성 노드)와 출입구·실내 정점을 잇는다. 시간은 층 이동(extraSeconds)만 — 11-17 사용자 요청: 가운데까지 걷는 시간을
+     * 세면 가운데에서 먼 출입구(P동 지하 2층 등)가 손해를 봐 B동 → P동 1층이 F동 통과 대신 바깥으로 돌았다. 거리(m)는 그림·거리 표시용으로 둔다.
+     */
+    private static void linkCenter(Graph graph, String floorNodeId, Point center, String id, double extraSeconds, boolean walk) {
         Point point = graph.nodes.get(id);
         double meters = point != null ? Geo.haversineMeters(center.lat(), center.lng(), point.lat(), point.lng()) : 0;
-        double seconds = (meters / WALKING_METERS_PER_MINUTE) * 60 + extraSeconds;
-        graph.push(floorNodeId, new GraphEdge(id, seconds, meters, false, false, false));
-        graph.push(id, new GraphEdge(floorNodeId, seconds, meters, false, false, false));
+        double seconds = (walk ? (meters / WALKING_METERS_PER_MINUTE) * 60 : 0) + extraSeconds;
+        graph.push(floorNodeId, new GraphEdge(id, seconds, meters, false, false, false, extraSeconds));
+        graph.push(id, new GraphEdge(floorNodeId, seconds, meters, false, false, false, extraSeconds));
     }
 
     /** 경로망에 출입구가 없는 건물은 출입구(없으면 건물 중심)에서 가장 가까운 길 점(300m 안, 2곳)까지 직선으로 잇는다. */
@@ -1433,9 +1546,8 @@ final class WalkRouter {
             if (edge.vertical() && edge.seconds() > 0) {
                 hasIndoorTransit = true;
             }
-            double walkSeconds = (edge.meters() / WALKING_METERS_PER_MINUTE) * 60;
-            if (edge.seconds() > walkSeconds + 0.5
-                    && (graph.floorNodeIds.contains(ids.get(i)) || graph.floorNodeIds.contains(edge.to()))) {
+            // 건물 가운데 연결에 층 이동 어림이 들었으면 건물 안 층 이동(걷는 시간을 빼서 seconds 와 걷는 시간 비교로는 못 가린다).
+            if (edge.transit() > 0.5) {
                 hasIndoorTransit = true;
             }
         }

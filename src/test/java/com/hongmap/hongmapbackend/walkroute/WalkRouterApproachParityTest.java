@@ -96,7 +96,7 @@ class WalkRouterApproachParityTest {
                 byId.put(building.id(), building);
             }
         }
-        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR, APP_FLOOR_SECONDS);
+        WalkRouter router = new WalkRouter(SurveyGraph.load(MAPPER), buildings, APP_STAIRS_FACTOR, APP_FLOOR_SECONDS, true);
         Map<String, List<JsonNode>> byTarget = new java.util.LinkedHashMap<>();
         for (JsonNode c : read("walkroute/approach-parity.json.gz").get("cases")) {
             byTarget.computeIfAbsent(c.get("to").asLong() + "|" + c.get("toFloor"), k -> new ArrayList<>()).add(c);
