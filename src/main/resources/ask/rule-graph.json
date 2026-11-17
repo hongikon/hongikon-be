@@ -1,6 +1,6 @@
 {
-  "version": "2026-11-02.1",
-  "catalogVersion": "cedeba621c49",
+  "version": "2026-11-17.1",
+  "catalogVersion": "2f38419e59f9",
   "nodes": [
     { "id": "semester-retake", "name": "학기재수강",
       "guides": ["semester-retake/start", "semester-retake/faq0", "faq-retake/semester-retake-range", "faq-retake/semester-retake-apply", "faq-retake/semester-retake-after"] },
@@ -29,7 +29,9 @@
     { "id": "change-major", "name": "전과", "guides": ["change-major/start", "change-major/faq0"] },
     { "id": "excess-semester", "name": "학기초과", "guides": ["excess-semester/start", "excess-semester/faq0", "faq-registration/excess-semester-registration"] },
     { "id": "grad-deferral", "name": "졸업유예(학사학위취득유예)", "guides": ["deferred/start"] },
-    { "id": "graduation", "name": "졸업", "guides": [] }
+    { "id": "graduation", "name": "졸업", "guides": [] },
+    { "id": "double-major", "name": "복수전공", "guides": ["double-major/start", "double-major/faq0"] },
+    { "id": "minor", "name": "부전공", "guides": ["minor/start", "minor/faq0"] }
   ],
   "edges": [
     { "id": "retake-keeps-warning", "from": "semester-retake", "to": "academic-warning", "type": "결과",
@@ -235,6 +237,34 @@
     { "id": "military-two-paths", "from": "military-leave", "to": "course-registration", "type": "결과",
       "fact": "학기 중에 입대할 예정이면 두 길이 있다 — 2월·8월에 일반휴학을 먼저 신청한 뒤 입영 10일 전~입영일에 군입대휴학으로 바꾸면 그 학기 일반휴학이 군입대휴학으로 전환되고(신입생 1년·편입생 1학기는 일반휴학 불가), 일반휴학 없이 다니다 입대하면 군입대휴학이 승인될 때까지 수강신청한 대로 다녀야 한다.",
       "guide": "military-leave/start", "quote": "군입대휴학이 승인될때가지 수강신청 내역에 따라 학업을 하여야 함",
-      "condition": null, "reviewed": "2026-11-10 Claude(원문 대조 — military-leave/start ①·② 방법, 운영진 요청)" }
+      "condition": null, "reviewed": "2026-11-10 Claude(원문 대조 — military-leave/start ①·② 방법, 운영진 요청)" },
+    { "id": "double-major-credits", "from": "double-major", "to": "graduation", "type": "예외",
+      "fact": "복수전공자는 주전공 졸업요건과 총 132학점에 더해 복수전공 학과 전공을 36학점 이상(그 학과 전공필수 모두 포함, 비공학계열→공학계열은 MSC도) 채워야 졸업한다.",
+      "guide": "double-major/start", "quote": "졸업하려면 주전공 졸업요건에 더해 복수전공 학과 전공을 36학점 이상(그 학과 전공필수 모두 포함) 들어야 해요.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — 학사내규 제49조·제51조, 사용자 요청)" },
+    { "id": "double-major-overlap-once", "from": "double-major", "to": "graduation", "type": "제한",
+      "fact": "두 전공에 같은 과목이 있으면 그 학점은 주전공에만 들어가고 복수전공 36학점에는 세지 않는다.",
+      "guide": "double-major/start", "quote": "두 전공에 같은 과목이 있으면 그 학점은 주전공에만 들어가고 복수전공 36학점에는 들어가지 않아요.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — 학사내규 제49조②, 사용자 요청)" },
+    { "id": "double-major-deferred", "from": "double-major", "to": "graduation", "type": "결과",
+      "fact": "복수전공 요건을 못 채우면 졸업사정에서 '복수전공 유보'로 미졸업이 되고, 최종 학기 종강일 전까지 철회하면 주전공으로만 졸업할 수 있다.",
+      "guide": "double-major/start", "quote": "복수전공 요건이 모자라면 미졸업 사유가 '복수전공 유보'로 나오고",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — 졸업사정 안내·학사내규 제51조의2, 사용자 요청)" },
+    { "id": "double-major-residency", "from": "double-major", "to": "residency-limit", "type": "제한",
+      "fact": "재학연한(8년) 안에 복수전공을 마치지 못하면 복수전공 자격을 잃는다.",
+      "guide": "double-major/start", "quote": "재학연한(8년) 안에 복수전공을 마치지 못하면 복수전공 자격이 없어져요.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — 학사내규 제50조, 사용자 요청)" },
+    { "id": "minor-unmet-withdraw", "from": "minor", "to": "graduation", "type": "결과",
+      "fact": "부전공 요건(지정과목 21학점·평균 C0 이상)을 못 채우면 부전공을 철회해야 주전공으로 졸업할 수 있다.",
+      "guide": "minor/start", "quote": "부전공 졸업요건을 미충족했을 시, 반드시 해당 부전공을 철회하여야 주전공으로 졸업이 가능하다.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — minor/start [졸업], 사용자 요청)" },
+    { "id": "minor-withdraw-credits", "from": "minor", "to": "graduation", "type": "결과",
+      "fact": "부전공을 철회해도 이미 딴 부전공 학과 학점은 일반선택으로 졸업학점에 들어간다.",
+      "guide": "minor/start", "quote": "부전공 철회 시, 이미 취득한 부전공 학과의 학점은 <일반선택> 학점으로 인정되어 졸업학점에 포함된다.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — minor/start [졸업], 사용자 요청)" },
+    { "id": "minor-residency", "from": "minor", "to": "residency-limit", "type": "제한",
+      "fact": "부전공도 재학연한(8년, 5년제는 10년) 안에 마쳐야 한다.",
+      "guide": "minor/start", "quote": "부전공 신청자는 일반학생과 동일한 재학년한(8년, 5년제는 10년)내에 졸업을 해야 한다.",
+      "condition": null, "reviewed": "2026-11-17 Claude(원문 대조 — minor/start [이수연한], 사용자 요청)" }
   ]
 }
