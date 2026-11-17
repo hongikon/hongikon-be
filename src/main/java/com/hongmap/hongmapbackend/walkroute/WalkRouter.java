@@ -51,6 +51,12 @@ final class WalkRouter {
     static final int MAX_ALTERNATIVES = 3;
     private static final String MY_LOCATION_NODE = "me";
 
+    /**
+     * 그 시설로만 들어가는 출입구(라벨 → 시설). 건물의 다른 곳·다른 층으로 이어지지 않아 건물 출발·도착 출입구로 쓰지 않는다
+     * (11-17 사용자: G동 남쪽 1층 출입구는 건강진료센터 전용). 경로망 정점은 남겨 두지만 건물 가운데와 잇지 않는다.
+     */
+    static final Map<String, String> FACILITY_ONLY_ENTRANCES = Map.of("HI_G_1F_2_ENTER", "건강진료센터");
+
     private static final Pattern ENTRANCE_CODE = Pattern.compile("^HI_([A-Z0-9]+)_(B?)(\\d+(?:\\.\\d+)?)F?(?:_\\d+)?_ENTER$");
     private static final Pattern ELEVATOR_CODE = Pattern.compile("^HI_([A-Z0-9]+)(?:_\\d+)?_ELEVATOR$");
     private static final Pattern LABEL_PREFIX = Pattern.compile("^HI_([A-Z0-9]+)_");
@@ -73,6 +79,8 @@ final class WalkRouter {
     private final double floorTransitSeconds;
     /** 출발·도착 건물 가운데 점과 출입구 사이를 걷는 시간을 셀지. 11-17 부터 세지 않는다(앱 예전 계산 비교 테스트만 true). */
     private final boolean walkToCenter;
+    /** 건물 출입구로 쓰지 않는 시설 전용 출입구. 앱 예전 계산 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
+    private final Map<String, String> facilityOnlyEntrances;
 
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
@@ -153,12 +161,13 @@ final class WalkRouter {
         this(survey, buildings, stairsTimeFactor, floorTransitSeconds, false);
     }
 
-    /** 앱 예전 계산(배수 3, 층당 20초, 건물 가운데까지 걷는 시간 셈)과 맞춰 보는 비교 테스트용. */
+    /** 앱 예전 계산(배수 3, 층당 20초, 건물 가운데까지 걷는 시간 셈, 시설 전용 출입구 구분 없음)과 맞춰 보는 비교 테스트용. */
     WalkRouter(SurveyGraph survey, List<CampusBuilding> buildings, double stairsTimeFactor, double floorTransitSeconds,
                boolean walkToCenter) {
         this.stairsTimeFactor = stairsTimeFactor;
         this.floorTransitSeconds = floorTransitSeconds;
         this.walkToCenter = walkToCenter;
+        this.facilityOnlyEntrances = walkToCenter ? Map.of() : FACILITY_ONLY_ENTRANCES;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
         for (SurveyGraph.Vertex v : survey.vertices()) {
@@ -935,7 +944,7 @@ final class WalkRouter {
                 continue;
             }
             CampusBuilding building = resolveBuilding.apply(v.code());
-            if (building == null) {
+            if (building == null || (v.label() != null && facilityOnlyEntrances.containsKey(v.label()))) {
                 continue;
             }
             graph.levelVertices.computeIfAbsent(building.name(), k -> new LinkedHashMap<>())
