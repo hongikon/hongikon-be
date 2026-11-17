@@ -77,7 +77,11 @@ final class WalkRouter {
     private record EntrancePoint(double lat, double lng, String code, double floor) {
     }
 
-    private record GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical) {
+    /** transit: 건물 가운데 연결에 든 그 건물 안 층 이동 어림(초). 그 밖의 간선은 0. */
+    private record GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical, double transit) {
+        GraphEdge(String to, double seconds, double meters, boolean stairs, boolean link, boolean vertical) {
+            this(to, seconds, meters, stairs, link, vertical, 0);
+        }
     }
 
     private record FloorEntrance(String id, double floor) {
@@ -969,8 +973,8 @@ final class WalkRouter {
         Point point = graph.nodes.get(id);
         double meters = point != null ? Geo.haversineMeters(center.lat(), center.lng(), point.lat(), point.lng()) : 0;
         double seconds = (walk ? (meters / WALKING_METERS_PER_MINUTE) * 60 : 0) + extraSeconds;
-        graph.push(floorNodeId, new GraphEdge(id, seconds, meters, false, false, false));
-        graph.push(id, new GraphEdge(floorNodeId, seconds, meters, false, false, false));
+        graph.push(floorNodeId, new GraphEdge(id, seconds, meters, false, false, false, extraSeconds));
+        graph.push(id, new GraphEdge(floorNodeId, seconds, meters, false, false, false, extraSeconds));
     }
 
     /** 경로망에 출입구가 없는 건물은 출입구(없으면 건물 중심)에서 가장 가까운 길 점(300m 안, 2곳)까지 직선으로 잇는다. */
@@ -1447,9 +1451,8 @@ final class WalkRouter {
             if (edge.vertical() && edge.seconds() > 0) {
                 hasIndoorTransit = true;
             }
-            double walkSeconds = (edge.meters() / WALKING_METERS_PER_MINUTE) * 60;
-            if (edge.seconds() > walkSeconds + 0.5
-                    && (graph.floorNodeIds.contains(ids.get(i)) || graph.floorNodeIds.contains(edge.to()))) {
+            // 건물 가운데 연결에 층 이동 어림이 들었으면 건물 안 층 이동(걷는 시간을 빼서 seconds 와 걷는 시간 비교로는 못 가린다).
+            if (edge.transit() > 0.5) {
                 hasIndoorTransit = true;
             }
         }
