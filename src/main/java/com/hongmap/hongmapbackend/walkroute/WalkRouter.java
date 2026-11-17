@@ -304,7 +304,7 @@ final class WalkRouter {
         String targetId = attachFloorNode(graph, to, toFloor, avoidStairs, estimatedTransit);
         boolean unverified = avoidStairs && estimatedTransit[0];
         if (!graph.nodes.containsKey(targetId)) {
-            return new Approach(List.of(), List.of());
+            return new Approach(List.of(), List.of(), List.of());
         }
         Map<String, Double> dist = new HashMap<>();
         shortestTree(graph, targetId, dist, new HashMap<>());
@@ -335,14 +335,55 @@ final class WalkRouter {
                 starts.add(new ApproachStart(indexOf.apply(id), List.copyOf(routes)));
             }
         }
-        return new Approach(List.copyOf(nodes), List.copyOf(starts));
+        List<ApproachBuilding> buildingStarts = new ArrayList<>();
+        for (CampusBuilding from : buildings) {
+            if (from.id() == null || from.name().equals(to.name()) || from.name().equals(chosenTo.name())
+                    || !graph.entrancesByBuilding.containsKey(from.name())) {
+                continue;
+            }
+            Graph withStart = graph.copy();
+            boolean[] startTransit = {false};
+            String sourceId = attachFloorNode(withStart, from, null, avoidStairs, startTransit);
+            if (!withStart.nodes.containsKey(sourceId)) {
+                continue;
+            }
+            Point center = withStart.nodes.get(sourceId);
+            List<ApproachRoute> routes = new ArrayList<>();
+            for (PathResult path : routeCandidates(withStart, sourceId, targetId, MAX_ALTERNATIVES)) {
+                List<Integer> indices = new ArrayList<>(path.nodeIds().size());
+                for (String nodeId : path.nodeIds()) {
+                    indices.add(nodeId.equals(sourceId)
+                            ? index.computeIfAbsent(nodeId, k -> {
+                                nodes.add(new ApproachNode(k, center.lat(), center.lng()));
+                                return nodes.size() - 1;
+                            })
+                            : indexOf.apply(nodeId));
+                }
+                WalkRoute named = nameVia(toRoute(withStart, path), List.of(from.name(), to.name()));
+                Level fromLevel = new Level(from, null);
+                WalkRoute route = withLevelNotes(unverified ? stairFreeUnverified(named) : named, fromLevel, fromLevel, chosenEnd, end);
+                routes.add(new ApproachRoute(List.copyOf(indices), withoutPoints(route)));
+            }
+            if (!routes.isEmpty()) {
+                buildingStarts.add(new ApproachBuilding(from.id(), List.copyOf(routes)));
+            }
+        }
+        return new Approach(List.copyOf(nodes), List.copyOf(starts), List.copyOf(buildingStarts));
     }
 
     /**
      * 내 위치 출발용: 길 점 목록과, 실외 길 점(nodes 의 번호)마다 도착까지의 후보. 후보의 path 는 지나는 길 점 번호 — 앱이 이것으로
      * 지도 점을 만든다(route 에는 points 가 없다).
      */
-    public record Approach(List<ApproachNode> nodes, List<ApproachStart> starts) {
+    public record Approach(List<ApproachNode> nodes, List<ApproachStart> starts, List<ApproachBuilding> buildings) {
+    }
+
+    /**
+     * 11-17: 내 위치가 건물 경계 안이면 앱이 그 건물에서 나가는 길(층 모름, 어느 층 출구로 나갈지 경로가 고름)을 쓴다 — 실외 길 점에
+     * 직선으로 이으면 벽을 뚫고 나가 몇 층 어디로 나가는지 알 수 없었다. 위치는 여전히 서버로 보내지 않는다(건물마다 미리 계산).
+     * building 은 건물 id, path 의 첫 점은 건물 가운데.
+     */
+    public record ApproachBuilding(long building, List<ApproachRoute> routes) {
     }
 
     public record ApproachNode(String id, double lat, double lng) {

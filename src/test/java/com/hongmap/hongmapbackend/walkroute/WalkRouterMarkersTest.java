@@ -106,4 +106,25 @@ class WalkRouterMarkersTest {
         }
         assertThat(faster).isGreaterThan(0);
     }
+
+    @Test
+    void 내_위치가_건물_안일_때_쓰는_건물_출발_길은_건물_길과_같고_나가는_층이_찍힌다() {
+        CampusBuilding t = code("hongik_t");
+        CampusBuilding g = code("hongik_g");
+        long started = System.nanoTime();
+        WalkRouter.Approach approach = router.approach(g, null);
+        System.out.println("approach ms = " + (System.nanoTime() - started) / 1_000_000 + ", buildings = " + approach.buildings().size());
+        assertThat(approach.buildings()).noneMatch(b -> b.building() == g.id());
+        WalkRouter.ApproachBuilding fromT = approach.buildings().stream().filter(b -> b.building() == t.id()).findFirst().orElseThrow();
+        WalkRoute direct = router.routes(t, null, g, null).get(0);
+        WalkRoute viaApproach = fromT.routes().get(0).route();
+        assertThat(viaApproach.totalSeconds()).isCloseTo(direct.totalSeconds(), org.assertj.core.data.Offset.offset(1e-6));
+        assertThat(viaApproach.markers()).anySatisfy(m -> {
+            assertThat(m.kind()).isEqualTo("exit");
+            assertThat(m.label()).startsWith("T동").contains("층");
+        });
+        WalkRouter.ApproachNode first = approach.nodes().get(fromT.routes().get(0).path().get(0));
+        assertThat(first.lat()).isEqualTo(t.lat());
+        assertThat(first.lng()).isEqualTo(t.lng());
+    }
 }
