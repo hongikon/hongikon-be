@@ -121,6 +121,8 @@ public class AskLlmClient {
               3) 표: 같은 속성(대상·금액·기간·장소 등)을 가진 것 3개 이상을 비교하면 items 대신 table 에 쓴다
                  (예: 장학금 종류별 대상·금액, 기간별 환급률, 층별 업체). 열은 2~4개, 칸 값은 원문 표현 그대로, 질문에 맞는 행만 넣는다.
                  원문에 '항목 | 항목' 모양 행이 있으면 표로 옮기기 좋은 자료다. 표를 쓰면 같은 내용을 items 에 되풀이하지 않는다.
+                 수강신청 제한인원·사전선택인원을 학년 차례(4/3/2/1/추가)로 설명할 때는 원문 예시 표를 열 그대로(칸 | 4 | 3 | 2 | 1 | 추가, 6열)
+                 table 에 넣는다 — 앱이 열마다 학교 화면과 같은 색(4 검정·3 주황·2 파랑·1 분홍·추가 갈색)을 입힌다. 이 표 없이 색 이름만 쓰지 않는다.
               4) 경우가 여럿이어도 결론은 같고 절차 세부만 다르면(기기별 설정 방법 등) 전부 나열하지 않는다. 학생에게 가장 흔한 경우로 답하고,
                  나머지는 '다른 경우는 ~만 달라요' 한 줄로 묶거나 answer 끝에 어느 경우인지 짧게 되묻는다. 결론이 갈리면 위 '경우 나누기'를 따른다.
               5) 주제 전체를 묻는 질문('교환학생 정보 알려줘')은 무엇인지와 지금 할 일을 answer 에 짧게 쓰고, sections 는 일정·신청 방법처럼
@@ -1042,6 +1044,10 @@ public class AskLlmClient {
     static final int MAX_CAUTION_ITEMS = 2;
     static final String CAUTION_TITLE = "꼭 확인할 점";
     static final int MAX_TABLE_COLUMNS = 4;
+    /** 수강신청 제한인원 표(칸 | 4 | 3 | 2 | 1 | 추가)는 6열 모두 — 4열에서 자르면 1학년·추가 차례가 빠진다. */
+    static final int MAX_GRADE_TURN_COLUMNS = 6;
+    /** 학년 차례 열 이름 → 앱 색 키(학교 수강신청 화면: 4 검정·3 주황·2 파랑·1 분홍·추가 갈색). */
+    static final Map<String, String> GRADE_TURN_COLORS = Map.of("4", "g4", "3", "g3", "2", "g2", "1", "g1", "추가", "extra");
     /** 표 행 상한 — 학과 교수진(컴퓨터공학과 18명)·동아리 목록을 다 보이게(11-09 '교수님 정보가 일부만'). 표는 가로로 짧아 휴대폰에서도 읽힌다. */
     static final int MAX_TABLE_ROWS = 40;
 
@@ -1067,19 +1073,21 @@ public class AskLlmClient {
             AskRouteResponse.Table table = null;
             JsonNode tableNode = section.path("table");
             if (tableNode.isObject()) {
-                List<String> head = cells(tableNode.path("head"));
+                List<String> colors = gradeTurnColors(cells(tableNode.path("head"), MAX_GRADE_TURN_COLUMNS));
+                int columns = colors != null ? MAX_GRADE_TURN_COLUMNS : MAX_TABLE_COLUMNS;
+                List<String> head = cells(tableNode.path("head"), columns);
                 List<List<String>> rows = new ArrayList<>();
                 for (JsonNode row : tableNode.path("rows")) {
                     if (rows.size() >= MAX_TABLE_ROWS) {
                         break;
                     }
-                    List<String> cells = cells(row);
+                    List<String> cells = cells(row, columns);
                     if (!cells.isEmpty()) {
                         rows.add(cells);
                     }
                 }
                 if (!head.isEmpty() && !rows.isEmpty()) {
-                    table = new AskRouteResponse.Table(head, rows);
+                    table = new AskRouteResponse.Table(head, rows, colors);
                 }
             }
             if (items.isEmpty() && table == null) {
@@ -1090,10 +1098,30 @@ public class AskLlmClient {
         return out;
     }
 
-    private static List<String> cells(JsonNode row) {
+    /**
+     * 머리 행이 '칸 | 4 | 3 | 2 | 1 | 추가'처럼 첫 칸 뒤가 모두 학년 차례(3개 이상)면 열마다 색 키, 아니면 null.
+     * '4학년'처럼 써도 같은 차례로 본다.
+     */
+    static List<String> gradeTurnColors(List<String> head) {
+        if (head.size() < 4) {
+            return null;
+        }
+        List<String> colors = new ArrayList<>();
+        colors.add(null);
+        for (String cell : head.subList(1, head.size())) {
+            String color = GRADE_TURN_COLORS.get(cell.replace("학년", "").trim());
+            if (color == null) {
+                return null;
+            }
+            colors.add(color);
+        }
+        return colors;
+    }
+
+    private static List<String> cells(JsonNode row, int maxColumns) {
         List<String> cells = new ArrayList<>();
         for (JsonNode cell : row) {
-            if (cells.size() >= MAX_TABLE_COLUMNS) {
+            if (cells.size() >= maxColumns) {
                 break;
             }
             cells.add(cell.isString() ? cell.asString().trim() : "");

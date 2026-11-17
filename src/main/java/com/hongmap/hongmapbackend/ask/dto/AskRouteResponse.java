@@ -74,8 +74,15 @@ public record AskRouteResponse(String nodeId, List<String> nodeIds, String answe
     public record Section(String title, List<String> items, boolean ordered, Table table) {
     }
 
-    /** @param head 머리 행(열 이름), rows 칸 값(원문 표현 그대로). 열·행 상한은 서버가 자른다. */
-    public record Table(List<String> head, List<List<String>> rows) {
+    /**
+     * @param head 머리 행(열 이름), rows 칸 값(원문 표현 그대로). 열·행 상한은 서버가 자른다.
+     * @param colors 열마다 색 키(g4·g3·g2·g1·extra, 없으면 null 칸) — 수강신청 제한인원 4/3/2/1/추가 표(11-17). 앱(1.1.0, 11-09~)이 그 열
+     *               칸을 학교 수강신청 화면과 같은 색 테두리로 감싼다. 그 밖의 표는 null.
+     */
+    public record Table(List<String> head, List<List<String>> rows, List<String> colors) {
+        public Table(List<String> head, List<List<String>> rows) {
+            this(head, rows, null);
+        }
     }
 
     /** @param date 공지 게시일 또는 학식 날짜(yyyy-MM-dd), 학교 페이지면 null */
