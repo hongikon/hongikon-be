@@ -129,7 +129,7 @@ class WalkRouterMarkersTest {
     }
 
     @Test
-    void 건강진료센터_전용_G동_남쪽_1층_지하1층_출입구로는_드나들지_않는다() {
+    void 시설_전용_G동_남쪽_1층_건강진료센터_지하1층_라운지_출입구로는_드나들지_않는다() {
         CampusBuilding g = code("hongik_g");
         Set<Double> facilityDoors = Set.of(37.551079, 37.5511004);
         for (CampusBuilding other : buildings) {
