@@ -129,21 +129,22 @@ class WalkRouterMarkersTest {
     }
 
     @Test
-    void 건강진료센터_전용_G동_남쪽_1층_출입구로는_드나들지_않는다() {
+    void 시설_전용_G동_남쪽_1층_건강진료센터_지하1층_라운지_출입구로는_드나들지_않는다() {
         CampusBuilding g = code("hongik_g");
+        Set<Double> facilityDoors = Set.of(37.551079, 37.5511004);
         for (CampusBuilding other : buildings) {
             if (other == g) {
                 continue;
             }
-            for (Double floor : new Double[] {null, 1.0}) {
+            for (Double floor : new Double[] {null, 1.0, -1.0}) {
                 for (WalkRoute route : router.routes(other, null, g, floor)) {
                     if (route.markers() != null) {
-                        assertThat(route.markers()).noneSatisfy(m -> assertThat(m.lat()).isEqualTo(37.551079));
+                        assertThat(route.markers()).noneSatisfy(m -> assertThat(facilityDoors).contains(m.lat()));
                     }
                 }
                 for (WalkRoute route : router.routes(g, floor, other, null)) {
                     if (route.markers() != null) {
-                        assertThat(route.markers()).noneSatisfy(m -> assertThat(m.lat()).isEqualTo(37.551079));
+                        assertThat(route.markers()).noneSatisfy(m -> assertThat(facilityDoors).contains(m.lat()));
                     }
                 }
             }

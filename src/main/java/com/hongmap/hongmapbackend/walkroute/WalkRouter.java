@@ -48,14 +48,24 @@ final class WalkRouter {
     /** 이미 찾은 길을 이만큼 비싸게 보고 다시 찾는다(벌점 방식). */
     private static final double DETOUR_PENALTY = 1.8;
     private static final int PENALTY_ROUNDS = 4;
+    /**
+     * 2·3순위 후보 펴기(11-18): 벌점 방식은 1순위가 쓴 짧은 구간 하나만 피해 옆 점으로 살짝 돌아가는 혹(n354→n229→n644 등)을
+     * 만든다. 후보마다 이 시간(초) 안쪽 구간은 실제 가장 빠른 길로 바꾼다. 큰 길이 다른 후보는 그대로 남는다.
+     */
+    private static final double SMOOTH_WINDOW_SECONDS = 60;
+    /** 이만큼(초) 넘게 빨라질 때만 바꾼다(같은 시간의 다른 길은 그대로). */
+    private static final double SMOOTH_MIN_GAIN_SECONDS = 1;
     static final int MAX_ALTERNATIVES = 3;
     private static final String MY_LOCATION_NODE = "me";
 
     /**
      * 그 시설로만 들어가는 출입구(라벨 → 시설). 건물의 다른 곳·다른 층으로 이어지지 않아 건물 출발·도착 출입구로 쓰지 않는다
-     * (11-17 사용자: G동 남쪽 1층 출입구는 건강진료센터 전용). 경로망 정점은 남겨 두지만 건물 가운데와 잇지 않는다.
+     * (11-17 사용자: G동 남쪽 1층 출입구는 건강진료센터 전용, 11-18: 같은 자리 지하 1층 출입구는 라운지 전용). 경로망 정점은 남겨 두지만
+     * 건물 가운데와 잇지 않는다.
      */
-    static final Map<String, String> FACILITY_ONLY_ENTRANCES = Map.of("HI_G_1F_2_ENTER", "건강진료센터");
+    static final Map<String, String> FACILITY_ONLY_ENTRANCES = Map.of(
+            "HI_G_1F_2_ENTER", "건강진료센터",
+            "HI_G_B1F_2_ENTER", "라운지");
 
     /**
      * 지나가는 길로 쓰지 않는 건물(코드). 출발·도착일 때만 그 안을 쓴다 — 11-17 사용자: Z1동을 1층으로 들어가 2층으로 빠지는 길은
@@ -1397,6 +1407,102 @@ final class WalkRouter {
         return false;
     }
 
+    /** 길 위 짧은 구간(SMOOTH_WINDOW_SECONDS 안)에 더 빠른 길이 있으면 그 길로 바꾼다. 시작·끝 점은 그대로. */
+    private static PathResult smoothDetours(Graph graph, PathResult path) {
+        List<String> ids = path.nodeIds();
+        List<String> out = new ArrayList<>();
+        out.add(ids.get(0));
+        boolean changed = false;
+        int i = 0;
+        while (i < ids.size() - 1) {
+            List<Double> cum = new ArrayList<>();
+            cum.add(0.0);
+            int far = i;
+            while (far + 1 < ids.size()) {
+                GraphEdge e = graph.edge(ids.get(far), ids.get(far + 1));
+                double next = cum.get(cum.size() - 1) + (e != null ? e.seconds() : Double.POSITIVE_INFINITY);
+                if (next > SMOOTH_WINDOW_SECONDS && far > i) {
+                    break;
+                }
+                cum.add(next);
+                far++;
+            }
+            int jump = -1;
+            List<String> shortcut = null;
+            if (far - i >= 2) {
+                Map<String, String> prev = new HashMap<>();
+                Map<String, Double> dist = boundedDijkstra(graph, ids.get(i), cum.get(cum.size() - 1), prev);
+                for (int j = far; j >= i + 2; j--) {
+                    Double d = dist.get(ids.get(j));
+                    if (d != null && d < cum.get(j - i) - SMOOTH_MIN_GAIN_SECONDS) {
+                        List<String> seg = new ArrayList<>();
+                        for (String c = ids.get(j); !c.equals(ids.get(i)); c = prev.get(c)) {
+                            seg.add(c);
+                        }
+                        java.util.Collections.reverse(seg);
+                        jump = j;
+                        shortcut = seg;
+                        break;
+                    }
+                }
+            }
+            if (shortcut != null) {
+                out.addAll(shortcut);
+                i = jump;
+                changed = true;
+            } else {
+                out.add(ids.get(i + 1));
+                i++;
+            }
+        }
+        if (!changed) {
+            return path;
+        }
+        // 바꾼 구간이 이미 지난 점을 다시 지나면 그 사이 고리를 잘라 낸다.
+        List<String> loopless = new ArrayList<>();
+        Map<String, Integer> at = new HashMap<>();
+        for (String id : out) {
+            Integer seen = at.get(id);
+            if (seen != null) {
+                for (int k = loopless.size() - 1; k > seen; k--) {
+                    at.remove(loopless.remove(k));
+                }
+                continue;
+            }
+            at.put(id, loopless.size());
+            loopless.add(id);
+        }
+        return new PathResult(List.copyOf(loopless), pathSeconds(graph, loopless));
+    }
+
+    /** limit(초)까지만 퍼지는 다익스트라. prev 에 지나온 점을 채운다. */
+    private static Map<String, Double> boundedDijkstra(Graph graph, String sourceId, double limit, Map<String, String> prev) {
+        Map<String, Double> dist = new HashMap<>();
+        PriorityQueue<QueueEntry> queue = new PriorityQueue<>(Comparator.comparingDouble(QueueEntry::dist).thenComparingLong(QueueEntry::seq));
+        long seq = 0;
+        dist.put(sourceId, 0.0);
+        queue.add(new QueueEntry(0, seq++, sourceId));
+        while (!queue.isEmpty()) {
+            QueueEntry cur = queue.poll();
+            if (cur.dist() != dist.get(cur.id())) {
+                continue;
+            }
+            for (GraphEdge edge : graph.edges(cur.id())) {
+                double next = cur.dist() + edge.seconds();
+                if (next > limit) {
+                    continue;
+                }
+                Double known = dist.get(edge.to());
+                if (known == null || next < known) {
+                    dist.put(edge.to(), next);
+                    prev.put(edge.to(), cur.id());
+                    queue.add(new QueueEntry(next, seq++, edge.to()));
+                }
+            }
+        }
+        return dist;
+    }
+
     /**
      * 길찾기 후보(3개 정도): Yen 으로 가까운 순 후보를 얻고, 찾은 길의 간선을 비싸게 보고 다시 찾는 벌점 방식으로 실제로 다른 길을 더한다.
      * 가장 빠른 길이 맨 앞, 나머지는 시간 순.
@@ -1437,6 +1543,22 @@ final class WalkRouter {
                 all.add(found);
             }
             penalize.accept(found);
+        }
+        if (!walkToCenter) {
+            List<PathResult> smoothed = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            seen.add(pathKey(best.nodeIds()));
+            smoothed.add(best);
+            for (PathResult path : all) {
+                if (path == best) {
+                    continue;
+                }
+                PathResult s = smoothDetours(graph, path);
+                if (seen.add(pathKey(s.nodeIds()))) {
+                    smoothed.add(s);
+                }
+            }
+            all = smoothed;
         }
 
         List<PathResult> near = new ArrayList<>();
