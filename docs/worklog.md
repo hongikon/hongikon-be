@@ -2115,3 +2115,13 @@
 - FE `scripts/ask/topics/ext_about.py` 새 안내 `about-team`(학교 페이지 없이 lead + tips). 카탈로그 `dd2893014648` 로 다시 내보내고 색인 갱신(새 문단 1개). 규정 그래프 catalogVersion 만 맞춤(validate 통과).
 - `AskCatalog` 고르기 프롬프트 school 범위에 한 줄: 홍익온 앱·물어보기 자체(누가 만들었는지, 개발팀장, 문의처)도 school(about-team). 없으면 '잡담'(off_topic)이나 '개인 정보 요구'(abuse)로 거절될 수 있었다.
 - 확인: ask 테스트 226개 통과, FE 경로 정답표 2868/2868(+5문항). 실제 LLM 고르기는 돌려 보지 않음.
+## 2026-11-20 — 길찾기: 강당 S동은 건물 안에서 층을 옮기지 않는다(NO_INDOOR_FLOOR_CHANGE)
+
+- 문제(사용자 제보): 제보 시트에서 강당 S동 3층 제보로 도착을 고르면 길이 S동 **1층 출입구**에서 끝나고 "계단·엘리베이터로 3층 올라가기"가 붙었다. S동은 1층·3층 출입구가 따로 있고 안에서 층이 이어지지 않는다.
+  - 운영 API 확인: `GET /map/routes?from=1&to=17&toFloor=3` 1번 후보가 1층 출입구 + 어림 층 이동(hasIndoorTransit=true, indoorMeters=0, 201초), 바깥으로 3층 출입구까지 가는 길(242초)은 2번 후보였다.
+  - 원인: `WalkRouter.attachFloorNode` 가 실내를 조사하지 않은 건물은 모든 출입구를 고른 층에 "층 차이 × floorTransitSeconds" 로 잇는다. 1층 입구 + 2층 어림(약 16초)이 바깥으로 도는 길보다 싸게 나왔다.
+- 고침: `WalkRouter.NO_INDOOR_FLOOR_CHANGE`(건물 code, 지금은 `hongik_s` 하나). 이 건물은 고른 층으로 바로 드나들 곳(그 층 출입구·실내 정점)이 있으면 다른 층 출입구에서 층을 오르내리는 어림 간선을 잇지 않는다. 그 층에 출입구가 없으면 예전처럼 어림한다. 실내를 조사해 계단이 생기면 목록에서 뺀다.
+- 테스트: `WalkRouterNoIndoorFloorChangeTest`(T동 → S동 3층: 어느 후보도 실내 층 이동 없음·3층에서 끝남 / S동 1층은 그대로 / S동 3층 출발도 층 이동 없음).
+  - 예전 계산과 비교하는 `WalkRouterParityTest`·`WalkRouterApproachParityTest` 는 S동이 낀 경우만 건너뛴다(일부러 달라짐 — 60건·6건, 모두 S동). 다른 건물은 하나도 달라지지 않았다.
+  - 전체 테스트 통과.
+- 참고: 저장소 경로망(`survey-graph-v3.json`, 11-09)과 `/map/data` 의 S동 출입구 라벨이 서로 1층·3층이 바뀐 좌표로 보인다(경로망 n125 37.5504879,126.9251832 = 1층 / map data 의 같은 좌표 = 3층). 운영 ACTIVE 경로망과 현장 확인 필요.
