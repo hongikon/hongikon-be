@@ -12,7 +12,7 @@ import com.hongmap.hongmapbackend.walkroute.WalkRouteService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -21,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
@@ -38,7 +40,6 @@ import java.util.Optional;
  * 결과 글에는 근거로 쓸 수 있는 참조(`notice:{id}`, `cafeteria:{yyyy-MM-dd}`)를 붙인다.
  */
 @Component
-@RequiredArgsConstructor
 public class AskLiveData {
 
     static final int NOTICE_SEARCH_LIMIT = 6;
@@ -50,6 +51,23 @@ public class AskLiveData {
     private final MapDataService mapDataService;
     private final JsonMapper jsonMapper;
     private final WalkRouteService walkRouteService;
+    private final Clock clock;
+
+    public AskLiveData(NewsRepository newsRepository, CafeteriaMenuService cafeteriaMenuService, MapDataService mapDataService,
+                       JsonMapper jsonMapper, WalkRouteService walkRouteService) {
+        this(newsRepository, cafeteriaMenuService, mapDataService, jsonMapper, walkRouteService, Clock.systemUTC());
+    }
+
+    @Autowired
+    public AskLiveData(NewsRepository newsRepository, CafeteriaMenuService cafeteriaMenuService, MapDataService mapDataService,
+                       JsonMapper jsonMapper, WalkRouteService walkRouteService, Clock clock) {
+        this.newsRepository = newsRepository;
+        this.cafeteriaMenuService = cafeteriaMenuService;
+        this.mapDataService = mapDataService;
+        this.jsonMapper = jsonMapper;
+        this.walkRouteService = walkRouteService;
+        this.clock = clock;
+    }
 
     static final int FACILITY_SEARCH_LIMIT = 8;
 
@@ -577,6 +595,32 @@ public class AskLiveData {
     /** {@link #searchNotices(String)} 를 한 게시판(news.source_id — 학과·기관 이름)으로 좁힌다. board 가 비면 전체. */
     @Transactional(readOnly = true)
     public List<NoticeHit> searchNotices(String query, String board) {
+        return searchNotices(query, board, null, NOTICE_SEARCH_LIMIT);
+    }
+
+    /**
+     * 최근 days 일 안에 올라온 공지 중 질문 낱말과 맞는 것(최대 limit). 고른 안내가 질문 낱말을 다 덮어도 일정·마감처럼 학기마다 바뀌는 질문이면
+     * 새 공지를 함께 넘기려고 쓴다(11-20 사용자 — 뉴스 탭의 새 공지가 답에 안 나왔다).
+     */
+    @Transactional(readOnly = true)
+    public List<NoticeHit> recentNotices(String query, int days, int limit) {
+        return searchNotices(query, null, LocalDate.now(clock.withZone(SEOUL)).minusDays(days).atStartOfDay(), limit);
+    }
+
+    /** 최근 공지 가산점 기준(일). 60일 안이면 +2, 1년이 넘으면 -1 — 낱말이 조금 덜 맞아도 이번 학기 공지가 옛 공지보다 앞에 오게. */
+    static final int RECENT_NOTICE_DAYS = 60;
+    static final int OLD_NOTICE_DAYS = 365;
+    private static final java.time.ZoneId SEOUL = java.time.ZoneId.of("Asia/Seoul");
+
+    int recency(News news, LocalDate today) {
+        if (news.getPublishedAt() == null) {
+            return 0;
+        }
+        long days = java.time.temporal.ChronoUnit.DAYS.between(news.getPublishedAt().toLocalDate(), today);
+        return days <= RECENT_NOTICE_DAYS ? 2 : days > OLD_NOTICE_DAYS ? -1 : 0;
+    }
+
+    private List<NoticeHit> searchNotices(String query, String board, LocalDateTime since, int limit) {
         List<List<String>> groups = new ArrayList<>();
         for (String word : query.split("[\\s,·/()?!.]+")) {
             if (word.length() >= 2 && groups.size() < 5) {
@@ -598,13 +642,19 @@ public class AskLiveData {
                 }
             }
             Predicate any = cb.or(likes.toArray(Predicate[]::new));
+            if (since != null) {
+                any = cb.and(any, cb.greaterThanOrEqualTo(root.get("publishedAt"), since));
+            }
             return board == null || board.isBlank() ? any : cb.and(any, cb.equal(root.get("sourceId"), board));
         };
         List<News> candidates = newsRepository.findAll(anyWord,
                 PageRequest.of(0, NOTICE_CANDIDATES, Sort.by(Sort.Direction.DESC, "publishedAt"))).getContent();
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
+        // 맞은 낱말(제목 3점·본문 1점) + 최근 가산점, 같으면 최신순(후보가 최신순이라 안정 정렬로 유지).
         return candidates.stream()
-                .sorted(Comparator.comparingInt((News news) -> -(3 * matched(news.getTitle(), groups) + matched(news.getContent(), groups))))
-                .limit(NOTICE_SEARCH_LIMIT)
+                .sorted(Comparator.comparingInt((News news) ->
+                        -(3 * matched(news.getTitle(), groups) + matched(news.getContent(), groups) + recency(news, today))))
+                .limit(limit)
                 .map(news -> new NoticeHit(reference(news), news.getSourceId()))
                 .toList();
     }

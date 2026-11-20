@@ -98,6 +98,20 @@ class CrawlerBoardsTest {
         assertThat(CrawlerBoards.subscriberSourceIds("컴퓨터공학과")).containsExactly("컴퓨터공학과");
     }
 
+    @Test
+    void 중앙도서관_공지는_일반공지_제목검색으로_받고_세종_문정도서관만의_글은_뺀다() {
+        // 11-20: 도서관 운영시간·대출 책 수 조정 공지가 뉴스·물어보기에 없었다(학교 일반 공지 '일반' 분류로만 올라옴).
+        BoardConfig library = board("library");
+        assertThat(library.sourceId()).isEqualTo("중앙도서관");
+        assertThat(library.parser()).isEqualTo(ParserType.HONGIK);
+        assertThat(library.listUrl()).contains("newscenter/notice.do").contains("srSearchKey=article_title");
+        assertThat(library.excludeTitlePattern().matcher("[문정도서관] 2026학년도 2학기 운영 안내(09.01~12.14)").find()).isTrue();
+        assertThat(library.excludeTitlePattern().matcher("세종캠퍼스 도서관 안내").find()).isTrue();
+        assertThat(library.excludeTitlePattern().matcher("[중앙도서관, 문정도서관] 대출 책 수 조정").find()).isFalse();
+        assertThat(library.excludeTitlePattern().matcher("[중앙도서관] 2026학년도 2학기 도서관 운영 안내").find()).isFalse();
+        assertThat(library.excludeTitlePattern().matcher("[도서관] 도서관 문화살롱 #3").find()).isFalse();
+    }
+
     private BoardConfig board(String boardKey) {
         return CrawlerBoards.ALL.stream()
                 .filter(b -> b.boardKey().equals(boardKey))
