@@ -20,6 +20,8 @@ public final class CrawlerBoards {
 
     /** 분류는 세종캠퍼스가 아닌데 제목에 "[세종캠퍼스]"가 섞여 들어오는 대학공지를 한 번 더 거른다. */
     private static final Pattern SEJONG_TITLE = Pattern.compile("세종캠퍼스");
+    /** 도서관 제목 검색 중 세종캠퍼스 글: '세종캠퍼스' 또는 중앙도서관 없이 문정도서관만. */
+    private static final Pattern LIBRARY_EXCLUDED_TITLE = Pattern.compile("세종캠퍼스|^(?!.*중앙도서관).*문정도서관");
 
     private static final String UNIVERSITY_NOTICE_URL = "https://www.hongik.ac.kr/kr/education/notice-undergrad.do";
     private static final String UNIVERSITY_TABLE = "교육-대학공지";
@@ -101,7 +103,14 @@ public final class CrawlerBoards {
             // 고정 글이 아래 일반 목록에도 한 번 더 나온다(파서가 글 번호로 중복을 걸러 고정 쪽만 남긴다).
             oia("career-notice", "취업진로공지", "취업진로지원센터 공지사항", "https://inno.hongik.ac.kr/career/board/1"),
             // 채용정보는 하루 10~20건씩 올라온다(2026.10 확인). 100행이면 일주일 남짓이라 매시간 수집으로 빠짐없이 받는다.
-            oia("career-jobs", "채용정보", "취업진로지원센터 채용정보", "https://inno.hongik.ac.kr/career/board/2")
+            oia("career-jobs", "채용정보", "취업진로지원센터 채용정보", "https://inno.hongik.ac.kr/career/board/2"),
+
+            // 중앙도서관 — 학교 홈페이지 일반 공지(뉴스센터)에 '[중앙도서관]'·'[도서관]'으로 올라온다(분류 '일반', 한 달 1~3건).
+            // 학기 운영시간·대출 책 수 조정·서비스 중단 같은 글이라 물어보기가 최신 도서관 정보를 쓰려면 필요하다(11-20 사용자).
+            // 제목 검색 목록을 받는다. 세종 문정도서관만의 글은 뺀다('[중앙도서관, 문정도서관]' 같이 함께 쓴 글은 받는다).
+            new BoardConfig("library", "중앙도서관", "중앙도서관 공지",
+                    "https://www.hongik.ac.kr/kr/newscenter/notice.do?srSearchKey=article_title&srSearchVal=%EB%8F%84%EC%84%9C%EA%B4%80",
+                    "뉴스센터-공지사항", ParserType.HONGIK, LIBRARY_EXCLUDED_TITLE, false, DEPARTMENT_MAX_ITEMS)
     );
 
     /**
