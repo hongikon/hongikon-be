@@ -106,6 +106,10 @@ class WalkRouterApproachParityTest {
         int total = 0;
         for (List<JsonNode> group : byTarget.values()) {
             CampusBuilding to = byId.get(group.get(0).get("to").asLong());
+            // 안에서 층을 옮길 수 없는 건물(S동, 11-20)은 예전 계산과 일부러 달라졌다 — WalkRouterNoIndoorFloorChangeTest 가 본다.
+            if (WalkRouter.NO_INDOOR_FLOOR_CHANGE.contains(to.code())) {
+                continue;
+            }
             Double toFloor = group.get(0).get("toFloor").isNull() ? null : group.get(0).get("toFloor").asDouble();
             WalkRouter.Approach approach = router.approach(to, toFloor);
             for (JsonNode c : group) {

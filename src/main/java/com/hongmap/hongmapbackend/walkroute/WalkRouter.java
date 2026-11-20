@@ -78,6 +78,12 @@ final class WalkRouter {
     private static final Pattern LABEL_PREFIX = Pattern.compile("^HI_([A-Z0-9]+)_");
     private static final Pattern FLOOR_NODE = Pattern.compile("::(-?[\\d.]+)$");
 
+    /**
+     * 건물 안에서 층을 옮겨 다닐 길이 없는 건물(건물 code). 층마다 출입구가 따로 있고 안에서 이어지지 않아, 그 층으로 가려면
+     * 그 층 출입구로 들어가야 한다(11-20 사용자). 강당 S동: 1층·3층 출입구가 따로 있다. 실내를 조사해 계단이 생기면 여기서 뺀다.
+     */
+    static final Set<String> NO_INDOOR_FLOOR_CHANGE = Set.of("hongik_s");
+
     private final SurveyGraph survey;
     private final List<CampusBuilding> buildings;
     private final Map<String, Double> vertexFloors = new HashMap<>();
@@ -1053,11 +1059,18 @@ final class WalkRouter {
         for (String id : surveyed) {
             linkCenter(graph, floorNodeId, center, id, 0, walk);
         }
+        // 건물 안에서 층을 옮겨 다닐 길이 없는 건물은, 고른 층으로 바로 드나들 곳(그 층 출입구·실내 정점)이 있으면 다른 층 출입구로 들어가
+        // "계단·엘리베이터로 오르기"를 어림하지 않는다(11-20 사용자 — S동 3층이 1층으로 들어가 오르는 길로 나왔다).
+        boolean noIndoorFloorChange = floor != null && NO_INDOOR_FLOOR_CHANGE.contains(building.code())
+                && (!surveyed.isEmpty() || entrances.stream().anyMatch(e -> Floors.levelIndex(e.floor()) == Floors.levelIndex(floor)));
         for (FloorEntrance entrance : entrances) {
             if (surveyed.contains(entrance.id())) {
                 continue;
             }
             if (avoidStairs && !surveyed.isEmpty() && floor != null && Floors.levelIndex(floor) != Floors.levelIndex(entrance.floor())) {
+                continue;
+            }
+            if (noIndoorFloorChange && Floors.levelIndex(floor) != Floors.levelIndex(entrance.floor())) {
                 continue;
             }
             double transitSeconds = floor == null ? 0

@@ -70,6 +70,29 @@ class AskLiveDataTest {
     }
 
     @Test
+    void 낱말이_하나_덜_맞아도_최근_공지가_2년_전_공지보다_앞에_온다() {
+        // 11-20 사용자 — 뉴스 탭의 새 공지가 답에 안 나왔다. 옛 공지: 제목 3낱말(9) - 1년 넘음(1) = 8, 새 공지: 제목 2낱말(6) + 60일 안(2) = 8 → 같으면 최신순.
+        String tag = "물어보기최근" + UUID.randomUUID().toString().substring(0, 6);
+        LocalDateTime now = LocalDateTime.now();
+        News old = save(tag + " 계절학기 수강신청 안내", "본문", now.minusDays(800));
+        News fresh = save(tag + " 계절학기 공지", "본문", now.minusDays(10));
+        assertThat(liveData.searchNotices(tag + " 계절학기 수강신청"))
+                .extracting(hit -> hit.reference().ref())
+                .containsExactly("notice:" + fresh.getId(), "notice:" + old.getId());
+    }
+
+    @Test
+    void 최근_공지_찾기는_며칠_안의_글만_낸다() {
+        String tag = "물어보기기간" + UUID.randomUUID().toString().substring(0, 6);
+        LocalDateTime now = LocalDateTime.now();
+        save(tag + " 휴학 신청 안내", "본문", now.minusDays(200));
+        News fresh = save(tag + " 휴학 신청 안내(2학기)", "본문", now.minusDays(5));
+        assertThat(liveData.recentNotices(tag + " 휴학", AskLiveData.RECENT_NOTICE_DAYS, 6))
+                .extracting(hit -> hit.reference().ref())
+                .containsExactly("notice:" + fresh.getId());
+    }
+
+    @Test
     void 학생_말과_공지_말이_달라도_같은_뜻_낱말로_찾는다() {
         String tag = "물어보기동의어" + UUID.randomUUID().toString().substring(0, 6);
         News outbound = save(tag + " 2027학년도 1학기 해외대학 파견 Outbound 교류학생 지원자 모집", "본문", LocalDateTime.of(2026, 7, 6, 0, 0));

@@ -62,6 +62,11 @@ class WalkRouterParityTest {
             total++;
             CampusBuilding from = byId.get(c.get("from").asLong());
             CampusBuilding to = byId.get(c.get("to").asLong());
+            // 안에서 층을 옮길 수 없는 건물(S동, 11-20)은 예전 계산과 일부러 달라졌다 — WalkRouterNoIndoorFloorChangeTest 가 본다.
+            if (WalkRouter.NO_INDOOR_FLOOR_CHANGE.contains(from.code()) || WalkRouter.NO_INDOOR_FLOOR_CHANGE.contains(to.code())) {
+                total--;
+                continue;
+            }
             List<WalkRoute> actual = router.routes(from, floor(c.get("fromFloor")), to, floor(c.get("toFloor")));
             String diff = compare(c.get("routes"), actual);
             if (diff != null) {

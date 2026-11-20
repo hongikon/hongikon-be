@@ -473,6 +473,37 @@ public class AskRouteService {
         }
     }
 
+    /** 학기마다 바뀌는 것을 묻는 말 — 고른 안내가 질문 낱말을 다 덮어도 최근 공지를 함께 넘긴다(11-20 사용자). */
+    static final List<String> TIME_WORDS = List.of("언제", "일정", "기간", "마감", "까지", "이번학기", "다음학기", "올해", "날짜", "며칠", "몇일",
+            "바뀌", "바뀐", "변경", "최근", "새로", "요즘", "지금");
+    static final int RECENT_NOTICES_MAX = 2;
+
+    /**
+     * 시간을 묻는 질문이면 시간 낱말을 뺀 질문 낱말로 최근 공지를 찾아, 제목에 그 낱말이 하나라도 있는 것만(최대 {@link #RECENT_NOTICES_MAX}).
+     * 시간을 묻지 않거나 남는 낱말이 없으면 빈 목록. 찾기에 실패해도 답은 이어 쓴다.
+     */
+    List<AskLiveData.NoticeHit> recentNotices(String question) {
+        String squashed = question.replaceAll("\\s+", "");
+        if (TIME_WORDS.stream().noneMatch(squashed::contains)) {
+            return List.of();
+        }
+        List<String> words = AskMissingTerms.words(question, AskMissingTerms.MAX_TERMS).stream()
+                .filter(word -> TIME_WORDS.stream().noneMatch(word::contains))
+                .toList();
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return liveData.recentNotices(String.join(" ", words), AskLiveData.RECENT_NOTICE_DAYS, AskLiveData.NOTICE_SEARCH_LIMIT).stream()
+                    .filter(hit -> titleMatches(hit.reference().title(), words) >= 1)
+                    .limit(RECENT_NOTICES_MAX)
+                    .toList();
+        } catch (RuntimeException e) {
+            log.warn("물어보기 최근 공지 찾기 실패: {}", e.toString());
+            return List.of();
+        }
+    }
+
     String missingContext(AskRouteRequest request, List<String> answerIds, AskProgress progress) {
         StringBuilder sources = new StringBuilder();
         for (String id : answerIds) {
@@ -495,7 +526,10 @@ public class AskRouteService {
                 progress.boardSearch(id, words, boardHits.size());
             }
         }
-        if (terms.isEmpty() && notices.isEmpty()) {
+        List<AskLiveData.NoticeHit> recent = recentNotices(request.question()).stream()
+                .filter(hit -> notices.stream().noneMatch(n -> n.reference().ref().equals(hit.reference().ref())))
+                .toList();
+        if (terms.isEmpty() && notices.isEmpty() && recent.isEmpty()) {
             return "";
         }
         String query = String.join(" ", terms);
@@ -512,10 +546,22 @@ public class AskRouteService {
         if (!terms.isEmpty()) {
             progress.missingTerms(terms, notices.size() + guides.size());
         }
-        if (notices.isEmpty() && guides.isEmpty()) {
+        if (notices.isEmpty() && guides.isEmpty() && recent.isEmpty()) {
             return "";
         }
         StringBuilder message = new StringBuilder("\n\n");
+        if (!recent.isEmpty()) {
+            message.append("[최근 공지 — ").append(AskLiveData.RECENT_NOTICE_DAYS).append("일 안] 일정·기간·마감·바뀐 규칙은 안내 원문(수집 날짜가 더 옛날)보다 "
+                    + "이 공지가 새롭다. 질문에 맞으면 read_notice 로 읽고, 안내 원문과 다르면 공지 기준으로 답하며 공지 게시일을 밝힌다. 맞지 않으면 무시한다.\n");
+            for (AskLiveData.NoticeHit hit : recent) {
+                AskLiveData.Reference ref = hit.reference();
+                message.append(ref.ref()).append(" · ").append(ref.date()).append(" · ").append(AskLlmClient.boardLabel(hit.board()))
+                        .append(" · ").append(ref.title()).append('\n');
+            }
+            if (notices.isEmpty() && guides.isEmpty()) {
+                return message.toString().stripTrailing();
+            }
+        }
         board.ifPresent(match -> message.append("[질문 속 학과·기관] ").append(match.group()
                         ? match.name() + "(" + String.join("·", match.boards()) + ")" : match.board())
                 .append(" — 학과마다 다른 내용이면 그 게시판 공지를 먼저 보고, 학교 전체 안내와 다르면 학과 공지 내용을 그 학과 것으로 밝혀 답한다. "
