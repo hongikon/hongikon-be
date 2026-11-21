@@ -2152,3 +2152,10 @@
   - 예전 계산과 비교하는 `WalkRouterParityTest`·`WalkRouterApproachParityTest` 는 S동이 낀 경우만 건너뛴다(일부러 달라짐 — 60건·6건, 모두 S동). 다른 건물은 하나도 달라지지 않았다.
   - 전체 테스트 통과.
 - 참고: 저장소 경로망(`survey-graph-v3.json`, 11-09)과 `/map/data` 의 S동 출입구 라벨이 서로 1층·3층이 바뀐 좌표로 보인다(경로망 n125 37.5504879,126.9251832 = 1층 / map data 의 같은 좌표 = 3층). 운영 ACTIVE 경로망과 현장 확인 필요.
+
+## 2026-11-21 — 길찾기: 문헌관 MH동 지하 1층 출입구(n96)는 쓰지 않고 1층 출입구(n92)로만
+
+- 요청(사용자): 문헌관 지하 1층 출입구(경로망 n96, `HI_MH_B1F_ENTER`)는 지금 사용하지 않는 중이라 빼고, 문헌관은 1층 출입구(n92, `HI_MH_1F_ENTER`)로만 드나들게.
+- 고침: `WalkRouter.CLOSED_ENTRANCES`(출입구 라벨, 지금은 `HI_MH_B1F_ENTER` 하나). 시설 전용 출입구(`FACILITY_ONLY_ENTRANCES`)와 같은 자리에서 걸러, 경로망 정점·간선은 남기되 건물 출입구 목록(`entrancesByBuilding`)·층 정점에 넣지 않는다. 운영 ACTIVE 경로망(DB 버전)에도 같이 적용된다(라벨 기준). 다시 열리면 목록에서 뺀다.
+  - 예전 앱 계산 비교 모드(`walkToCenter=true`)는 다른 예외 목록처럼 비워 둔다 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
+- 테스트: `WalkRouterMarkersTest` +1 — 모든 건물 ↔ 문헌관(층 지정 없음·1층·지하 1층) 경로의 표시에 지하 1층 출입구 좌표가 없고 1층 출입구 좌표가 있다. 고치기 전 코드에서는 실패하는 것을 확인. walkroute 테스트 41개 통과.

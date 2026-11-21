@@ -68,6 +68,12 @@ final class WalkRouter {
             "HI_G_B1F_2_ENTER", "라운지");
 
     /**
+     * 지금 쓰지 않는(닫힌) 출입구 라벨. 시설 전용 출입구처럼 경로망 정점은 남겨 두고 건물 출입구로만 쓰지 않는다. 다시 열리면 여기서 뺀다.
+     * 11-21 사용자: 문헌관 MH동 지하 1층 출입구(n96)는 사용하지 않는 중 — 문헌관은 1층 출입구(n92)로만 드나든다.
+     */
+    static final Set<String> CLOSED_ENTRANCES = Set.of("HI_MH_B1F_ENTER");
+
+    /**
      * 지나가는 길로 쓰지 않는 건물(코드). 출발·도착일 때만 그 안을 쓴다 — 11-17 사용자: Z1동을 1층으로 들어가 2층으로 빠지는 길은
      * 사람들이 다니는 길이 아니다(T동 → R동이 T동 5층 출구 대신 Z1동 통과를 후보로 냈다).
      */
@@ -103,6 +109,8 @@ final class WalkRouter {
     private final boolean walkToCenter;
     /** 건물 출입구로 쓰지 않는 시설 전용 출입구. 앱 예전 계산 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
     private final Map<String, String> facilityOnlyEntrances;
+    /** 지금 쓰지 않는 출입구. 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
+    private final Set<String> closedEntrances;
     /** 지나가는 길로 쓰지 않는 건물 코드. 비교 테스트(walkToCenter=true)는 예전처럼 비운다. */
     private final Set<String> noPassThrough;
 
@@ -192,6 +200,7 @@ final class WalkRouter {
         this.floorTransitSeconds = floorTransitSeconds;
         this.walkToCenter = walkToCenter;
         this.facilityOnlyEntrances = walkToCenter ? Map.of() : FACILITY_ONLY_ENTRANCES;
+        this.closedEntrances = walkToCenter ? Set.of() : CLOSED_ENTRANCES;
         this.noPassThrough = walkToCenter ? Set.of() : NO_PASS_THROUGH;
         this.survey = survey;
         this.buildings = List.copyOf(buildings);
@@ -977,7 +986,8 @@ final class WalkRouter {
                 continue;
             }
             CampusBuilding building = resolveBuilding.apply(v.code());
-            if (building == null || (v.label() != null && facilityOnlyEntrances.containsKey(v.label()))) {
+            if (building == null || (v.label() != null
+                    && (facilityOnlyEntrances.containsKey(v.label()) || closedEntrances.contains(v.label())))) {
                 continue;
             }
             graph.levelVertices.computeIfAbsent(building.name(), k -> new LinkedHashMap<>())
