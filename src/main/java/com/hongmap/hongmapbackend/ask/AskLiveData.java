@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.Map;
 import java.util.Optional;
 
@@ -175,6 +176,32 @@ public class AskLiveData {
     static final int BUILDING_FACILITY_LINES = 60;
     static final int PARTNER_SEARCH_LIMIT = 8;
 
+    /** '전체'·'목록'·'몇 개' 같은 말만 남는 건물 질문 — 건물 이름이 없으면 모든 건물 목록을 준다(11-21 기록: '동 개수', '각 건물 몇 층까지'). */
+    private static final Pattern ALL_BUILDINGS = Pattern.compile("전체|모든|목록|리스트|개수|몇\\s*개|각\\s*건물");
+    private static final Pattern BUILDING_FILLER = Pattern.compile(
+            "전체|모든|목록|리스트|개수|몇|개|각|다|알려|줘|건물|강의동|동|층수|층|까지|학교|우리|홍익대학교|홍익대|홍대|캠퍼스|서울|[\\s,·/()?!.]");
+
+    static boolean allBuildings(String query) {
+        return ALL_BUILDINGS.matcher(query).find() && BUILDING_FILLER.matcher(query).replaceAll("").isEmpty();
+    }
+
+    /** 모든 건물 한 줄씩(이름·종류·층수) — 시설은 붙이지 않는다(건물 이름으로 다시 찾는다). 참조도 붙이지 않는다(버튼이 수십 개가 된다). */
+    private static void listBuildings(JsonNode data, StringBuilder text) {
+        List<String> lines = new ArrayList<>();
+        for (JsonNode building : data.path("buildings")) {
+            StringBuilder line = new StringBuilder("- ").append(building.path("name").asString(""));
+            appendPart(line, "종류", building.path("type").asString(null));
+            if (building.path("floors").isNumber() || building.path("basementFloors").isNumber()) {
+                appendPart(line, "층수", (building.path("basementFloors").isNumber() ? "지하 " + building.path("basementFloors").asInt() + "층 ~ " : "")
+                        + (building.path("floors").isNumber() ? "지상 " + building.path("floors").asInt() + "층" : ""));
+            }
+            lines.add(line.toString());
+        }
+        text.append("학교 지도에 있는 건물 ").append(lines.size()).append("곳(홍익온 지도 기준 — 층수가 없는 건물은 지도에 층수가 없다):\n");
+        lines.forEach(line -> text.append(line).append('\n'));
+        text.append("(건물 하나의 층별 시설은 그 건물 이름으로 search_buildings 를 다시 부른다)\n");
+    }
+
     /**
      * 지도 건물(GET /map/data 의 buildings) 낱말 검색 — 건물 이름·별칭(R동 …)·종류·소개·운영시간·층수에, 그 건물의 층별 시설과 지금 하는 전시까지
      * 한 번에 준다('홍문관에 뭐 있어', 'Q동 몇 층까지', '조형관 운영시간'). 이름이 맞은 건물이 먼저. 참조는 `building:{code}`.
@@ -185,6 +212,10 @@ public class AskLiveData {
             return List.of();
         }
         JsonNode data = jsonMapper.readTree(mapDataService.current().body());
+        if (allBuildings(query)) {
+            listBuildings(data, text);
+            return List.of();
+        }
         record Hit(JsonNode node, int score) {
         }
         List<Hit> hits = new ArrayList<>();
