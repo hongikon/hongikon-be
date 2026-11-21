@@ -2168,3 +2168,13 @@
 - 고침: `WalkRouter.CLOSED_ENTRANCES`(출입구 라벨, 지금은 `HI_MH_B1F_ENTER` 하나). 시설 전용 출입구(`FACILITY_ONLY_ENTRANCES`)와 같은 자리에서 걸러, 경로망 정점·간선은 남기되 건물 출입구 목록(`entrancesByBuilding`)·층 정점에 넣지 않는다. 운영 ACTIVE 경로망(DB 버전)에도 같이 적용된다(라벨 기준). 다시 열리면 목록에서 뺀다.
   - 예전 앱 계산 비교 모드(`walkToCenter=true`)는 다른 예외 목록처럼 비워 둔다 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
 - 테스트: `WalkRouterMarkersTest` +1 — 모든 건물 ↔ 문헌관(층 지정 없음·1층·지하 1층) 경로의 표시에 지하 1층 출입구 좌표가 없고 1층 출입구 좌표가 있다. 고치기 전 코드에서는 실패하는 것을 확인. walkroute 테스트 41개 통과.
+
+## 2026-11-21 — 문서: ask-architecture.md 를 지금 코드에 맞춤
+
+- 문제(사용자): `ask-architecture.md` 가 11-12 뒤로 멈춰 있어(그 뒤 물어보기 커밋 26개) 발표 질문 대비 자료로 쓸 수 없었다. 도구 수(8 → 12), 카탈로그(773 → 790), RAG 색인(2,592 → 3,498문단)이 옛 숫자였고, 11-06 이후 기능이 빠져 있었다.
+- 고친 것(`origin/dev` 39b98c0 기준, 코드에서 직접 확인):
+  - 머리: 마지막 갱신 날짜, RAG·그래프는 코드 기본값 꺼짐이고 운영은 EC2 `.env`(작업 일지 기준 둘 다 켬) — 발표 전 `.env` 확인 필요.
+  - 1절 흐름도: 개인정보 가리기(`AskPrivacy`), 덧붙일 줄(줄임말·동아리·용어·운영진 확인 안내), 미리 읽기(학과 공지 원문·최근 공지 60일·학식·그래프·[오늘]), 도구 12개(`nearest_places`·`walk_route`·`search_courses`·`search_clubs` 추가, `count_by_dept` 는 `search_courses` 의 집계 방식), 긴 원문 줄이기, `mapTarget`·`mapMode`·`actions`(지도·길), 동아리 링크 버튼.
+  - 2절 파일표: `AskPrivacy`·`AskPublicQuota`·`AskOperatorNotes`·`AskPopularGuides`·`AskCourses`·`AskClubs`·walk_route·`AskSituation`/`AskQuestionIntent`/`AskGlossary`·`AskRuleGraph`·`AskTiming`.
+  - 새 3-9절: 11-06 ~ 11-21 변경 표. 4절 틀릴 수 있는 지점 5줄, 5절에 '10월 평가'임과 최신 추론형 평가 위치, 6절 과목·동아리·그래프·운영진 안내, 7절 설정 항목(답 출력 한도·이웃·그래프 상한·공개 한도).
+- 코드 변경 없음.
