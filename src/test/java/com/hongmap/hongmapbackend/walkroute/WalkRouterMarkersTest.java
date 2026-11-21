@@ -151,4 +151,30 @@ class WalkRouterMarkersTest {
         }
     }
 
+    @Test
+    void 쓰지_않는_문헌관_지하1층_출입구_대신_1층_출입구로만_드나든다() {
+        CampusBuilding mh = code("hongik_mh");
+        double closedDoor = 37.5509733;   // n96 HI_MH_B1F_ENTER
+        double openDoor = 37.5507229;     // n92 HI_MH_1F_ENTER
+        int checked = 0;
+        for (CampusBuilding other : buildings) {
+            if (other == mh) {
+                continue;
+            }
+            for (Double floor : new Double[] {null, 1.0, -1.0}) {
+                List<WalkRoute> routes = new ArrayList<>(router.routes(other, null, mh, floor));
+                routes.addAll(router.routes(mh, floor, other, null));
+                for (WalkRoute route : routes) {
+                    if (route.markers() == null) {
+                        continue;
+                    }
+                    assertThat(route.markers()).noneSatisfy(m -> assertThat(m.lat()).isEqualTo(closedDoor));
+                    assertThat(route.markers()).anySatisfy(m -> assertThat(m.lat()).isEqualTo(openDoor));
+                    checked++;
+                }
+            }
+        }
+        assertThat(checked).isPositive();
+    }
+
 }
