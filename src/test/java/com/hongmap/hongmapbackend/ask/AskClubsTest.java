@@ -137,5 +137,27 @@ class AskClubsTest {
         String text = AskClubs.search("뚜라미", null, DATA).text();
         assertThat(text).contains("- 문의: 모집·활동·회비 같은 자세한 내용은 동아리에 직접 문의");
         assertThat(AskClubs.search("예수전도단 동방", null, DATA).text()).contains("직접 문의");
+        // 있는 채널만 말한다 — 인스타그램뿐인 동아리에 카카오톡을 말하지 않는다(11-21).
+        assertThat(AskClubs.search("ATOM", null, DATA).text()).contains("직접 문의(인스타그램 — 답 아래 버튼으로 붙는다)")
+                .doesNotContain("카카오톡");
+    }
+
+    /** 11-21 운영진: 동아리 연락처가 안 보인다 — 모델이 링크 참조를 짚지 않아도, 답이 이름을 말한 동아리의 링크를 모두 붙인다. */
+    @Test
+    void 답이_이름을_말한_동아리의_연락_링크를_붙인다() {
+        AskClubs.Club hongboksil = AskClubs.search("홍복실", null, DATA).shown().get(0);
+        AskClubs.Club atom = AskClubs.search("ATOM", null, DATA).shown().get(0);
+        List<String> available = List.of(hongboksil.ref(), atom.ref());
+
+        assertThat(AskClubs.linkRefsFor("홍복실은 캐릭터창작 가동아리예요.", List.of(), available, DATA))
+                .containsExactly("club:1001:link0", "club:1001:link1");
+        // 근거로 짚었으면 이름이 없어도
+        assertThat(AskClubs.linkRefsFor("이 동아리는 …", List.of(atom.ref()), available, DATA)).containsExactly(AskClubs.linkRef(atom, 0));
+        // 이번에 찾지 않은 동아리는 이름이 나와도 붙이지 않는다
+        assertThat(AskClubs.linkRefsFor("홍복실", List.of(), List.of(atom.ref()), DATA)).isEmpty();
+        // 셋 이상이면 목록 답 — 붙이지 않는다
+        List<AskClubs.Club> three = DATA.clubs().stream().filter(club -> !club.links().isEmpty()).limit(3).toList();
+        String text = String.join(", ", three.stream().map(AskClubs.Club::name).toList());
+        assertThat(AskClubs.linkRefsFor(text, List.of(), three.stream().map(AskClubs.Club::ref).toList(), DATA)).isEmpty();
     }
 }
