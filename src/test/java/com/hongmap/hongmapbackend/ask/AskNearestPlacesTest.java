@@ -80,4 +80,21 @@ class AskNearestPlacesTest {
         assertThat(live.searchBuildings("제4공학관", new StringBuilder())).extracting(AskLiveData.Reference::ref)
                 .startsWith("building:t");
     }
+
+    /** 11-21 기록: '동 개수', '각 건물 몇 층까지' — 건물 이름 없이 전체를 물으면 모든 건물 목록(이름·종류·층수). */
+    @Test
+    void 건물_전체를_물으면_모든_건물을_한_줄씩() {
+        assertThat(AskLiveData.allBuildings("전체")).isTrue();
+        assertThat(AskLiveData.allBuildings("학교 건물 몇 개")).isTrue();
+        assertThat(AskLiveData.allBuildings("각 건물 몇 층까지")).isTrue();
+        assertThat(AskLiveData.allBuildings("홍문관 전체 시설")).isFalse();
+        assertThat(AskLiveData.allBuildings("R동 몇 층")).isFalse();
+
+        StringBuilder text = new StringBuilder();
+        assertThat(liveData().searchBuildings("전체", text)).isEmpty();
+        assertThat(text.toString()).contains("건물 3곳").contains("- 제4공학관 T동 · 종류: 강의동").contains("- 홍문관 R동")
+                .doesNotContain("편의점");
+        assertThat(liveData().searchBuildings("홍문관", new StringBuilder())).extracting(AskLiveData.Reference::ref)
+                .containsExactly("building:hongik_r");
+    }
 }

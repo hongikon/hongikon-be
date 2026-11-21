@@ -3,7 +3,11 @@
 질문 하나가 들어와 답이 나가기까지의 흐름, 단계별 파일과 언어, 바꿀 때 건드리는 곳, 그리고 틀릴 수 있는 지점을 정리한다.
 범위·섞임 규칙의 원본은 [`ask-scope-policy.md`](ask-scope-policy.md)이고, 이 문서는 그 규칙이 어디에서 어떻게 실행되는지를 설명한다.
 
+> 마지막 갱신: 2026-11-21(코드 `origin/dev` 39b98c0 기준 — 도구 12개, 카탈로그 790개, RAG 색인 3,498문단).
+>
 > 현재 상태: 웹 `/dev/ask`(운영진 시험용, 개발 키)와 앱 '물어보기' 탭(BETA, 로그인 사용자, 11-01)에서 쓴다. 앱 탭은 `ASK_PUBLIC_ENABLED` 가 켜져 있을 때만 일반 사용자에게 열리고(계정·전체 하루 한도), 꺼져 있어도 운영진은 미리 써 볼 수 있다(admin-preview). 공개 범위를 넓히기 전에 개인정보처리방침 반영을 확인한다([`privacy-ask-conversation-draft.md`](privacy-ask-conversation-draft.md)).
+>
+> RAG(`ASK_RAG_ENABLED`)와 규정 그래프(`ASK_GRAPH_ENABLED`)는 **코드 기본값이 꺼짐**이고, 운영은 EC2 `.env` 로 켠다. 작업 일지 기준 운영은 둘 다 켬(RAG: 10-31 운영 실측 'RAG 켬', 그래프: 11-10 `.env` 반영). 발표·문서에 운영 상태를 적기 전에 EC2 `.env` 를 직접 확인한다.
 
 관련 문서:
 - [`ask-scope-policy.md`](ask-scope-policy.md): 범위 규칙
@@ -15,29 +19,39 @@
 ## 1. 전체 흐름
 
 ```
-학생 질문 (웹 /dev/ask · FE AskChat.tsx)
+학생 질문 (웹 /dev/ask · 앱 물어보기 탭 AskChat.tsx)
   │  POST /ask/route/stream (SSE) — 질문·직전 대화 3턴·앱 낱말 찾기 후보(hint)·대화 id
   ▼
-AskRouteController (Java) ── 개발 키 확인 · IP별 횟수 제한 · 기록(ask_conversation_logs)
+AskRouteController (Java) ── 개발 키 또는 로그인·공개 한도(AskPublicQuota) · IP별 횟수 제한 · 기록(ask_conversation_logs)
   ▼
 AskRouteService.route (Java)
   ① 입구 차단   AskScope.preCheck ── 명백한 악용 패턴(정규식) → 고정 문구. API 호출 없음
-  ①-1 검색 후보 AskRetriever.search ── RAG 를 켰을 때만(ask.rag.enabled, 기본 끔). 3-5절
-                 맥미니 임베딩 서버(bge-m3) + BM25 → 안내 후보 6개 + 학과 홈페이지 쪽 최대 2개
-                 → 앱 hint 대신 고르기에 넘긴다
-  ② 고르기       AskLlmClient.classify ── Claude Haiku 5.5, 카탈로그 773개 노드 전체 + 범위 규칙(프롬프트 캐시)
+  ①-0 가리기    AskPrivacy.mask ── 이 뒤로는 학번·휴대전화·이메일·주민번호 형태·8자리 이상 숫자열을 가린 질문·직전 대화만 쓴다
+                 (Anthropic·맥미니 임베딩 서버로 보내는 글, 기록 모두)
+  ①-1 검색 후보 AskRetriever.search ── RAG 를 켰을 때만(ask.rag.enabled). 3-5절
+                 맥미니 임베딩 서버(bge-m3, 1024차원) + 한글 2글자 BM25 → RRF(k=60)
+                 → 색인 3,498문단에서 안내 후보 6개 + 학과 홈페이지 쪽 최대 2개 + 이웃 안내(ask.rag.neighbors)
+                 → 앱 hint 와 함께 고르기에 넘긴다
+  ①-2 덧붙일 줄  질문 속 줄임말(AskCourses: 컴프 = 컴퓨터프로그래밍) · 질문 속 동아리(AskClubs) · 용어(AskGlossary)
+                 · 운영진 확인 안내(AskOperatorNotes → page:note-{id}, 원문 맨 앞)
+  ② 고르기       AskLlmClient.classify ── Claude Haiku 5.5, 카탈로그 790개 안내 전체 + 범위 규칙(프롬프트 캐시)
                  → { scope, nodeIds≤3 }. scope ≠ school 이면 고정 문구(답 쓰기 호출 없음)
                  RAG 를 켰는데 못 고르면 검색 후보 앞 2개로 답한다
-  ②-1 공지 후보 학과 이름이 있으면 그 학과 게시판 공지(AskBoards, 3-3절) + 놓친 낱말 공지·안내(3-2절)
-  ③ 답 쓰기     AskLlmClient.answer ── Claude Haiku 5.5, 고른 안내 원문(+ 학과 홈페이지 쪽) + 도구 8개(최대 6차례)
-                 도구: search_guides(RAG 를 켜면 RAG) · read_guides · search_notices(게시판 지정 가능) · read_notice ·
-                       search_facilities · search_buildings · search_partners · cafeteria_menu
-                 → { answer(요약), sections(목록·표), found, sourceIds }
+  ②-1 미리 읽기  학과 게시판 공지(AskBoards, 제목이 질문 낱말과 맞는 공지는 원문까지) · 놓친 낱말 공지 ·
+                 시간을 묻는 질문이면 [최근 공지 — 60일 안] 최대 2개 · 학식 질문이면 그날 메뉴 ·
+                 규정 그래프 [함께 볼 규정](AskRuleGraph, 켰을 때) · 시점을 물었을 때만 [오늘] 날짜·시각
+  ③ 답 쓰기     AskLlmClient.answer ── Claude Haiku 5.5(effort low), 고른 안내 원문(+ 학과 홈페이지 쪽) + 도구 12개(최대 6차례)
+                 도구: search_guides(RAG 를 켜면 RAG) · read_guides · search_notices · read_notice ·
+                       search_facilities · search_buildings · search_partners · nearest_places · walk_route ·
+                       search_courses(목록·count_by_dept 집계) · search_clubs · cafeteria_menu
+                 긴 원문은 앞 3,000자 + 질문 낱말이 든 줄로 줄여 넘긴다(AskLlmClient.clip)
+                 → { answer(요약), sections(목록·표), found, sourceIds, mapTarget, mapMode }
   ④ 출구 검사   OtherSchoolGuard ── 실시간 전송 길목(Gate) + 최종 답 전체 검사
                  근거 원문에 없는 다른 대학 이름 → 답을 버리고 고정 문구(MIX_BLOCKED)
-  ⑤ 버튼        withButtons ── 근거 안내의 학교 페이지·담당 전화(최대 3)·위치
+  ⑤ 버튼·조작   withButtons ── 근거 안내의 학교 페이지·담당 전화(최대 3)·동아리 인스타그램·카카오톡 링크(서버가 붙임)
+                 mapTarget 이 있을 때만 위치 카드·actions('지도에서 보기' map, 가는 길이면 route — walk_route 출발 건물 포함)
   ▼
-FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 → 버튼 2개(나머지 '더 보기')
+FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections, 학년 차례 표는 열 색) → 위치 → 버튼 2개(나머지 '더 보기') → 지도·길찾기 버튼
 ```
 
 ## 2. 단계별 파일·언어
@@ -58,6 +72,16 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 실시간 데이터 도구 | BE `ask/AskLiveData.java` | Java | 공지·시설·건물·제휴·학식을 DB 에서 찾기 |
 | 섞임 출구 검사 | BE `ask/OtherSchoolGuard.java` | Java | 다른 대학 이름 목록, 근거 확인, 실시간 길목 |
 | 흐름 조립 | BE `ask/AskRouteService.java` | Java | ①~⑤를 순서대로 |
+| 개인정보 가리기 | BE `ask/AskPrivacy.java` | Java | 밖으로 보내는 질문·기록·운영진 안내에서 학번·휴대전화·이메일·주민번호 형태를 가리거나 거절 |
+| 공개 한도 | BE `ask/AskPublicQuota.java` | Java | 앱 탭 계정별·전체 하루 한도와 몰아치기 제한(서버 메모리, 계정 번호는 기록에 남기지 않음) |
+| 운영진 확인 안내 | BE `ask/AskOperatorNotes.java` · `AskOperatorNoteAdminController` | Java | 관리자가 쓴 질문·답(`ask_operator_notes`)을 2글자 겹침 또는 임베딩 내적으로 골라 원문 맨 앞에 |
+| 요즘 많이 찾는 안내 | BE `ask/AskPopularGuides.java` | Java | `GET /ask/popular` — 최근 7일, 5개 대화 이상에서 쓴 안내 id 6개(인사 칩) |
+| 과목·줄임말 | BE `ask/AskCourses.java`, `ask/courses.json`·`aliases.json` | Java + JSON | 2026 교과과정책자 3,047행, 줄임말, `search_courses` 목록·학과별 집계 |
+| 동아리 | BE `ask/AskClubs.java`, `ask/clubs.json`·`clubs-extra.json` | Java + JSON | 총학생회 중앙동아리 66개 + 가동아리, `search_clubs`, 링크 버튼 |
+| 건물 사이 길 | BE `ask/AskLiveData.walkRoute` → `walkroute/WalkRouteService` | Java | 지도 탭 길찾기와 같은 경로망으로 걷는 시간·길 흐름 |
+| 상황·질문 종류 | BE `ask/AskSituation.java` · `AskQuestionIntent.java` · `AskGlossary.java` | Java | 학생 상황 칸(그래프 조건), 시점 낱말, 방법을 물었는지, 학교 용어·건물 발음 |
+| 규정 그래프 | BE `ask/AskRuleGraph.java`, `ask/rule-graph.json` | Java + JSON | 고른 안내의 이웃 규정(사람이 확인한 선만) |
+| 단계별 시간 | BE `ask/AskTiming.java` | Java | 검색·고르기·첫 글자·끝 시간을 기록 steps 에 |
 | 기록 | BE `ask/AskConversationRecorder.java` · `AskTrace.java` | Java | 가린 질문·답·과정·토큰·결과(outcome) 저장 |
 | 화면 | FE `src/components/ask/AskChat.tsx` · `src/apis/ask.ts` | TypeScript(React Native Web) | 흘려받기, 요약·목록·표·버튼 그리기 |
 | 평가 | FE `scripts/ask/eval-server.mjs` · `cases/` · `cases-scope/` · `cases-criteria/` | JavaScript + JSON | 정답표로 로컬 서버를 돌려 실패 종류·범위·핵심 조건·길이 측정. 학과 공지 정답표 `cases-dept/` 는 돌리는 스크립트가 아직 저장소에 없다 |
@@ -200,7 +224,7 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 
 | 바꾼 것 | 파일 · 언어 | 내용 |
 |---|---|---|
-| 검색 후보 | `AskRetriever`, `AskEmbedClient`, `AskRouteService` (Java) | RAG 를 켜면 고르기 전에 원문 색인(2,592문단)에서 후보 6개를 찾아 앱 hint 대신 넘긴다. 고르기가 못 고르면 후보 앞 2개로 답한다. 기록 steps '검색 후보' |
+| 검색 후보 | `AskRetriever`, `AskEmbedClient`, `AskRouteService` (Java) | RAG 를 켜면 고르기 전에 원문 색인(당시 2,592문단, 11-21 3,498문단)에서 후보 6개를 찾아 앱 hint 대신 넘긴다. 고르기가 못 고르면 후보 앞 2개로 답한다. 기록 steps '검색 후보' |
 | `search_guides` | `AskLlmClient` | RAG 를 켜면 낱말 찾기 대신 RAG |
 | 학과 홈페이지 | `AskRetriever.search(query, nodeLimit, pageLimit)`, `AskLlmClient.answer(ids, pageIds, …)` | 같은 임베딩으로 홈페이지 쪽(맨 앞 10문단 안, 최대 2)도 찾아 원문과 함께 넘긴다. 답에 쓰면 학과 홈페이지 링크가 출처로 붙는다 |
 | 답 규칙 | `ANSWER_SYSTEM` | 학과 홈페이지 원문은 어느 학과 것인지 밝히고, 다른 학과 질문에는 쓰지 않는다. 교수 개인 정보(연구실·전화·이메일·면담·이력)는 쓰지 않고 학과 홈페이지 교수 소개 페이지로 안내한다(운영진 결정) |
@@ -247,6 +271,30 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 
 지도 데이터 수정은 `db/sync_facilities_2026_11_12_feedback.sql`(운영 DB 실행 필요). 문을 닫은 곳이 또 생기면 지도 행을 지우고 `AskClosedPlaces.ALL` 에 한 줄 더한다.
 
+## 3-9. 2026-11-06 ~ 11-21 변경 — 운영진 안내, 앱 움직이기, 과목·동아리·길, 최근 공지
+
+자세한 근거·확인은 `worklog.md` 같은 날짜 항목에 있다.
+
+| 날짜 | 바꾼 것 | 파일 | 내용 |
+|---|---|---|---|
+| 11-06 | 운영진 확인 안내·주간 요약 | `AskOperatorNotes`, `AskFeedbackAdminService` | 관리자가 쓴 질문·답을 고르기에 끼운다(학생 개인 정보가 있으면 400). '해결 안 됨'을 안내끼리 묶은 주간 요약 `GET /admin/ask/feedback/report` |
+| 11-07 | 지도에서 보기(앱 움직이기 ①) | `AskRouteResponse.actions`, `AskRouteService.withButtons` | 답이 근거로 쓴 건물·시설·제휴 id 로 지도 버튼. 모델이 id·좌표를 만들지 않는다 |
+| 11-07 | 요즘 많이 찾는 안내 | `AskPopularGuides` | 인사에 칩으로(안내 id 만, 5개 대화 미만 안내는 뺌) |
+| 11-07 | 교수 소개 페이지 | FE `depthome.py --faculty`, 색인 | 교수마다 한 쪽(이름·직위·연구분야 + 소개 페이지 링크). 연구실·이메일·전화는 저장하지 않음 |
+| 11-09 | 지도는 장소를 물을 때만 · 가까운 곳 | `mapTarget`, 도구 `nearest_places` | 위치가 답의 핵심일 때만 지도. 출발 건물·제휴처에서 직선거리순 최대 6곳 |
+| 11-09 | 여기서 가는 길 · 지금 시각 | `mapMode`('show'·'route'), `[오늘]` | 가는 길이면 route 버튼(출발은 앱이 휴대폰 안에서 — 서버는 위치를 받지 않음) |
+| 11-09 | 건물 무리·교수진 표 전부 | `searchBuildings`, `MAX_TABLE_ROWS` 40 | '공학관'은 무리 전부, 교수진은 원문 전부 표로 |
+| 11-10 | 손해 오류 막기 | `AskSituation.mentionsTime`, 그래프 | 시점을 묻지 않으면 오늘 날짜를 주지 않는다('신청 기간이 지났다' 단정 막기). 운영 `ASK_GRAPH_ENABLED=true` |
+| 11-10 · 11-12 · 11-14 | 과목 DB·줄임말·이수구분 | `AskCourses`, 도구 `search_courses` | 교과과정책자 3,047행·69학과, 이수구분 복원, `count_by_dept`(학과별 과목 수·학점), 학과 쪽 전자책 링크 |
+| 11-12 · 11-14 | 중앙동아리·가동아리 | `AskClubs`, 도구 `search_clubs` | 총학생회 66개 + 가동아리, 동방·모집·링크. 개인 이름·연락처 없음 |
+| 11-14 | 학교 전체 제도 · 학과 공지 미리 읽기 | `ANSWER_SYSTEM`, `AskRouteService.departmentNotices` | 예비군·휴학 등은 학과 이름이 붙어도 학교 안내로. 제목이 맞는 학과 공지는 원문까지 넘긴다 |
+| 11-14 · 11-15 · 11-17 | 데이터 보강 | FE `topics/*`, 색인 | 창업장학금, 자매대학 158곳, 졸업유예 재수강, 복수전공·부전공(그래프 점 2·선 7), 홍익온 소개(about-team) |
+| 11-15 | 건물 사이 걷는 길 | 도구 `walk_route`, `Action.from` | 지도 탭 경로망으로 시간·거리·길 흐름, 길찾기 버튼에 출발 건물 |
+| 11-17 | 학년 차례 표 색 | `AskRouteResponse.Table.colors` | 수강신청 제한인원 표 6열·열 색 |
+| 11-20 | 뉴스 탭 새 공지 반영 | `AskLiveData`(최근 가산점), `AskRouteService.recentNotices` | 공지 순위에 최근 가산점(60일 +2, 1년 넘음 -1). 시간 질문은 60일 안 공지 2개를 함께. 원문과 공지가 다르면 최근 공지 |
+| 11-20 | 중앙도서관 공지 | `CrawlerBoards`(library), `AskBoards` | 일반 공지 '도서관' 글을 수집, 도서관 질문은 그 게시판부터 |
+| 11-21 | 운영 기록 2주 빈칸 | `AskClubs.linkRefsFor`, `AskLlmClient.clip`, `search_buildings` '전체', `PROMPT_HEAD`, `AskGlossary` | 동아리 링크는 서버가 붙임, 긴 원문은 질문 낱말 줄을 살려 줄임(자매대학 뒤쪽 잘림), 건물 전체 목록, 교수·앱 소개는 school, 건물 발음(쥐동=G동) |
+
 ## 4. 틀릴 수 있는 지점과 알아채는 법
 
 | 지점 | 어떻게 틀리나 | 알아채는 법 |
@@ -266,8 +314,15 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | ①-1 RAG | `sources.json` 을 바꾸고 색인을 다시 안 만들면 새 안내를 못 찾음 | `rag-chunks.json` 과 `sources.json` 의 노드 수 비교, `build_index.py` 다시 |
 | 학과 게시판 | 줄임말·별칭이 `AskBoards` 목록에 없으면 전체 공지만 찾음 | 기록 steps '게시판', 학과 공지 정답표(`cases-dept`) |
 | ③ 답 쓰기(추론) | 결론은 맞지만 다른 안내에 있는 결과·조건을 빠뜨림(예: 성적대체 등록금) | 추론형 평가 원인 1(`ask-reasoning-eval.md`) |
+| 카탈로그·그래프 버전 | 카탈로그를 다시 내보내고 `rule-graph.json` 의 catalogVersion 을 안 맞춤 | `tools/rule-graph/validate.py` |
+| 긴 원문 | 질문 낱말이 원문 어느 줄에도 없으면 앞에서부터 잘려 뒤쪽 정보를 '없다'고 답할 수 있음 | 기록 '확인되지 않아요' 답의 근거 원문 길이, `AskSourceClipTest` |
+| 동아리 데이터 | 크롤러가 `clubs.json` 을 덮어쓴다 — 손으로 더할 가동아리는 `clubs-extra.json` 에 | `AskClubsTest` |
+| 공개 한도 | 서버 메모리에서 세어 재시작하면 그날 센 값이 0 | 배포 시각과 한도 초과 문의 대조 |
+| 최근 공지 | 시간 낱말(`TIME_WORDS`)이 없는 질문엔 최근 공지를 따로 넘기지 않음 | 기록에서 옛 날짜로 답한 질문, `AskRecentNoticesTest` |
 
 ## 5. 평가 결과
+
+> 아래 표는 **10월 평가**(10-24 변경 전후)다. 그 뒤로 도구·데이터가 늘었고, 최신 추론형 평가는 `ask-reasoning-eval.md` 9~10절(11-10: Haiku + 그래프 켬, 정답 27.7/44·손해 오류 0.3·응답 중앙값 9.7초)에 있다.
 
 맥미니 로컬 서버, 공지 2,366건 기준. 같은 seed 로 뽑은 정답표 298문항과 범위 정답표를 돌렸다. 결과 파일은 FE `scripts/ask/cache/eval/<시각>/`(git 제외)에 있다.
 
@@ -301,6 +356,10 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | 답 모양·지시 | BE `AskLlmClient.ANSWER_SYSTEM`, `sections()` 상한 | `eval-server.mjs`(기준·범위 정답표 포함) |
 | 범위 규칙 | BE `AskCatalog.PROMPT_HEAD`, `AskScope` | `eval-server.mjs --scope-only` |
 | 모델 바꾸기 | 설정 `ask.llm.model` | `eval-server.mjs`, `reason-eval/` |
+| 과목 데이터 | FE `scripts/ask/courses/extract.py` → BE `ask/courses.json`·`aliases.json` | `AskCoursesTest` |
+| 동아리 데이터 | FE `scripts/ask/clubs/crawl.py` → `ask/clubs.json`(가동아리는 `clubs-extra.json`) | `AskClubsTest` |
+| 규정 그래프 선 | `ask/rule-graph.json`(사람이 확인한 선만 `reviewed`) | `tools/rule-graph/validate.py` |
+| 운영진 확인 안내 | 관리자 화면(`/admin/ask/notes`, 운영 DB) — 코드 변경 없음 | 관리 화면에서 고른 뒤 질문해 보기 |
 
 ## 7. 키·설정
 
@@ -319,6 +378,10 @@ FE AskChat.tsx (TypeScript) ── 요약 → 목록·표(sections) → 위치 �
 | `ASK_LLM_CACHE_TTL` | 앞부분(고르기 카탈로그·답 쓰기 지시) 캐시 유지 시간 `1h`(기본) 또는 `5m` | 기본값 |
 | `ASK_LLM_WARM_ENABLED` · `ASK_LLM_WARM_HOURS` · `ASK_LLM_WARM_IDLE_MINUTES` | 캐시 데우기(기본 켬, 하루 종일, 50분 쉬면 — 시간대를 줄이려면 한국 시간 `7-24` 처럼). `1h` 캐시일 때만 | 기본값 |
 | `ASK_LLM_TIMEOUT_SECONDS` · `ASK_RATE_LIMIT_*` · `ASK_LOG_*` | 제한 시간, IP별 횟수 제한, 기록 보관 | 기본값 |
+| `ASK_LLM_ANSWER_MAX_TOKENS` · `ASK_LLM_ANSWER_EXTRA_FILE` | 답 쓰기 출력 한도(기본 6000), 평가용 추가 지시 파일(못 읽으면 기동 실패) | 기본값·없음 |
+| `ASK_RAG_NEIGHBORS` · `ASK_EMBED_TIMEOUT_MS` | 이웃 안내 수(기본 2), 임베딩 서버 제한 시간(기본 5000ms) | 기본값 |
+| `ASK_GRAPH_MAX_EDGES` · `ASK_GRAPH_MAX_GUIDES` | 그래프 선 수(기본 4)·안내 수(기본 1) | 기본값 |
+| `ASK_PUBLIC_ENABLED` · `ASK_PUBLIC_USER_DAILY_LIMIT` · `ASK_PUBLIC_DAILY_LIMIT` · `ASK_PUBLIC_BURST_*` · `ASK_PUBLIC_ADMIN_PREVIEW` | 앱 탭 공개(기본 끔), 계정별 하루 100·전체 하루 150, 10분 20번, 운영진 미리 보기(기본 켬) | 앱 탭은 운영진만 |
 
 - **로컬:** 셸에서 `export ANTHROPIC_API_KEY=…` 하고 local 프로필로 띄운다. `application-local.properties`(git 제외)는 이 환경변수를 읽기만 한다. jar 로 띄울 때는 `--spring.config.additional-location=file:…/application-local.properties` 를 함께 준다.
 - **운영(EC2):** `/home/ubuntu/hongikon-be/.env` 에 적는다. 컨테이너가 `--env-file` 로 읽으므로 `.env` 를 바꾸면 컨테이너를 **다시 만들어야** 한다(`docker restart` 로는 다시 읽지 않는다). 방법은 [`deploy-runbook-2026-10.md`](deploy-runbook-2026-10.md).

@@ -8,6 +8,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -466,7 +467,14 @@ final class AskClubs {
             } else {
                 out.append("- 출처: ").append(EXTRA_TITLE).append("(총학생회 중앙동아리 목록 밖의 가동아리)\n");
             }
-            out.append("- 문의: 모집·활동·회비 같은 자세한 내용은 동아리에 직접 문의(위 인스타그램·카카오톡 채널)\n");
+            if (club.links().isEmpty()) {
+                out.append("- 문의: 안내에 연락 링크가 없다 — 모집·활동은 동방에 찾아가거나 총학생회에 문의\n");
+            } else {
+                // 실제로 있는 채널만 말한다(카카오톡이 없는데 '카카오톡 채널'로 문의하라던 것, 11-21). 링크 버튼은 서버가 붙인다.
+                out.append("- 문의: 모집·활동·회비 같은 자세한 내용은 동아리에 직접 문의(")
+                        .append(String.join("·", club.links().stream().map(link -> linkLabel(link.type())).distinct().toList()))
+                        .append(" — 답 아래 버튼으로 붙는다)\n");
+            }
         }
         return out.toString();
     }
@@ -474,6 +482,36 @@ final class AskClubs {
     /** 동아리 링크 하나의 참조 — 'club:9:link0'. 답 글에는 주소를 쓰지 않고(답 규칙 6) 이 참조로 앱이 링크 버튼을 붙인다. */
     static String linkRef(Club club, int index) {
         return club.ref() + ":link" + index;
+    }
+
+    /** 연락 링크 버튼을 붙일 동아리 수 상한 — 넘으면 목록 답이라 버튼을 붙이지 않는다. */
+    static final int MAX_LINKED_CLUBS = 2;
+
+    /**
+     * 답에 연락 링크 버튼을 붙일 동아리 링크 참조(11-21 운영진 — 동아리 연락처가 안 보인다). 지금은 모델이 링크 참조를 sourceIds 에 짚어야만
+     * 버튼이 붙어 대부분 빠졌다. 이번 요청에서 자세히 찾은 동아리(available 의 club:id) 가운데 답 글이 이름을 말했거나 근거로 짚은 것의 링크를 모두 붙인다.
+     */
+    static List<String> linkRefsFor(String answer, Collection<String> cited, Collection<String> available, Data d) {
+        String all = squash(answer);
+        List<Club> mentioned = new ArrayList<>();
+        for (Club club : d.clubs()) {
+            if (club.links().isEmpty() || !available.contains(club.ref())) {
+                continue;
+            }
+            if (cited.contains(club.ref()) || names(club).stream().anyMatch(all::contains)) {
+                mentioned.add(club);
+            }
+        }
+        if (mentioned.size() > MAX_LINKED_CLUBS) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (Club club : mentioned) {
+            for (int i = 0; i < club.links().size(); i++) {
+                out.add(linkRef(club, i));
+            }
+        }
+        return out;
     }
 
     /** 링크 버튼 제목 — 'HIUC(합창반) 인스타그램'. */

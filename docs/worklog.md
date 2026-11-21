@@ -2152,3 +2152,29 @@
   - 예전 계산과 비교하는 `WalkRouterParityTest`·`WalkRouterApproachParityTest` 는 S동이 낀 경우만 건너뛴다(일부러 달라짐 — 60건·6건, 모두 S동). 다른 건물은 하나도 달라지지 않았다.
   - 전체 테스트 통과.
 - 참고: 저장소 경로망(`survey-graph-v3.json`, 11-09)과 `/map/data` 의 S동 출입구 라벨이 서로 1층·3층이 바뀐 좌표로 보인다(경로망 n125 37.5504879,126.9251832 = 1층 / map data 의 같은 좌표 = 3층). 운영 ACTIVE 경로망과 현장 확인 필요.
+
+## 2026-11-21 — 물어보기: 운영 기록 2주(11-07~11-20) 빈칸 고치기 — 동아리 연락 버튼·긴 원문·건물 목록·분류 범위
+
+- 근거: 운영 `ask_conversation_logs` 2주 278건(조회 전용 계정, 기록은 저장소 밖). 못 답한 묶음: 건물 자체 정보·동아리 연락처·교수·줄임말·앱 소개·팁·긴 원문 잘림.
+- 동아리 연락처가 안 보임(사용자): 링크 버튼은 모델이 `club:id:linkN` 을 sourceIds 에 짚어야만 붙어 대부분 빠졌다. `AskClubs.linkRefsFor` — 이번에 자세히 찾은 동아리 중 답이 이름을 말했거나 근거로 짚은 것(2곳까지)의 링크를 서버가 모두 붙인다(`AskLlmClient.toAnswer`). 문의 줄은 실제로 있는 채널만 말한다(인스타그램뿐인데 '카카오톡 채널'로 문의하라던 것).
+- 긴 원문 잘림: `SOURCE_MAX_CHARS` 8,000자에서 그냥 잘라 자매대학 목록(18,000자) 뒤쪽 NTU 를 '목록에 없다'고 답했다. `AskLlmClient.clip` — 앞머리 3,000자 + 이번 질문·직전 학생 질문 낱말이 든 줄(드문 낱말 먼저, 원문 순서, 건너뛴 곳 '…'). 맞는 줄이 없으면 예전처럼 앞에서부터. 안내 원문·RAG 쪽 모두.
+- 건물 목록: `search_buildings` 를 '전체'(또는 '몇 개'·'각 건물' 같은 말만)로 부르면 모든 건물 한 줄씩(이름·종류·층수, 참조 없음) — '동 개수', '각 건물 몇 층까지'.
+- 분류 범위(`AskCatalog` PROMPT_HEAD): 홍익온이 뭐야·꿀팁·자주 묻는 질문, 교수님이 누구인지·연구 분야·영문 이름·학과장·처장, 건물 수·층별 시설은 school(연락처·평판·사생활만 abuse). 용어(`AskGlossary`): 쥐동·티동 같은 알파벳 건물 한글 발음, 중동·가동·동방·과사·졸프·컴밤·과잠. 분류 프롬프트 캐시가 한 번 새로 쓰인다.
+- 확인: `AskClubsTest` +1(+문의 줄), `AskNearestPlacesTest` +1, `AskSourceClipTest`(새, 4). 전체 914개 통과. 로컬 서버(임시 키)로 8문항 실제 답: 원플·홍복실 답에 인스타그램·카카오톡 버튼, NTU '목록에 있음(2022 협약)', 건물 27곳 표, 쥐동=G동, 홍익온·신입생 꿀팁 답함, 학과장은 '교수진 원문에 없음'(거절 아님).
+- 그대로 둔 것: 인사 답이 기록에 NOT_FOUND 로 남는 것 — 최근 버전에서 1건, outcome 값을 늘리면 DB 열·관리 화면도 바뀌어 미룸.
+## 2026-11-21 — 길찾기: 문헌관 MH동 지하 1층 출입구(n96)는 쓰지 않고 1층 출입구(n92)로만
+
+- 요청(사용자): 문헌관 지하 1층 출입구(경로망 n96, `HI_MH_B1F_ENTER`)는 지금 사용하지 않는 중이라 빼고, 문헌관은 1층 출입구(n92, `HI_MH_1F_ENTER`)로만 드나들게.
+- 고침: `WalkRouter.CLOSED_ENTRANCES`(출입구 라벨, 지금은 `HI_MH_B1F_ENTER` 하나). 시설 전용 출입구(`FACILITY_ONLY_ENTRANCES`)와 같은 자리에서 걸러, 경로망 정점·간선은 남기되 건물 출입구 목록(`entrancesByBuilding`)·층 정점에 넣지 않는다. 운영 ACTIVE 경로망(DB 버전)에도 같이 적용된다(라벨 기준). 다시 열리면 목록에서 뺀다.
+  - 예전 앱 계산 비교 모드(`walkToCenter=true`)는 다른 예외 목록처럼 비워 둔다 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
+- 테스트: `WalkRouterMarkersTest` +1 — 모든 건물 ↔ 문헌관(층 지정 없음·1층·지하 1층) 경로의 표시에 지하 1층 출입구 좌표가 없고 1층 출입구 좌표가 있다. 고치기 전 코드에서는 실패하는 것을 확인. walkroute 테스트 41개 통과.
+
+## 2026-11-21 — 문서: ask-architecture.md 를 지금 코드에 맞춤
+
+- 문제(사용자): `ask-architecture.md` 가 11-12 뒤로 멈춰 있어(그 뒤 물어보기 커밋 26개) 발표 질문 대비 자료로 쓸 수 없었다. 도구 수(8 → 12), 카탈로그(773 → 790), RAG 색인(2,592 → 3,498문단)이 옛 숫자였고, 11-06 이후 기능이 빠져 있었다.
+- 고친 것(`origin/dev` 39b98c0 기준, 코드에서 직접 확인):
+  - 머리: 마지막 갱신 날짜, RAG·그래프는 코드 기본값 꺼짐이고 운영은 EC2 `.env`(작업 일지 기준 둘 다 켬) — 발표 전 `.env` 확인 필요.
+  - 1절 흐름도: 개인정보 가리기(`AskPrivacy`), 덧붙일 줄(줄임말·동아리·용어·운영진 확인 안내), 미리 읽기(학과 공지 원문·최근 공지 60일·학식·그래프·[오늘]), 도구 12개(`nearest_places`·`walk_route`·`search_courses`·`search_clubs` 추가, `count_by_dept` 는 `search_courses` 의 집계 방식), 긴 원문 줄이기, `mapTarget`·`mapMode`·`actions`(지도·길), 동아리 링크 버튼.
+  - 2절 파일표: `AskPrivacy`·`AskPublicQuota`·`AskOperatorNotes`·`AskPopularGuides`·`AskCourses`·`AskClubs`·walk_route·`AskSituation`/`AskQuestionIntent`/`AskGlossary`·`AskRuleGraph`·`AskTiming`.
+  - 새 3-9절: 11-06 ~ 11-21 변경 표. 4절 틀릴 수 있는 지점 5줄, 5절에 '10월 평가'임과 최신 추론형 평가 위치, 6절 과목·동아리·그래프·운영진 안내, 7절 설정 항목(답 출력 한도·이웃·그래프 상한·공개 한도).
+- 코드 변경 없음.

@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * 물어보기 LLM 호출 두 가지.
@@ -385,7 +386,8 @@ public class AskLlmClient {
                                 + "예: 'K동 공동학습실', '프레젠테이션룸 예약', '멀티미디어실', 'T동 라운지'.",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
                 tool("search_buildings", "학교 지도의 건물 정보(이름·별칭·종류·층수·운영시간·소개)와 그 건물의 층별 시설·지금 하는 전시를 낱말로 찾는다. 맞는 건물 최대 3개(참조 building:code, 시설은 facility:id). "
-                                + "건물 전체를 묻는 질문에 쓴다. 예: '홍문관', 'R동 몇 층', '조형관 운영시간', '학생회관 시설'.",
+                                + "건물 전체를 묻는 질문에 쓴다. 예: '홍문관', 'R동 몇 층', '조형관 운영시간', '학생회관 시설', '홍문관 지하1층'. "
+                                + "학교 건물 수·모든 건물 목록·건물마다 층수를 물으면 query 를 '전체'로 부른다(모든 건물 이름·종류·층수).",
                         Map.of("query", Map.of("type", "string")), List.of("query")),
                 tool("search_partners", "학교 제휴업체(식당·카페·주점 등)의 혜택·대상 소속·주소·시간을 낱말로 찾는다. 끝난 제휴는 빠진다. 최대 8개(참조 partner:id). "
                                 + "예: '치킨 제휴', '기숙사 제휴 카페', '총학생회 할인'.",
@@ -628,7 +630,7 @@ public class AskLlmClient {
         Map<String, AskLiveData.Reference> references = new LinkedHashMap<>();
         StringBuilder first = new StringBuilder("[안내 원문]\n");
         for (String id : initialIds) {
-            appendSource(first, id, read);
+            appendSource(first, id, read, contextMessage);
         }
         if (!menus.isEmpty()) {
             first.append(CAFETERIA_BLOCK);
@@ -655,7 +657,7 @@ public class AskLlmClient {
             if (page == null) {
                 continue;
             }
-            String text = page.text().length() > SOURCE_MAX_CHARS ? page.text().substring(0, SOURCE_MAX_CHARS) + "\n(이하 생략)" : page.text();
+            String text = clip(page.text(), contextMessage);
             first.append("### ").append(id).append(" (").append(page.title()).append(")\n").append(text).append("\n\n");
             if (id.startsWith(AskRetriever.TIP_PREFIX) || id.startsWith(AskOperatorNotes.PREFIX)) {
                 continue; // 재학생 팁은 학교 페이지가 아니라 링크·출처 버튼을 붙이지 않는다.
@@ -681,7 +683,7 @@ public class AskLlmClient {
         // 단계별 시간(기록 steps '시간:' 줄) — 실패해도 그때까지 잰 값을 알린다.
         AnswerClock clock = new AnswerClock();
         try {
-            return writeAnswer(params, read, references, ground, progress, clock);
+            return writeAnswer(params, read, references, ground, progress, clock, contextMessage);
         } finally {
             clock.report(progress);
         }
@@ -689,7 +691,7 @@ public class AskLlmClient {
 
     /** 답 쓰기 차례들 — 도구를 부르면 결과를 붙여 다시 부르고, 답이 나오면 돌려준다. */
     private Answer writeAnswer(MessageCreateParams.Builder params, Set<String> read, Map<String, AskLiveData.Reference> references,
-                               StringBuilder ground, AskProgress progress, AnswerClock clock) {
+                               StringBuilder ground, AskProgress progress, AnswerClock clock, String focus) {
         boolean writing = false;
         for (int round = 0; ; round++) {
             AnswerTextExtractor extractor = new AnswerTextExtractor();
@@ -737,7 +739,7 @@ public class AskLlmClient {
             List<ContentBlockParam> results = new ArrayList<>();
             for (ContentBlock block : message.content()) {
                 block.toolUse().ifPresent(use -> {
-                    String result = runTool(use, read, references, progress);
+                    String result = runTool(use, read, references, progress, focus);
                     ground.append('\n').append(result);
                     results.add(ContentBlockParam.ofToolResult(ToolResultBlockParam.builder()
                             .toolUseId(use.id())
@@ -789,7 +791,8 @@ public class AskLlmClient {
                 : board + " 게시판";
     }
 
-    private String runTool(ToolUseBlock use, Set<String> read, Map<String, AskLiveData.Reference> references, AskProgress progress) {
+    private String runTool(ToolUseBlock use, Set<String> read, Map<String, AskLiveData.Reference> references, AskProgress progress,
+                           String focus) {
         Map<?, ?> input = use._input().convert(Map.class);
         if ("search_notices".equals(use.name()) && input != null && input.get("query") instanceof String query) {
             progress.searchingNotices(query);
@@ -828,7 +831,8 @@ public class AskLlmClient {
             boolean buildings = "search_buildings".equals(use.name());
             List<AskLiveData.Reference> hits = buildings ? liveData.searchBuildings(query, out) : liveData.searchPartners(query, out);
             hits.forEach(hit -> references.put(hit.ref(), hit));
-            return hits.isEmpty() ? (buildings ? "찾은 건물이 없어요." : "찾은 제휴업체가 없어요.") : out.toString();
+            // 건물 전체 목록('전체', '몇 개')은 참조 없이 글만 온다.
+            return hits.isEmpty() && out.isEmpty() ? (buildings ? "찾은 건물이 없어요." : "찾은 제휴업체가 없어요.") : out.toString();
         }
         if ("nearest_places".equals(use.name()) && input != null && input.get("from") instanceof String from
                 && input.get("query") instanceof String query) {
@@ -930,7 +934,7 @@ public class AskLlmClient {
                     .filter(catalog::contains).limit(3).toList());
             StringBuilder out = new StringBuilder();
             for (Object id : ids.subList(0, Math.min(3, ids.size()))) {
-                if (id instanceof String text && !appendSource(out, text, read)) {
+                if (id instanceof String text && !appendSource(out, text, read, focus)) {
                     out.append("### ").append(text).append("\n(읽을 수 없는 id 이거나 읽을 수 있는 수를 넘었어요)\n");
                 }
             }
@@ -940,15 +944,119 @@ public class AskLlmClient {
     }
 
     /** 원문 하나를 붙인다. 없는 id·되묻기 단계·읽기 한도 초과면 false. */
-    private boolean appendSource(StringBuilder out, String id, Set<String> read) {
+    private boolean appendSource(StringBuilder out, String id, Set<String> read, String focus) {
         String source = catalog.source(id);
         if (source == null || catalog.isQuestion(id) || (!read.contains(id) && read.size() >= MAX_READS)) {
             return false;
         }
         read.add(id);
-        String clipped = source.length() > SOURCE_MAX_CHARS ? source.substring(0, SOURCE_MAX_CHARS) + "\n(이하 생략)" : source;
-        out.append("### ").append(id).append('\n').append(clipped).append("\n\n");
+        out.append("### ").append(id).append('\n').append(clip(source, focus)).append("\n\n");
         return true;
+    }
+
+    /** 긴 원문의 앞머리 — 제도 설명·표 머리가 보통 앞에 있다. 나머지 자리는 질문 낱말이 든 줄로 채운다. */
+    static final int SOURCE_HEAD_CHARS = 3_000;
+    private static final Pattern FOCUS_SPLIT = Pattern.compile("[^\\p{L}\\p{N}]+");
+    private static final Set<String> FOCUS_STOP = Set.of("우리학교", "우리", "학교", "홍익대", "홍익대학교", "홍대", "알려줘", "알려", "어떻게", "있어", "가능");
+
+    /**
+     * 원문이 SOURCE_MAX_CHARS 를 넘으면 앞머리(SOURCE_HEAD_CHARS)와 질문 낱말이 든 줄만 남긴다(원문 순서 그대로, 건너뛴 곳은 '…').
+     * 11-14 기록: 자매대학 목록(18,000자)을 8,000자에서 잘라 뒤쪽 NTU 를 '목록에 없다'고 답했다. 드문 낱말이 든 줄이 먼저 남는다.
+     * focus: 답 쓰기에 넘긴 대화 — '[이번 질문]' 줄과 직전 학생 질문만 낱말로 쓴다.
+     */
+    static String clip(String source, String focus) {
+        if (source.length() <= SOURCE_MAX_CHARS) {
+            return source;
+        }
+        String[] lines = source.split("\n");
+        int head = 0;
+        int used = 0;
+        while (head < lines.length && used + lines[head].length() + 1 <= SOURCE_HEAD_CHARS) {
+            used += lines[head++].length() + 1;
+        }
+        List<String> words = focusWords(focus);
+        double[] score = new double[lines.length];
+        for (String word : words) {
+            int count = 0;
+            for (int i = head; i < lines.length; i++) {
+                if (lines[i].toLowerCase().contains(word)) {
+                    count++;
+                }
+            }
+            for (int i = head; count > 0 && i < lines.length; i++) {
+                if (lines[i].toLowerCase().contains(word)) {
+                    score[i] += 1.0 / count;
+                }
+            }
+        }
+        List<Integer> order = new ArrayList<>();
+        for (int i = head; i < lines.length; i++) {
+            if (score[i] > 0) {
+                order.add(i);
+            }
+        }
+        order.sort((a, b) -> Double.compare(score[b], score[a]));
+        boolean[] keep = new boolean[lines.length];
+        for (int i = 0; i < head; i++) {
+            keep[i] = true;
+        }
+        for (int i : order) {
+            if (used + lines[i].length() + 2 > SOURCE_MAX_CHARS) {
+                continue;
+            }
+            keep[i] = true;
+            used += lines[i].length() + 2;
+        }
+        // 맞는 줄이 없으면 앞에서부터 이어 채운다(예전처럼).
+        for (int i = head; order.isEmpty() && i < lines.length && used + lines[i].length() + 1 <= SOURCE_MAX_CHARS; i++) {
+            keep[i] = true;
+            used += lines[i].length() + 1;
+        }
+        StringBuilder out = new StringBuilder();
+        boolean skipped = false;
+        for (int i = 0; i < lines.length; i++) {
+            if (keep[i]) {
+                if (skipped) {
+                    out.append("…\n");
+                }
+                out.append(lines[i]).append('\n');
+                skipped = false;
+            } else {
+                skipped = true;
+            }
+        }
+        return out.append(order.isEmpty() ? "(이하 생략)" : "(긴 원문이라 앞부분과 질문 낱말이 든 줄만 남겼다 — 나머지는 생략)").toString();
+    }
+
+    /** 질문 낱말 — 조사가 붙은 한글 낱말은 끝 한두 글자를 뗀 것도('자매대학인가' → '자매대학인'·'자매대학'). */
+    static List<String> focusWords(String focus) {
+        if (focus == null) {
+            return List.of();
+        }
+        StringBuilder asked = new StringBuilder();
+        String[] lines = focus.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith("학생: ")) {
+                asked.append(lines[i].substring(4)).append(' ');
+            } else if (lines[i].equals("[이번 질문]") && i + 1 < lines.length) {
+                asked.append(lines[i + 1]).append(' ');
+            }
+        }
+        Set<String> words = new LinkedHashSet<>();
+        for (String token : FOCUS_SPLIT.split((asked.isEmpty() ? focus : asked.toString()).toLowerCase())) {
+            if (token.length() < 2 || FOCUS_STOP.contains(token)) {
+                continue;
+            }
+            words.add(token);
+            boolean hangul = token.chars().allMatch(c -> c >= 0xAC00 && c <= 0xD7A3);
+            if (hangul && token.length() >= 3) {
+                words.add(token.substring(0, token.length() - 1));
+            }
+            if (hangul && token.length() >= 4) {
+                words.add(token.substring(0, token.length() - 2));
+            }
+        }
+        return List.copyOf(words);
     }
 
     private Answer toAnswer(Message message, Set<String> read, Map<String, AskLiveData.Reference> references, String ground) {
@@ -985,16 +1093,25 @@ public class AskLlmClient {
         boolean found = json.path("found").asBoolean(false);
         List<String> sourceIds = new ArrayList<>();
         List<AskLiveData.Reference> usedReferences = new ArrayList<>();
+        List<String> cited = new ArrayList<>();
         for (JsonNode id : json.path("sourceIds")) {
             if (!id.isString()) {
                 continue;
             }
             String value = id.asString();
+            cited.add(value);
             if (read.contains(value) && !sourceIds.contains(value) && sourceIds.size() < MAX_SHOWN_SOURCES) {
                 sourceIds.add(value);
             } else if (references.containsKey(value) && !usedReferences.contains(references.get(value))
                     && usedReferences.size() < MAX_SHOWN_SOURCES) {
                 usedReferences.add(references.get(value));
+            }
+        }
+        // 동아리 연락 링크(인스타그램·카카오톡 …)는 모델이 짚지 않아도 붙인다 — 답이 이름을 말한 동아리 것만(11-21).
+        for (String ref : AskClubs.linkRefsFor(all.toString(), cited, references.keySet(), AskClubs.data())) {
+            AskLiveData.Reference link = references.get(ref);
+            if (link != null && !usedReferences.contains(link)) {
+                usedReferences.add(link);
             }
         }
         return new Answer(answer.asString().trim(), found, sourceIds, usedReferences, sections, null,
