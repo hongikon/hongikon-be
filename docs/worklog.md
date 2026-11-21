@@ -2162,3 +2162,9 @@
 - 분류 범위(`AskCatalog` PROMPT_HEAD): 홍익온이 뭐야·꿀팁·자주 묻는 질문, 교수님이 누구인지·연구 분야·영문 이름·학과장·처장, 건물 수·층별 시설은 school(연락처·평판·사생활만 abuse). 용어(`AskGlossary`): 쥐동·티동 같은 알파벳 건물 한글 발음, 중동·가동·동방·과사·졸프·컴밤·과잠. 분류 프롬프트 캐시가 한 번 새로 쓰인다.
 - 확인: `AskClubsTest` +1(+문의 줄), `AskNearestPlacesTest` +1, `AskSourceClipTest`(새, 4). 전체 914개 통과. 로컬 서버(임시 키)로 8문항 실제 답: 원플·홍복실 답에 인스타그램·카카오톡 버튼, NTU '목록에 있음(2022 협약)', 건물 27곳 표, 쥐동=G동, 홍익온·신입생 꿀팁 답함, 학과장은 '교수진 원문에 없음'(거절 아님).
 - 그대로 둔 것: 인사 답이 기록에 NOT_FOUND 로 남는 것 — 최근 버전에서 1건, outcome 값을 늘리면 DB 열·관리 화면도 바뀌어 미룸.
+## 2026-11-21 — 길찾기: 문헌관 MH동 지하 1층 출입구(n96)는 쓰지 않고 1층 출입구(n92)로만
+
+- 요청(사용자): 문헌관 지하 1층 출입구(경로망 n96, `HI_MH_B1F_ENTER`)는 지금 사용하지 않는 중이라 빼고, 문헌관은 1층 출입구(n92, `HI_MH_1F_ENTER`)로만 드나들게.
+- 고침: `WalkRouter.CLOSED_ENTRANCES`(출입구 라벨, 지금은 `HI_MH_B1F_ENTER` 하나). 시설 전용 출입구(`FACILITY_ONLY_ENTRANCES`)와 같은 자리에서 걸러, 경로망 정점·간선은 남기되 건물 출입구 목록(`entrancesByBuilding`)·층 정점에 넣지 않는다. 운영 ACTIVE 경로망(DB 버전)에도 같이 적용된다(라벨 기준). 다시 열리면 목록에서 뺀다.
+  - 예전 앱 계산 비교 모드(`walkToCenter=true`)는 다른 예외 목록처럼 비워 둔다 — `WalkRouterParityTest`·`WalkRouterApproachParityTest` 그대로 통과.
+- 테스트: `WalkRouterMarkersTest` +1 — 모든 건물 ↔ 문헌관(층 지정 없음·1층·지하 1층) 경로의 표시에 지하 1층 출입구 좌표가 없고 1층 출입구 좌표가 있다. 고치기 전 코드에서는 실패하는 것을 확인. walkroute 테스트 41개 통과.
